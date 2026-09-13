@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import gi
-from ..i18n import _
+from ..i18n import _, ngettext
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -46,7 +46,7 @@ def ask_rename_photo(parent, library, catalog, photo_id, on_renamed) -> None:
     dialog.set_default_response("rename")
     dialog.set_close_response("cancel")
 
-    def check(*_):
+    def check(*_args):
         text = entry.get_text()
         message = ""
         try:
@@ -71,7 +71,7 @@ def ask_rename_photo(parent, library, catalog, photo_id, on_renamed) -> None:
             new = rename_photo(library, catalog, photo_id, entry.get_text())
         except RenameError as exc:
             fail = Adw.AlertDialog(heading=_("Couldn’t Rename"), body=str(exc))
-            fail.add_response("ok", "OK")
+            fail.add_response("ok", _("OK"))
             fail.present(parent)
             return
         on_renamed(new)

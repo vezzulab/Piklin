@@ -229,6 +229,14 @@ class PhotoGrid(Gtk.Box):
 
     def _on_bind(self, _factory, list_item):
         section = list_item.get_item()
+        # A row that continues the day or folder above (a big day is split
+        # into rows of MAX_PER_SECTION so scrolling stays fast) joins it with
+        # no divider or gap: the split is for speed and should not show.
+        box = list_item.get_child()
+        if section.title:
+            box.remove_css_class("pika-section-continued")
+        else:
+            box.add_css_class("pika-section-continued")
         list_item._title.set_text(section.title or "")
         list_item._title.set_visible(bool(section.title))
         list_item._sub.set_text(section.subtitle or "")
@@ -585,9 +593,10 @@ class PhotoGrid(Gtk.Box):
         for i in range(0, len(old), MAX_PER_SECTION):
             chunk = old[i:i + MAX_PER_SECTION]
             self.sections.append(DaySection(
-                "Already Imported" if i == 0 else "",
-                (f"{len(old)} item" + ("s" if len(old) != 1 else "")
-                 + " already in your library") if i == 0 else "", chunk))
+                _("Already Imported") if i == 0 else "",
+                ngettext("{count} item already in your library",
+                         "{count} items already in your library",
+                         len(old)).format(count=len(old)) if i == 0 else "", chunk))
         self._items.extend(old)
 
     def append_records(self, records, start) -> None:
@@ -609,7 +618,7 @@ class PhotoGrid(Gtk.Box):
                 key = str(rel)
             except ValueError:
                 key = str(folder)
-            title = (self._device_name or "New Items") if key in ("", ".") else key
+            title = (self._device_name or _("New Items")) if key in ("", ".") else key
             tail = self._tail
             if (tail is not None and tail[0] == key
                     and len(tail[1].items) < MAX_PER_SECTION):
@@ -820,7 +829,10 @@ class PhotoGrid(Gtk.Box):
                     and len(tail[1].items) < MAX_PER_SECTION):
                 tail[1].items.append(item)
                 continue
-            section = DaySection(title, "", [item])
+            # A day that runs past MAX_PER_SECTION continues in a row of its
+            # own, without repeating the day's title.
+            continued = tail is not None and tail[0] == key
+            section = DaySection("" if continued else title, "", [item])
             self._tail = (key, section)
             new_sections.append(section)
 
@@ -831,7 +843,8 @@ class PhotoGrid(Gtk.Box):
         for i in range(self.sections.get_n_items()):
             sec = self.sections.get_item(i)
             n = len(sec.items)
-            sec.subtitle = ngettext("{count} photo", "{count} photos", n).format(count=n)
+            sec.subtitle = (ngettext("{count} photo", "{count} photos", n).format(count=n)
+                            if sec.title else "")
         # Re-emit so rows already on screen pick up the counts, which are
         # only final once the whole page has been grouped.
         n_items = self.sections.get_n_items()

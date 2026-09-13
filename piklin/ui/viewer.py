@@ -125,8 +125,8 @@ class ViewerView(Gtk.Box):
 
         # One click to turn a photo, as in any photo app - no trip to the editor.
         for icon, tip, turns in (
-                ("object-rotate-left-symbolic", "Rotate Left (Ctrl+Shift+R)", -1),
-                ("object-rotate-right-symbolic", "Rotate Right (Ctrl+R)", 1)):
+                ("object-rotate-left-symbolic", _("Rotate Left (Ctrl+Shift+R)"), -1),
+                ("object-rotate-right-symbolic", _("Rotate Right (Ctrl+R)"), 1)):
             rot = Gtk.Button(icon_name=icon, tooltip_text=tip)
             rot.connect("clicked", lambda _b, t=turns: self.emit("rotate", t))
             bar.append(rot)

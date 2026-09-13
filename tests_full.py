@@ -761,6 +761,24 @@ _pr = ar.backend().restore(alib)
 check("restore brings files back but never old versions",
       (alib/"Originals"/"a.jpg").exists() and not (alib/".piklin-versions").exists(), _pr)
 check("backup status reads naturally", ab.describe_last(time.time() - 300) == "5 minutes ago")
+# Travelling: the NAS at home can't be reached, the cloud copy still happens.
+_away = rem.Remote(id="away", name="QNAP", kind="local", config={"path": str(Path(TMP)/"auto"/"gone")})
+_cloud_dir = Path(TMP)/"auto"/"cloud"; _cloud_dir.mkdir()
+_cloud = rem.Remote(id="cloud", name="pCloud", kind="local", config={"path": str(_cloud_dir)})
+_ot = rem.LocalBackend.test
+rem.LocalBackend.test = lambda self: (rem.TestResult(False, "Can't reach the server", unreachable=True)
+                                      if self.remote.id == "away" else _ot(self))
+try:
+    o4 = ab.run_backup(alib, [_away, _cloud], keep_days=30)
+finally:
+    rem.LocalBackend.test = _ot
+check("a destination that can't be reached doesn't stop the others",
+      not o4.ok and o4.unreachable and (_cloud_dir/"Edits"/"a.jpg.json").exists()
+      and "QNAP" in o4.message, o4)
+(Path(TMP)/"auto"/"gone").mkdir()
+o5 = ab.run_backup(alib, [_away, _cloud], keep_days=30)
+check("back home, the NAS catches up and the cloud is not sent anything again",
+      o5.ok and (Path(TMP)/"auto"/"gone"/"Edits"/"a.jpg.json").exists(), o5)
 
 # Photos dropped from the desktop, and USB drives
 from piklin import devices as _dv
@@ -1200,6 +1218,40 @@ try:
           os.path.exists(rowN["path"]) and cN.album_photo_paths(aidOld) == [rowN["path"]]
           and rowN["favorite"] == 1, rowN["path"])
     check("conversion runs once", lm.migrate_legacy_library() is None)
+finally:
+    if _saved_cfg is None: os.environ.pop("XDG_CONFIG_HOME", None)
+    else: os.environ["XDG_CONFIG_HOME"] = _saved_cfg
+
+# -- languages --------------------------------------------------------------
+import datetime as _dt, io as _io, contextlib as _ctx, subprocess as _sp
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "po"))
+import es_catalog as _es
+_po_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "po")
+_out = _io.StringIO()
+with _ctx.redirect_stdout(_out):
+    _es.build(os.path.join(_po_dir, "piklin.pot"), os.path.join(TMP, "es.po"))
+check("every text has a Spanish translation with the same placeholders",
+      "0 missing, 0 placeholder mismatches" in _out.getvalue(), _out.getvalue()[:300])
+_mo = os.path.join(TMP, "es.mo")
+_sp.run(["msgfmt", "-o", _mo, os.path.join(_po_dir, "es.po")], check=True)
+check("shipped Spanish catalog is compiled from the current es.po",
+      open(_mo, "rb").read() == (_i18n.LOCALE_DIR / "es/LC_MESSAGES/piklin.mo").read_bytes())
+try:
+    check("Spanish loads", _i18n.setup("es") == "es")
+    check("Spanish text", _i18n._("All Photos") == "Todas las fotos"
+          and _i18n.ngettext("{count} photo", "{count} photos", 3).format(count=3) == "3 fotos"
+          and _i18n.ngettext("{count} photo", "{count} photos", 1).format(count=1) == "1 foto")
+    check("Spanish dates", _i18n.long_date(_dt.date(2026, 3, 2)) == "Lunes, 2 de marzo de 2026"
+          and _i18n.month_year(_dt.date(2026, 3, 2)) == "Marzo de 2026",
+          _i18n.long_date(_dt.date(2026, 3, 2)))
+finally:
+    _i18n.setup("en")
+check("English is back", _i18n._("All Photos") == "All Photos")
+_saved_cfg = os.environ.get("XDG_CONFIG_HOME"); os.environ["XDG_CONFIG_HOME"] = os.path.join(TMP, "langcfg")
+try:
+    _before = _i18n.chosen_language()
+    _i18n.choose_language("es")
+    check("language choice is remembered", _before == "" and _i18n.chosen_language() == "es")
 finally:
     if _saved_cfg is None: os.environ.pop("XDG_CONFIG_HOME", None)
     else: os.environ["XDG_CONFIG_HOME"] = _saved_cfg

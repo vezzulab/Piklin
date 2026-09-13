@@ -407,6 +407,13 @@ class MainWindow(Adw.ApplicationWindow):
         # Photos dragged in from the desktop or a file manager
         self._install_file_drop(self.content_stack)
         self.content_stack.add_named(self.summary, "summary")
+        # A folder in the sidebar shows the albums and folders inside it.
+        from .folder_view import FolderView
+        self.folder_view = FolderView(self.catalog, self.thumbs)
+        self.folder_view.connect("open-album", lambda _v, i: self._open_album(i))
+        self.folder_view.connect("open-smart", lambda _v, i: self._open_smart(i))
+        self.folder_view.connect("open-folder", lambda _v, i: self._open_folder(i))
+        self.content_stack.add_named(self.folder_view, "folder")
         toolbar.set_content(self.content_stack)
         toolbar.add_bottom_bar(self.action_bar)
         return toolbar
@@ -438,7 +445,7 @@ class MainWindow(Adw.ApplicationWindow):
             total = 0
         if total:
             self.footer_space.set_text(
-                f"{self._human_bytes(used)} of {self._human_bytes(total)}")
+                _("{used} of {total}").format(used=self._human_bytes(used), total=self._human_bytes(total)))
             self.footer_meter.set_value(min(1.0, used / total))
             self.footer_meter.set_visible(True)
         else:
@@ -467,7 +474,7 @@ class MainWindow(Adw.ApplicationWindow):
             # "current folder" scope to browse, so it never shows a
             # persistent selection highlight; clicking it only expands
             # or collapses via row-activated.
-            row = Gtk.ListBoxRow(selectable=folder_id is None)
+            row = Gtk.ListBoxRow()
             box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8,
                           margin_start=8 + indent, margin_end=8,
                           margin_top=3, margin_bottom=3)
@@ -481,6 +488,13 @@ class MainWindow(Adw.ApplicationWindow):
                               else "pan-down-symbolic"),
                     pixel_size=12)
                 box.append(arrow)
+                fold = Gtk.GestureClick()
+
+                def on_fold(gesture, *_a, f=folder_id):
+                    gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+                    self._toggle_folder(f)
+                fold.connect("pressed", on_fold)
+                arrow.add_controller(fold)
             elif indent:
                 # Album rows nested under a folder line up with the
                 # label text of their folder's siblings, not its arrow.
@@ -803,7 +817,7 @@ class MainWindow(Adw.ApplicationWindow):
                     else:
                         self.grid.append_records(batch, start)
                     self.scan_label.set_text(
-                        f"Reading {device.name}… {len(self._device_records):,} found")
+                        _("Reading {device}… {count} found").format(device=device.name, count=f"{len(self._device_records):,}"))
                     self._on_selection_changed(self.grid)
                     return False
                 GLib.idle_add(apply)
@@ -839,8 +853,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.copy_label.add_css_class("pika-copy-label")
         self.copy_percent = Gtk.Label(xalign=1.0)
         self.copy_percent.add_css_class("pika-copy-percent")
-        stop = Gtk.Button(label="Stop", valign=Gtk.Align.CENTER,
-                          tooltip_text="Stop copying (what is already copied stays)")
+        stop = Gtk.Button(label=_("Stop"), valign=Gtk.Align.CENTER,
+                          tooltip_text=_("Stop copying (what is already copied stays)"))
         stop.add_css_class("pika-copy-stop")
         stop.connect("clicked", self._on_stop_copy)
         self.copy_stop = stop
@@ -876,13 +890,13 @@ class MainWindow(Adw.ApplicationWindow):
         if self._copy_cancel is not None:
             self._copy_cancel.set()
             self.copy_stop.set_sensitive(False)
-            self.copy_label.set_text("Stopping…")
+            self.copy_label.set_text(_("Stopping…"))
 
     def _copy_busy(self):
         if self._copy_cancel is None:
             return False
-        self._show_toast("Photos are already being copied. Wait until they finish, "
-                         "or stop that copy first.")
+        self._show_toast(_("Photos are already being copied. Wait until they finish, "
+                         "or stop that copy first."))
         return True
 
     def _import_profiles(self, device=None):
@@ -905,9 +919,11 @@ class MainWindow(Adw.ApplicationWindow):
         self._copy_cancel = cancel
         library = self.library
         total = len(records)
-        self._copy_progress(f"{heading} — 0 of {total}", 0, total)
-        self._show_toast(f"Copying {total} item" + ("s" if total != 1 else "")
-                         + ". You can keep using Piklin while they copy.")
+        self._copy_progress(_("{step} — {done} of {total}").format(step=heading, done=0, total=total),
+                            0, total)
+        self._show_toast(ngettext("Copying {count} item. You can keep using Piklin while it copies.",
+                                  "Copying {count} items. You can keep using Piklin while they copy.",
+                                  total).format(count=total))
         pending = []
         last_flush = [time.monotonic()]
 
@@ -927,7 +943,8 @@ class MainWindow(Adw.ApplicationWindow):
 
             def progress(done, count):
                 GLib.idle_add(self._copy_progress,
-                              f"{heading} — {done} of {count}", done, count)
+                              _("{step} — {done} of {total}").format(step=heading, done=done, total=count),
+                              done, count)
             try:
                 result = devicemod.import_photos(
                     library, records, progress, profile=profile,
@@ -964,13 +981,16 @@ class MainWindow(Adw.ApplicationWindow):
     @staticmethod
     def _import_summary(result, extra=0, album_name=None):
         n = len(result["placed"]) + extra
-        text = f"Imported {n} item" + ("s" if n != 1 else "")
         if album_name:
-            text += f" into “{album_name}”"
+            text = ngettext("Imported {count} item into “{album}”",
+                            "Imported {count} items into “{album}”", n).format(count=n, album=album_name)
+        else:
+            text = ngettext("Imported {count} item", "Imported {count} items", n).format(count=n)
         if result["failed"]:
-            text += f", {result['failed']} could not be copied"
+            text += ", " + ngettext("{count} could not be copied", "{count} could not be copied",
+                                    result["failed"]).format(count=result["failed"])
         if result.get("cancelled"):
-            text = "Stopped. " + text
+            text = _("Stopped. {summary}").format(summary=text)
         return text
 
     def _on_import_device(self, _btn):
@@ -1008,7 +1028,7 @@ class MainWindow(Adw.ApplicationWindow):
             if delete_after and result.get("sources") and not result.get("cancelled"):
                 self._ask_delete_from_device(device, result["sources"])
 
-        self._run_import(records, heading=f"Importing from {device.name}",
+        self._run_import(records, heading=_("Importing from {device}").format(device=device.name),
                          album_id=album_id, done_cb=done,
                          **self._import_profiles(device))
 
@@ -1056,8 +1076,8 @@ class MainWindow(Adw.ApplicationWindow):
             done({"placed": [], "copied": [], "skipped": 0, "failed": 0,
                   "sources": [], "cancelled": False})
             return
-        heading = (f"Importing into “{album_name}”" if album_name
-                   else f"Importing from {device.name}")
+        heading = (_("Importing into “{album}”").format(album=album_name) if album_name
+                   else _("Importing from {device}").format(device=device.name))
         self._run_import(to_copy, heading=heading, album_id=album_id, done_cb=done,
                          **self._import_profiles(device))
 
@@ -1097,7 +1117,7 @@ class MainWindow(Adw.ApplicationWindow):
         cancel = threading.Event()
         self._copy_cancel = cancel
         # Shown straight away: finding the photos in a big folder takes a moment.
-        self._copy_progress("Getting the photos ready…", 0, 0)
+        self._copy_progress(_("Getting the photos ready…"), 0, 0)
 
         def collect():
             records = devicemod.files_from_paths(paths)
@@ -1105,18 +1125,18 @@ class MainWindow(Adw.ApplicationWindow):
             def start():
                 if cancel.is_set():
                     self._copy_finished()
-                    self._show_toast("Stopped. Nothing was copied.")
+                    self._show_toast(_("Stopped. Nothing was copied."))
                     return False
                 if not records:
                     self._copy_finished()
-                    self._show_toast("There are no photos or videos in what you dropped.")
+                    self._show_toast(_("There are no photos or videos in what you dropped."))
                     return False
 
                 def done(result):
                     self._show_toast(self._import_summary(result, album_name=album_name))
                     self._refresh()
-                heading = (f"Copying into “{album_name}”" if album_name
-                           else "Copying")
+                heading = (_("Copying into “{album}”").format(album=album_name) if album_name
+                           else _("Copying"))
                 self._run_import(records, heading=heading, album_id=album_id,
                                  done_cb=done, cancel=cancel, **self._import_profiles())
                 return False
@@ -1274,24 +1294,59 @@ class MainWindow(Adw.ApplicationWindow):
                       "folder-pictures-symbolic", album["n"],
                       album_id=album["id"], indent=indent)
 
+    def _toggle_folder(self, folder_id):
+        """The triangle beside a folder shows or hides what is inside it."""
+        if folder_id in self._collapsed_folders:
+            self._collapsed_folders.discard(folder_id)
+        else:
+            self._collapsed_folders.add(folder_id)
+        self._save_folded_folders()
+        self.refresh_sidebar()
+
+    def _open_folder(self, folder_id):
+        """A folder shows its albums and folders as cards, as in any photo
+        library; its photos are in the albums."""
+        self._scope, self._album_id, self._smart_id = "folder", None, None
+        self._folder_id = folder_id
+        self.grid.unselect_all()
+        if folder_id in self._collapsed_folders:
+            # open it in the sidebar too, so its albums can be seen there
+            self._collapsed_folders.discard(folder_id)
+            self._save_folded_folders()
+            self.refresh_sidebar()
+        self._select_sidebar_key(f"folder:{folder_id}")
+        self.folder_view.load(folder_id)
+        self.content_stack.set_visible_child_name("folder")
+        self._on_selection_changed(self.grid)
+
+    def _open_album(self, album_id):
+        self._scope, self._album_id, self._smart_id = "album", album_id, None
+        self._select_sidebar_key(f"album:{album_id}")
+        self.grid.load("album", album_id, self.search.get_text() or None)
+        self._sync_content_view()
+        self._on_selection_changed(self.grid)
+
+    def _open_smart(self, smart_id):
+        self._scope, self._album_id, self._smart_id = "smart", None, smart_id
+        self._select_sidebar_key(f"smart:{smart_id}")
+        self.grid.load("smart", None, self.search.get_text() or None, smart_id=smart_id)
+        self._sync_content_view()
+        self._on_selection_changed(self.grid)
+
     def _on_sidebar_activated(self, _list, row):
         if row is None or self._syncing_sidebar:
             return
         folder_id = getattr(row, "_folder_id", None)
         if folder_id is not None:
-            if folder_id in self._collapsed_folders:
-                self._collapsed_folders.discard(folder_id)
-            else:
-                self._collapsed_folders.add(folder_id)
-            self._save_folded_folders()
-            self.refresh_sidebar()
+            self._open_folder(folder_id)
 
     def _on_sidebar_selected(self, _list, row):
         if row is None or self._syncing_sidebar:
             return
         key = getattr(row, "_key", "library")
         if key.startswith("folder:"):
-            return          # organisational only; activation toggles it
+            self._open_folder(row._folder_id)
+            return
         if key.startswith("device:"):
             self._open_device(key[len("device:"):])
             return
@@ -1698,7 +1753,10 @@ class MainWindow(Adw.ApplicationWindow):
         self._backup_soon()
 
     def _refresh(self):
-        self.grid.refresh()
+        if self._scope == "folder":
+            self.folder_view.load(getattr(self, "_folder_id", None))
+        else:
+            self.grid.refresh()
         if self.content_stack.get_visible_child_name() == "summary":
             self.summary.load(self.settings.get("group_by"), self.grid.filters())
         self.refresh_sidebar()
@@ -1765,8 +1823,8 @@ class MainWindow(Adw.ApplicationWindow):
                 if quiet and updates.load_state().get("dismissed") == release.version:
                     return False
                 toast = Adw.Toast(
-                    title=f"Piklin {release.version} is available",
-                    button_label="Download", timeout=0)
+                    title=_("Piklin {version} is available").format(version=release.version),
+                    button_label=_("Download"), timeout=0)
                 toast.connect("button-clicked", lambda *_: Gtk.UriLauncher.new(
                     release.url).launch(self, None, None, None))
                 toast.connect("dismissed", lambda *_: updates.save_state(
@@ -1774,10 +1832,10 @@ class MainWindow(Adw.ApplicationWindow):
                 self.toasts.add_toast(toast)
             elif not quiet:
                 if error is not None:
-                    self._show_toast("Couldn't check for updates. Check your "
-                                     "internet connection and try again.")
+                    self._show_toast(_("Couldn't check for updates. Check your "
+                                       "internet connection and try again."))
                 else:
-                    self._show_toast(f"Piklin is up to date ({VERSION}).")
+                    self._show_toast(_("Piklin is up to date ({version}).").format(version=VERSION))
             return False
         threading.Thread(target=work, daemon=True).start()
 
@@ -1797,7 +1855,7 @@ class MainWindow(Adw.ApplicationWindow):
         items = [it for it in items if getattr(it, "id", -1) is not None
                  and getattr(it, "id", -1) >= 0]
         if not items:
-            self._show_toast("Select the photos to rotate.")
+            self._show_toast(_("Select the photos to rotate."))
             return
         for it in items:
             try:
@@ -1823,7 +1881,7 @@ class MainWindow(Adw.ApplicationWindow):
         # Recently Deleted always offers its two actions - on the selection,
         # or on everything when nothing is selected (Recover All / Delete All).
         self.action_bar.set_revealed(n > 0 or self._scope == "trash")
-        self.select_label.set_text(f"{n} selected" if n else "")
+        self.select_label.set_text(_("{count} selected").format(count=n) if n else "")
 
         # In Recently Deleted the same icons would mean the wrong things:
         # the trash button recovers rather than deletes, and permanent
@@ -1949,6 +2007,9 @@ class MainWindow(Adw.ApplicationWindow):
                 and not (self.search.get_text() or "").strip())
 
     def _sync_content_view(self):
+        if self._scope == "folder":
+            self.content_stack.set_visible_child_name("folder")
+            return
         if self._summary_applies():
             self.summary.load(self.settings.get("group_by"), self.grid.filters())
             self.content_stack.set_visible_child_name("summary")
@@ -2718,7 +2779,35 @@ class MainWindow(Adw.ApplicationWindow):
         dialog.add_response("choose", _("Choose Folder…"))
         dialog.set_close_response("later")      # Escape means "Later"
 
+        # The language comes first: nothing has happened yet, so picking one
+        # reopens Piklin straight away and the welcome returns in it.
+        from .. import i18n
+        codes = [code for code, _name in i18n.LANGUAGES]
+        names = [_(name) if not code else name for code, name in i18n.LANGUAGES]
+        language = Adw.ComboRow(title=_("Language"), model=Gtk.StringList.new(names))
+        chosen = i18n.chosen_language()
+        language.set_selected(codes.index(chosen) if chosen in codes else 0)
+        switching = []
+
+        def switch(row, _pspec):
+            code = codes[row.get_selected()]
+            if code == i18n.chosen_language():
+                return
+            i18n.choose_language(code)
+            switching.append(code)
+            dialog.force_close()
+            app = self.get_application()
+            app.relaunch_library = str(self.library.root)
+            app.quit()
+        language.connect("notify::selected", switch)
+        rows = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        rows.add_css_class("boxed-list")
+        rows.append(language)
+        dialog.set_extra_child(rows)
+
         def done(d, response):
+            if switching:
+                return
             if response == "pictures":
                 self._start_scan([str(pictures)])
             elif response == "choose":
@@ -2776,11 +2865,11 @@ class MainWindow(Adw.ApplicationWindow):
         if (getattr(self, "_copy_cancel", None) is not None
                 and not getattr(self, "_closing_after_copy", False)):
             dialog = Adw.AlertDialog(
-                heading="Photos Are Still Being Copied",
-                body="If you close Piklin now, the copy stops. The photos "
-                     "already copied stay in your library.")
-            dialog.add_response("keep", "Keep Copying")
-            dialog.add_response("close", "Stop and Close")
+                heading=_("Photos Are Still Being Copied"),
+                body=_("If you close Piklin now, the copy stops. The photos "
+                       "already copied stay in your library."))
+            dialog.add_response("keep", _("Keep Copying"))
+            dialog.add_response("close", _("Stop and Close"))
             dialog.set_response_appearance("close", Adw.ResponseAppearance.DESTRUCTIVE)
             dialog.set_default_response("keep")
             dialog.set_close_response("keep")

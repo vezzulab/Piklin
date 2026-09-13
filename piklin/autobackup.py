@@ -49,14 +49,19 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
         return Outcome(True)
     files = remote_mod.library_files(root)          # now with the catalog
     uploaded = 0
+    # Each destination on its own: a NAS left at home must not stop the
+    # cloud copy made while travelling. The one that couldn't be reached
+    # stays behind and catches up by itself once it can be reached again.
+    problems, unreachable = [], False
     for r in behind:
         backend = r.backend()
         if progress:
             progress(_("Connecting to {name}…").format(name=r.name))
         test = backend.test()
         if not test.ok:
-            return Outcome(False, test.unreachable,
-                           f"{r.name}: {test.message}", uploaded)
+            problems.append(f"{r.name}: {test.message}")
+            unreachable = unreachable or test.unreachable
+            continue
 
         def report(p, name=r.name):
             if progress and p.phase == "uploading" and p.total_files:
@@ -65,13 +70,15 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
 
         p = backend.push(root, files, on_progress=report,
                          keep_versions_days=keep_days)
+        uploaded += p.uploaded
         if p.phase != "done" or p.errors:
             message = p.message or ngettext("{count} file couldn't be uploaded",
                                             "{count} files couldn't be uploaded",
                                             p.errors).format(count=p.errors)
-            return Outcome(False, p.unreachable,
-                           f"{r.name}: {message}", uploaded)
-        uploaded += p.uploaded
+            problems.append(f"{r.name}: {message}")
+            unreachable = unreachable or p.unreachable
+    if problems:
+        return Outcome(False, unreachable, "; ".join(problems), uploaded)
     return Outcome(True, uploaded=uploaded)
 
 

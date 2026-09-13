@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 
 import gi
-from ..i18n import _, ngettext
+from ..i18n import _, ngettext, pgettext
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -49,8 +49,20 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     # ==================================================================
     def _general_page(self):
-        page = Adw.PreferencesPage(title=_("General"), name="general",
+        page = Adw.PreferencesPage(title=pgettext("preferences tab", "General"), name="general",
                                    icon_name="preferences-system-symbolic")
+
+        from .. import i18n
+        language = Adw.PreferencesGroup(title=_("Language"))
+        codes = [code for code, _name in i18n.LANGUAGES]
+        names = [_(name) if not code else name for code, name in i18n.LANGUAGES]
+        lang_row = Adw.ComboRow(title=_("Language"),
+                                model=Gtk.StringList.new(names))
+        chosen = i18n.chosen_language()
+        lang_row.set_selected(codes.index(chosen) if chosen in codes else 0)
+        lang_row.connect("notify::selected", self._on_language, codes)
+        language.add(lang_row)
+        page.add(language)
 
         look = Adw.PreferencesGroup(title=_("Appearance"))
         theme = Adw.ComboRow(title=_("Theme"),
@@ -117,15 +129,37 @@ class SettingsDialog(Adw.PreferencesDialog):
         privacy.add(faces)
         from .. import updates
         check = Adw.SwitchRow(
-            title="Check for updates",
-            subtitle="Once a day, Piklin asks GitHub whether a new version is "
-                     "out. Nothing about you or your photos is sent.",
+            title=_("Check for updates"),
+            subtitle=_("Once a day, Piklin asks GitHub whether a new version is "
+                       "out. Nothing about you or your photos is sent."),
             active=updates.enabled())
         check.connect("notify::active",
                       lambda r, _p: updates.save_state(enabled=r.get_active()))
         privacy.add(check)
         page.add(privacy)
         return page
+
+    def _on_language(self, row, _pspec, codes):
+        from .. import i18n
+        code = codes[row.get_selected()]
+        if code == i18n.chosen_language():
+            return
+        i18n.choose_language(code)
+        dlg = Adw.AlertDialog(
+            heading=_("Reopen Piklin?"),
+            body=_("Piklin needs to reopen to show everything in the new language."))
+        dlg.add_response("later", _("Later"))
+        dlg.add_response("reopen", _("Reopen Now"))
+        dlg.set_response_appearance("reopen", Adw.ResponseAppearance.SUGGESTED)
+
+        def done(_d, response):
+            if response == "reopen":
+                app = self._window.get_application()
+                app.relaunch_library = str(self.library.root)
+                self.close()
+                app.quit()
+        dlg.connect("response", done)
+        dlg.present(self.get_root())
 
     def _on_theme(self, row, _pspec):
         value = ["auto", "light", "dark"][row.get_selected()]
@@ -137,7 +171,7 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     # ==================================================================
     def _storage_page(self):
-        page = Adw.PreferencesPage(title=_("Storage"), name="storage",
+        page = Adw.PreferencesPage(title=pgettext("preferences tab", "Storage"), name="storage",
                                    icon_name="drive-harddisk-symbolic")
 
         export = Adw.PreferencesGroup(
@@ -283,7 +317,7 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     # ==================================================================
     def _remotes_page(self):
-        page = Adw.PreferencesPage(title=_("Backup"), name="remotes",
+        page = Adw.PreferencesPage(title=pgettext("preferences tab", "Backup"), name="remotes",
                                    icon_name="network-server-symbolic")
 
         intro = Adw.PreferencesGroup(
@@ -884,7 +918,7 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     # ==================================================================
     def _library_page(self):
-        page = Adw.PreferencesPage(title=_("Library"), name="library",
+        page = Adw.PreferencesPage(title=pgettext("preferences tab", "Library"), name="library",
                                    icon_name="folder-pictures-symbolic")
         group = Adw.PreferencesGroup(
             title=_("Where Your Library Is"),
@@ -911,7 +945,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         for r in roots:
             n = self.catalog.scalar(
                 "SELECT COUNT(*) FROM photos WHERE root_id=?", (r["id"],), 0)
-            rr = Adw.ActionRow(title=r["path"], subtitle=f"{n:,} photos")
+            rr = Adw.ActionRow(title=r["path"], subtitle=ngettext("{count} photo", "{count} photos", n).format(count=f"{n:,}"))
             drop = Gtk.Button(icon_name="list-remove-symbolic",
                               valign=Gtk.Align.CENTER,
                               tooltip_text=_("Stop using this folder (the files stay)"))

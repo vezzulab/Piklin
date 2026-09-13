@@ -1664,3 +1664,23 @@ toast button:hover {
 .pika-copy-stop:disabled { background: alpha(#000000, 0.25); }
 .pika-copy-bar trough { background-color: #ebebee; min-height: 6px; border-radius: 3px; }
 .pika-copy-bar progress { background-color: #0b0b0b; min-height: 6px; border-radius: 3px; }
+
+/* Space and the hairline go between days or folders only. A row that just
+ * continues the same day (big days are split for speed) sits flush. */
+.pika-section { padding-bottom: 0; }
+.pika-grid > row:not(:first-child) .pika-section {
+  margin-top: 24px;
+}
+.pika-grid > row .pika-section.pika-section-continued {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+.pika-grid { padding-bottom: 24px; }
+
+/* A folder's card without a cover photo yet */
+.pika-folder-card-icon {
+  background-color: #f1f1f2;
+  color: #86868b;
+  border-radius: 12px;
+}
