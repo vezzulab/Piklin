@@ -1611,3 +1611,30 @@ window.piklin button.pika-support image {
     background: alpha(#000000, 0.14);
     min-height: 1px;
 }
+
+/* Notices ("Imported 3 items into “Trip”"): a white pill with black text,
+ * like the rest of the app, instead of the desktop theme's dark bubble. */
+toastoverlay > toast,
+toast {
+    background-color: #ffffff;
+    color: #000000;
+    border-radius: 999px;
+    border: 1px solid alpha(#000000, 0.10);
+    box-shadow: 0 6px 22px alpha(#000000, 0.16), 0 1px 3px alpha(#000000, 0.10);
+    padding: 4px 6px 4px 18px;
+}
+toast label,
+toast widget label,
+toast .heading {
+    color: #000000;
+    font-weight: 600;
+}
+toast button,
+toast button image {
+    color: #000000;
+    background: transparent;
+    box-shadow: none;
+}
+toast button:hover {
+    background-color: alpha(#000000, 0.07);
+}
