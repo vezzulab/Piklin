@@ -8,7 +8,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, Gio, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gio, Gtk, Pango  # noqa: E402
 
 from .. import compress as cz
 from .. import remote as remote_mod
@@ -419,27 +419,27 @@ class SettingsDialog(Adw.PreferencesDialog):
         dialog = Adw.AlertDialog(
             heading=("Edit Destination" if existing
                      else "WebDAV Server" if webdav else "rclone Remote"),
-            body=("Enter your server's address: https://, or http:// for a "
-                  "server on your home network. On a QNAP it usually looks "
-                  "like https://192.168.1.10:8081 once WebDAV is turned on "
-                  "in Web Server."
+            body=("Enter the address of your WebDAV server, starting with "
+                  "https:// (or http:// on your home network), and your "
+                  "account. Then choose a folder with the folder button."
                   if webdav else
                   "Pick a remote you have already set up with "
                   "'rclone config'."))
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         entries = {}
         if webdav:
-            fields = [("name", "Name"), ("url", "https://192.168.1.10:8081"),
-                      ("base", "Folder on the server, e.g. /Multimedia/Piklin Backup"),
+            fields = [("name", "Name"), ("url", "Server address"),
+                      ("base", "Folder on the server"),
                       ("username", "Username"),
                       ("password", "Password (leave empty to keep it)"
                        if existing else "Password")]
         else:
-            configured = remote_mod.rclone_remotes()
             fields = [("name", "Name"),
-                      ("remote", "Remote name, e.g. "
-                       + (configured[0] if configured else "pcloud:")),
-                      ("path", "Folder on the remote (optional)")]
+                      ("remote", "rclone remote name"),
+                      ("path", "Folder on the remote")]
+        folder_key = "base" if webdav else "path"
+        # a server certificate trusted while browsing, saved with the destination
+        pending = {"pin": conf.get("cert_sha256", ""), "pin_url": conf.get("url", "")}
         for key, placeholder in fields:
             e = Gtk.Entry(placeholder_text=placeholder)
             if key == "password":
@@ -448,7 +448,15 @@ class SettingsDialog(Adw.PreferencesDialog):
                 e.set_text(existing.get("name", "") if key == "name"
                            else conf.get(key, ""))
             entries[key] = e
-            box.append(e)
+            if key == folder_key:
+                line = Gtk.Box(spacing=6)
+                e.set_hexpand(True)
+                line.append(e)
+                line.append(self._folder_browser(kind, existing, entries,
+                                                 folder_key, pending))
+                box.append(line)
+            else:
+                box.append(e)
         dialog.set_extra_child(box)
         dialog.add_response("cancel", "Cancel")
         dialog.add_response("add", "Save" if existing else "Add")
@@ -471,8 +479,8 @@ class SettingsDialog(Adw.PreferencesDialog):
                    else f"{kind}-{abs(hash(str(values)))%10**8}")
             config = {k: v for k, v in values.items() if k != "name"}
             # a trusted certificate stays trusted for the same server
-            if conf.get("cert_sha256") and conf.get("url") == config.get("url"):
-                config["cert_sha256"] = conf["cert_sha256"]
+            if pending["pin"] and pending["pin_url"] == config.get("url"):
+                config["cert_sha256"] = pending["pin"]
             cfg = {"id": rid, "name": values.get("name") or kind.title(),
                    "kind": kind, "config": config}
             if password and not remote_mod.store_secret(rid, password):
@@ -483,6 +491,116 @@ class SettingsDialog(Adw.PreferencesDialog):
             self._save_remote(cfg)
         dialog.connect("response", done)
         dialog.present(self.get_root())
+
+    def _folder_browser(self, kind, existing, entries, folder_key, pending):
+        """A button that lists the folders on the server, to pick one."""
+        folder_entry = entries[folder_key]
+        button = Gtk.MenuButton(icon_name="folder-open-symbolic",
+                                tooltip_text="Choose a Folder",
+                                valign=Gtk.Align.CENTER)
+        popover = Gtk.Popover()
+        popover.add_css_class("pika-folder-browser")
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
+                        margin_top=10, margin_bottom=10,
+                        margin_start=10, margin_end=10, width_request=320)
+        where = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.START)
+        where.add_css_class("heading")
+        status = Gtk.Label(xalign=0, wrap=True, max_width_chars=38)
+        status.add_css_class("dim-label")
+        listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        listbox.add_css_class("boxed-list")
+        scroller = Gtk.ScrolledWindow(
+            hscrollbar_policy=Gtk.PolicyType.NEVER, min_content_height=40,
+            max_content_height=320, propagate_natural_height=True,
+            child=listbox)
+        use = Gtk.Button(label="Use This Folder")
+        use.add_css_class("suggested-action")
+        for w in (where, status, scroller, use):
+            outer.append(w)
+        popover.set_child(outer)
+        button.set_popover(popover)
+        state = {"token": 0}
+
+        def current_remote():
+            values = {k: e.get_text().strip() for k, e in entries.items()}
+            config = {k: v for k, v in values.items()
+                      if k not in ("name", "password", folder_key)}
+            if values.get("password"):
+                config["password"] = values["password"]   # only in memory
+            if pending["pin"] and pending["pin_url"] == config.get("url"):
+                config["cert_sha256"] = pending["pin"]
+            return remote_mod.Remote(id=existing["id"] if existing else "browse",
+                                     name="browse", kind=kind, config=config)
+
+        def add_row(label, icon, target):
+            row = Gtk.ListBoxRow()
+            row.set_name(target)
+            inner = Gtk.Box(spacing=10, margin_top=8, margin_bottom=8,
+                            margin_start=10, margin_end=10)
+            inner.append(Gtk.Image(icon_name=icon))
+            inner.append(Gtk.Label(label=label, xalign=0, hexpand=True,
+                                   ellipsize=Pango.EllipsizeMode.END))
+            row.set_child(inner)
+            listbox.append(row)
+
+        def load(path, fallback=True):
+            path = path.strip().strip("/")
+            state["token"] += 1
+            token = state["token"]
+            folder_entry.set_text("/" + path if path else "")
+            where.set_text("/" + path if path else "Top Level")
+            status.set_text("Connecting…")
+            status.set_visible(True)
+            listbox.remove_all()
+            scroller.set_visible(False)
+            use.set_sensitive(False)
+            r = current_remote()
+
+            def work():
+                backend = r.backend()
+                try:
+                    names, problem = backend.list_folders(path), None
+                except Exception as exc:
+                    names, problem = None, backend.problem(exc)
+                GLib.idle_add(show, token, path, names, problem, r, fallback)
+            threading.Thread(target=work, daemon=True).start()
+
+        def show(token, path, names, problem, r, fallback):
+            if token != state["token"]:
+                return False
+            if problem is not None:
+                if (fallback and path and not problem.fingerprint
+                        and "not found" in self._result_text(problem).lower()):
+                    # a folder that doesn't exist yet: show its parent
+                    load("/".join(path.split("/")[:-1]))
+                    return False
+                status.set_text(self._result_text(problem))
+                if problem.fingerprint:
+                    popover.popdown()
+
+                    def trusted(fp):
+                        pending["pin"] = fp
+                        pending["pin_url"] = r.config.get("url", "")
+                        button.popup()
+                    self._ask_trust({"config": r.config}, problem, on_trust=trusted)
+                return False
+            use.set_sensitive(True)
+            if path:
+                add_row("Parent Folder", "go-up-symbolic",
+                        "/".join(path.split("/")[:-1]))
+            for n in names:
+                add_row(n, "folder-symbolic", f"{path}/{n}" if path else n)
+            scroller.set_visible(bool(path or names))
+            status.set_text("" if names else
+                            "No folders here. Use this one, or add a new "
+                            "folder name to the path and Piklin creates it.")
+            status.set_visible(not names)
+            return False
+
+        listbox.connect("row-activated", lambda _lb, row: load(row.get_name()))
+        popover.connect("show", lambda _p: load(folder_entry.get_text()))
+        use.connect("clicked", lambda _b: popover.popdown())
+        return button
 
     def _save_remote(self, cfg):
         remotes = list(self.settings.get("remotes", []) or [])
@@ -497,7 +615,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         self.settings.set("remotes", remotes)
         self._refresh_remotes()
 
-    def _ask_trust(self, cfg, result, retry=None):
+    def _ask_trust(self, cfg, result, retry=None, on_trust=None):
         """Offer to trust a server's own certificate, by its fingerprint."""
         url = GLib.markup_escape_text(cfg.get("config", {}).get("url", ""))
         changed = "changed" in result.message.lower()
@@ -522,6 +640,9 @@ class SettingsDialog(Adw.PreferencesDialog):
 
         def done(_d, response):
             if response != "trust":
+                return
+            if on_trust is not None:
+                on_trust(result.fingerprint)
                 return
             new = dict(cfg)
             new["config"] = dict(cfg.get("config", {}),

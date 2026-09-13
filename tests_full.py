@@ -690,6 +690,33 @@ wd = lambda url: rem.Remote(id="w", name="w", kind="webdav",
 check("http allowed on the local network", "local network" not in wd("http://127.0.0.1:9"),
       wd("http://127.0.0.1:9"))
 check("http refused for internet servers", "local network" in wd("http://photos.example.com/dav"))
+import urllib.error as _ue
+class _ApacheDav(rem.WebDavBackend):
+    # Apache (QNAP) refuses Depth: infinity with 403: walk folder by folder
+    tree = {"": [("", True, 0, 0), ("Originals", True, 0, 0), ("a.json", False, 2, 0)],
+            "Originals": [("Originals", True, 0, 0), ("Originals/p.jpg", False, 5, 0)]}
+    def _entries(self, rel, depth):
+        if depth == "infinity":
+            raise _ue.HTTPError("u", 403, "Forbidden", None, None)
+        return self.tree[rel]
+_idx = _ApacheDav(rem.Remote(id="a", name="a", kind="webdav", config={"url": "https://x"})).listing()
+check("servers refusing deep listings are read folder by folder",
+      _idx == {"a.json": (2, 0), "Originals/p.jpg": (5, 0)}, _idx)
+_qnap_reply = """<?xml version="1.0" encoding="utf-8"?><D:multistatus xmlns:D="DAV:">
+<D:response><D:href>/dav/Users/</D:href><D:propstat><D:prop><lp1:resourcetype><D:collection/></lp1:resourcetype></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Users/alex/</D:href><D:propstat><D:prop><lp1:resourcetype><D:collection/></lp1:resourcetype></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Users/Browser%20Station/</D:href><D:propstat><D:prop><lp1:resourcetype><D:collection/></lp1:resourcetype></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Users/@Recycle/</D:href><D:propstat><D:prop><lp1:resourcetype><D:collection/></lp1:resourcetype></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Users/.DS_Store</D:href><D:propstat><D:prop><lp1:resourcetype/><lp1:getcontentlength>14340</lp1:getcontentlength></D:prop></D:propstat></D:response>
+</D:multistatus>"""
+class _Browse(rem.WebDavBackend):
+    def _request_path(self, method, path, data=None, extra=None):
+        assert method == "PROPFIND" and path == "Users"
+        return io.BytesIO(_qnap_reply.encode())
+_names = _Browse(rem.Remote(id="b", name="b", kind="webdav",
+                            config={"url": "https://nas:5001/dav"})).list_folders("/Users/")
+check("folder picker lists server folders, hiding system ones",
+      _names == ["alex", "Browser Station"], _names)
 check("missing folder reports clearly",
       not rem.Remote(id="x",name="x",kind="local",config={"path":"/nope"}).backend().test().ok)
 check("plain HTTP refused",

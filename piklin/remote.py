@@ -246,6 +246,14 @@ class Backend:
         """Map of relative path -> (size, mtime) already on the remote."""
         raise NotImplementedError
 
+    def list_folders(self, path: str) -> list[str]:
+        """Subfolders of ``path`` on the destination, for choosing where
+        backups go. Raises on failure; ``problem`` explains the error."""
+        raise NotImplementedError
+
+    def problem(self, exc: Exception) -> TestResult:
+        return TestResult(False, "Could not list folders", str(exc))
+
     # -- shared sync logic ----------------------------------------------
     # What was sent to this destination: relative path -> [size, mtime] of
     # the local file when it was uploaded. Many servers stamp a file with
@@ -531,6 +539,40 @@ class LocalBackend(Backend):
 # ==========================================================================
 # WebDAV
 # ==========================================================================
+def _hidden_folder(name: str) -> bool:
+    # dot folders, and NAS system folders such as @Recycle or #recycle
+    return name.startswith((".", "@", "#"))
+
+
+def _parse_multistatus(body: str, prefix: str) -> list[tuple[str, bool, int, float]]:
+    """Entries of a WebDAV PROPFIND reply, with paths relative to ``prefix``."""
+    import re
+    from email.utils import parsedate_to_datetime
+    out = []
+    for block in re.findall(r"<[^>]*response[^>]*>(.*?)</[^>]*response>",
+                            body, re.S | re.I):
+        href = re.search(r"<[^>]*href[^>]*>(.*?)</[^>]*href>", block, re.S | re.I)
+        if not href:
+            continue
+        path = urllib.parse.unquote(urllib.parse.urlparse(href.group(1).strip()).path)
+        if prefix and path.rstrip("/") == prefix:
+            path = ""
+        elif prefix and path.startswith(prefix + "/"):
+            path = path[len(prefix):]
+        path = path.strip("/")
+        is_folder = bool(re.search(r"<[^>]*collection\s*/?>", block, re.I))
+        size = re.search(r"getcontentlength[^>]*>(\d+)<", block, re.I)
+        mod = re.search(r"getlastmodified[^>]*>(.*?)<", block, re.I)
+        ts = 0.0
+        if mod:
+            try:
+                ts = parsedate_to_datetime(mod.group(1).strip()).timestamp()
+            except Exception:
+                ts = 0.0
+        out.append((path, is_folder, int(size.group(1)) if size else 0, ts))
+    return out
+
+
 class CertificateChanged(OSError):
     """The server shows another certificate than the one the user trusted.
     The argument is the new certificate's SHA-256."""
@@ -717,9 +759,9 @@ class WebDavBackend(Backend):
                               "This account may not use WebDAV on that folder")
         if code in (405, 501):
             return TestResult(False, "This address does not answer WebDAV",
-                              "Turn on WebDAV on the server and use its address. "
-                              "On a QNAP: Control Panel › Applications › Web Server "
-                              "› WebDAV, then for example https://192.168.1.10:8081")
+                              "Turn on WebDAV on the server and use the address "
+                              "and port it shows for WebDAV. On a QNAP: Control "
+                              "Panel › Network & File Services › Win/Mac/NFS/WebDAV")
         if code in (301, 302, 303, 307, 308):
             loc = exc.headers.get("Location", "") if exc.headers else ""
             return TestResult(False, "The server sends this address elsewhere",
@@ -748,34 +790,29 @@ class WebDavBackend(Backend):
 
     def _entries(self, rel: str, depth: str) -> list[tuple[str, bool, int, float]]:
         """(path relative to the backup folder, is folder, size, mtime)."""
-        import re
-        from email.utils import parsedate_to_datetime
         body = self._request("PROPFIND", rel, extra={"Depth": depth}).read()
-        body = body.decode("utf-8", "replace")
         prefix = urllib.parse.urlparse(self.url).path.rstrip("/")
         if self.base_path:
             prefix += "/" + self.base_path
-        out = []
-        for block in re.findall(r"<[^>]*response[^>]*>(.*?)</[^>]*response>",
-                                body, re.S | re.I):
-            href = re.search(r"<[^>]*href[^>]*>(.*?)</[^>]*href>", block, re.S | re.I)
-            if not href:
-                continue
-            path = urllib.parse.unquote(urllib.parse.urlparse(href.group(1).strip()).path)
-            if prefix and path.startswith(prefix):
-                path = path[len(prefix):]
-            path = path.strip("/")
-            is_folder = bool(re.search(r"<[^>]*collection\s*/?>", block, re.I))
-            size = re.search(r"getcontentlength[^>]*>(\d+)<", block, re.I)
-            mod = re.search(r"getlastmodified[^>]*>(.*?)<", block, re.I)
-            ts = 0.0
-            if mod:
-                try:
-                    ts = parsedate_to_datetime(mod.group(1).strip()).timestamp()
-                except Exception:
-                    ts = 0.0
-            out.append((path, is_folder, int(size.group(1)) if size else 0, ts))
-        return out
+        return _parse_multistatus(body.decode("utf-8", "replace"), prefix)
+
+    def list_folders(self, path: str) -> list[str]:
+        path = path.strip().strip("/")
+        body = self._request_path("PROPFIND", path, extra={"Depth": "1"}).read()
+        prefix = urllib.parse.urlparse(self.url).path.rstrip("/")
+        if path:
+            prefix += "/" + path
+        names = {rel for rel, is_folder, _s, _t
+                 in _parse_multistatus(body.decode("utf-8", "replace"), prefix)
+                 if is_folder and rel and "/" not in rel}
+        return sorted((n for n in names if not _hidden_folder(n)), key=str.lower)
+
+    def problem(self, exc: Exception) -> TestResult:
+        if isinstance(exc, urllib.error.HTTPError):
+            return self._http_problem(exc)
+        if isinstance(exc, urllib.error.URLError):
+            return self._connection_problem(exc.reason)
+        return self._connection_problem(exc)
 
     def listing(self) -> dict[str, tuple[int, float]]:
         """Sizes and modification times of what is already on the server."""
@@ -784,9 +821,11 @@ class WebDavBackend(Backend):
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
                 return {}                       # nothing backed up yet
-            if exc.code in (401, 403, 501):
+            if exc.code in (401, 501):
                 raise
-            entries = None                      # Depth: infinity refused
+            # Depth: infinity refused - Apache, and so QNAP, answers 403
+            # by default. A real lack of access fails in the walk below.
+            entries = None
         # Servers that refuse or quietly ignore Depth: infinity (Nextcloud
         # by default) return only the top level: walk the folders instead.
         if entries is None or (any(d for r, d, _s, _t in entries if r)
@@ -891,6 +930,22 @@ class RcloneBackend(Backend):
             return TestResult(False, "Timed out contacting the remote")
         except Exception as exc:
             return TestResult(False, "rclone failed", str(exc))
+
+    def list_folders(self, path: str) -> list[str]:
+        exe = rclone_path()
+        if not exe:
+            raise RuntimeError("rclone is not installed")
+        remote = self.remote.config.get("remote", "").strip().rstrip(":")
+        if not remote:
+            raise RuntimeError("Enter the name of the rclone remote first")
+        out = subprocess.run(
+            [exe, "lsjson", "--dirs-only", f"{remote}:{path.strip().strip('/')}"],
+            capture_output=True, text=True, timeout=60)
+        if out.returncode != 0:
+            err = (out.stderr or "rclone failed").strip().splitlines()[-1]
+            raise RuntimeError(err.split(" : ", 1)[-1][:300])
+        names = [it.get("Name", "") for it in json.loads(out.stdout or "[]")]
+        return sorted((n for n in names if n and not _hidden_folder(n)), key=str.lower)
 
     def listing(self) -> dict[str, tuple[int, float]]:
         exe = rclone_path()

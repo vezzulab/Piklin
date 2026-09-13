@@ -13,6 +13,8 @@
 - Favourites, hidden photos and removed photos are now included in backups, with a consistent copy of the library index
 - Large videos are uploaded without loading them into memory
 - Backup destinations can be edited, including their password
+- Choose the backup folder from a list of the folders on your NAS, WebDAV server or rclone cloud, instead of typing its path
+- Works with servers that do not allow listing a whole folder tree at once, such as QNAP
 
 ## 1.0.0
 
