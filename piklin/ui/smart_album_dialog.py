@@ -8,7 +8,7 @@ album will hold is visible before it is saved.
 from __future__ import annotations
 
 import gi
-from ..i18n import _
+from ..i18n import _, ngettext
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -26,7 +26,7 @@ _FIELD_ORDER = ["media_type", "favorite", "edited", "taken_at", "duration",
 def _fields():
     keys = [k for k in _FIELD_ORDER if k in SMART_FIELDS]
     keys += sorted((k for k in SMART_FIELDS if k not in keys),
-                   key=lambda k: SMART_FIELDS[k][1])
+                   key=lambda k: _(SMART_FIELDS[k][1]))
     return keys
 
 
@@ -42,9 +42,9 @@ class _ConditionRow(Gtk.Box):
         self.add_css_class("pika-smart-row")
         self._keys = _fields()
         self.field = Gtk.DropDown.new_from_strings(
-            [SMART_FIELDS[k][1] for k in self._keys])
+            [_(SMART_FIELDS[k][1]) for k in self._keys])
         self.op = Gtk.DropDown.new_from_strings([""])
-        self.value = Gtk.Entry(hexpand=True, placeholder_text="value")
+        self.value = Gtk.Entry(hexpand=True, placeholder_text=_("value"))
         self.remove_btn = Gtk.Button(icon_name="list-remove-symbolic",
                                      tooltip_text=_("Remove this condition"))
         self.add_btn = Gtk.Button(icon_name="list-add-symbolic",
@@ -73,13 +73,13 @@ class _ConditionRow(Gtk.Box):
 
     def _sync_ops(self, wanted=None):
         ops = SMART_OPS[self._kind()]
-        self.op.set_model(Gtk.StringList.new(ops))
+        self.op.set_model(Gtk.StringList.new([_(o) for o in ops]))
         self.op.set_selected(ops.index(wanted) if wanted in ops else 0)
         kind = self._kind()
         # True/false fields need no value; dates "in the last" take days.
         self.value.set_visible(kind not in ("bool", "bool_null", "media"))
         self.value.set_placeholder_text(
-            {"date": _("days, or YYYY-MM-DD"), "number": "number"}.get(kind, "text"))
+            {"date": _("days, or YYYY-MM-DD"), "number": _("number")}.get(kind, _("text")))
 
     def _on_field(self, *_):
         self._sync_ops()
@@ -160,7 +160,7 @@ class SmartAlbumDialog(Adw.Dialog):
         buttons = Gtk.Box(spacing=8, halign=Gtk.Align.END, margin_top=6)
         cancel = Gtk.Button(label=_("Cancel"))
         cancel.connect("clicked", lambda *_: self.close())
-        self.ok = Gtk.Button(label="OK")
+        self.ok = Gtk.Button(label=_("OK"))
         self.ok.add_css_class("suggested-action")
         self.ok.connect("clicked", self._on_ok)
         buttons.append(cancel)
@@ -221,11 +221,12 @@ class SmartAlbumDialog(Adw.Dialog):
         try:
             n = int(self.catalog.scalar(
                 f"SELECT COUNT(*) FROM photos p WHERE {where}", params, 0))
-            self.count.set_text(f"{n:,} photo" + ("s" if n != 1 else "") + " match")
+            self.count.set_text(ngettext("{count} photo matches", "{count} photos match",
+                                         n).format(count=f"{n:,}"))
         except Exception:
             self.count.set_text(_("Check the values of the conditions"))
 
-    def _on_ok(self, *_):
+    def _on_ok(self, *_args):
         name = self.name.get_text().strip() or _("Smart Album")
         if self.smart_id is None:
             sid = self.catalog.create_smart_album(

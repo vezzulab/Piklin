@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .video import VIDEO_EXT
 from typing import Any, Iterable, Iterator, Sequence
-from .i18n import N_
+from .i18n import N_, month_year
 
 SCHEMA_VERSION = 3
 
@@ -226,11 +226,11 @@ SMART_FIELDS = {
 }
 
 SMART_OPS = {
-    "text":      ["is", N_("is not"), "contains", N_("does not contain")],
-    "number":    ["is", N_("is not"), N_("greater than"), N_("less than")],
+    "text":      [N_("is"), N_("is not"), N_("contains"), N_("does not contain")],
+    "number":    [N_("is"), N_("is not"), N_("greater than"), N_("less than")],
     "bool":      [N_("is true"), N_("is false")],
     "bool_null": [N_("is true"), N_("is false")],
-    "date":      [N_("in the last days"), "before", "after"],
+    "date":      [N_("in the last days"), N_("before"), N_("after")],
     "media":     [N_("is video"), N_("is photo")],
 }
 
@@ -952,7 +952,7 @@ class Catalog:
             if mode == "year":
                 label = g["k"]
             else:
-                label = datetime.strptime(g["k"], "%Y-%m").strftime("%B %Y")
+                label = month_year(datetime.strptime(g["k"], "%Y-%m"))
             out.append({"key": g["k"], "label": label, "count": int(g["n"]),
                         "first": g["first"], "last": g["last"],
                         "photos": by_key.get(g["k"], [])})

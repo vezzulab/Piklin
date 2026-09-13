@@ -25,13 +25,10 @@ from typing import Callable
 from gi.repository import Gio, GLib
 
 from . import remote as remote_mod
-from .i18n import _
+from .i18n import _, ngettext, day_month
 
 QUIET_SECONDS = 60
 RETRY_MINUTES = (5, 15, 60)
-# Test messages that mean "not reachable right now" rather than "wrong".
-UNREACHABLE = ("Could not reach", "Folder does not exist", "Timed out",
-               "rclone could not reach", "Cannot write to folder")
 
 
 @dataclass
@@ -55,21 +52,24 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
     for r in behind:
         backend = r.backend()
         if progress:
-            progress(f"Connecting to {r.name}…")
+            progress(_("Connecting to {name}…").format(name=r.name))
         test = backend.test()
         if not test.ok:
-            return Outcome(False, test.message.startswith(UNREACHABLE),
+            return Outcome(False, test.unreachable,
                            f"{r.name}: {test.message}", uploaded)
 
         def report(p, name=r.name):
             if progress and p.phase == "uploading" and p.total_files:
-                progress(f"Backing up to {name} — {p.done_files:,} of {p.total_files:,}")
+                progress(_("Backing up to {name} — {done} of {total}").format(
+                    name=name, done=f"{p.done_files:,}", total=f"{p.total_files:,}"))
 
         p = backend.push(root, files, on_progress=report,
                          keep_versions_days=keep_days)
         if p.phase != "done" or p.errors:
-            message = p.message or f"{p.errors} files could not be uploaded"
-            return Outcome(False, message.startswith("could not list"),
+            message = p.message or ngettext("{count} file couldn't be uploaded",
+                                            "{count} files couldn't be uploaded",
+                                            p.errors).format(count=p.errors)
+            return Outcome(False, p.unreachable,
                            f"{r.name}: {message}", uploaded)
         uploaded += p.uploaded
     return Outcome(True, uploaded=uploaded)
@@ -78,16 +78,19 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
 def describe_last(ts: float) -> str:
     delta = time.time() - ts
     if delta < 90:
-        return "just now"
+        return _("just now")
     if delta < 3600:
-        return f"{int(delta // 60)} minutes ago"
+        minutes = int(delta // 60)
+        return ngettext("{count} minute ago", "{count} minutes ago",
+                        minutes).format(count=minutes)
     then, now = time.localtime(ts), time.localtime()
     clock = time.strftime("%H:%M", then)
     if (then.tm_year, then.tm_yday) == (now.tm_year, now.tm_yday):
-        return f"today at {clock}"
+        return _("today at {time}").format(time=clock)
     if delta < 2 * 86400:
-        return f"yesterday at {clock}"
-    return time.strftime("%-d %b", then)
+        return _("yesterday at {time}").format(time=clock)
+    from datetime import date
+    return day_month(date(then.tm_year, then.tm_mon, then.tm_mday))
 
 
 class AutoBackup:
@@ -267,14 +270,16 @@ class AutoBackup:
         if self._waiting == "power":
             return _("Backup waits until battery saver is off")
         if self._waiting == "network":
-            return (f"Can't reach {self._problem.split(':')[0]} — will try again"
+            return (_("Can't reach {name}, will try again").format(
+                        name=self._problem.split(":")[0])
                     if self._problem else _("Backup waits for a connection"))
         if self._problem:
-            return f"Backup stopped — {self._problem}"
+            return _("Backup stopped: {problem}").format(problem=self._problem)
         if self._state.get("pending"):
             return _("Changes waiting to back up")
         last = self._state.get("last") or 0
-        return f"Backed up {describe_last(last)}" if last else _("Not backed up yet")
+        return (_("Backed up {when}").format(when=describe_last(last)) if last
+                else _("Not backed up yet"))
 
     def refresh_status(self, progress: str | None = None):
         if progress is not None:

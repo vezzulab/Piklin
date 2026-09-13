@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import gi
-from ..i18n import _
+from ..i18n import _, ngettext, long_date
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -361,10 +361,13 @@ class ViewerView(Gtk.Box):
         put("size", f"{_fmt_bytes(row['bytes'])}"
             + (f"  ·  {mp:.1f} MP" if mp else ""))
         if row["taken_at"]:
-            put("taken", datetime.fromtimestamp(row["taken_at"])
-                .strftime("%A %d %B %Y, %H:%M")
-                + ("" if row["date_source"] == "exif" else
-                   f"  (from {row['date_source']})"))
+            taken = datetime.fromtimestamp(row["taken_at"])
+            source = {"manual": _("set by you"), "mtime": _("from the file"),
+                      "filename": _("from the file name")}.get(row["date_source"],
+                                                              row["date_source"])
+            put("taken", _("{date}, {time}").format(date=long_date(taken),
+                                                   time=taken.strftime("%H:%M"))
+                + ("" if row["date_source"] == "exif" else f"  ({source})"))
         camera = " ".join(x for x in (row["camera_make"], row["camera_model"]) if x)
         put("camera", camera)
         put("lens", row["lens"])
@@ -383,8 +386,8 @@ class ViewerView(Gtk.Box):
             put("location", f"{row['gps_lat']:.5f}, {row['gps_lon']:.5f}")
         else:
             put("location", None)
-        put("edits", f"{row['edit_version']} adjustment"
-            + ("s" if row["edit_version"] != 1 else "")
+        put("edits", ngettext("{count} change", "{count} changes",
+                              row["edit_version"]).format(count=row["edit_version"])
             if row["edit_version"] else _("None, it's the original"))
         put("path", str(Path(row["path"]).parent))
         albums = self.catalog.albums_for_photo(self.item.id)

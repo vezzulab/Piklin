@@ -52,7 +52,7 @@ from base64 import b64encode
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable
-from .i18n import _
+from .i18n import _, ngettext
 
 SERVICE = "Pikalicious"
 
@@ -160,6 +160,7 @@ class SyncProgress:
     restored: int = 0
     present: int = 0
     message: str = ""
+    unreachable: bool = False       # the destination could not be reached
 
     @property
     def fraction(self) -> float:
@@ -176,6 +177,11 @@ class TestResult:
     free_bytes: int | None = None
     # SHA-256 of a certificate the user may choose to trust
     fingerprint: str = ""
+    # What went wrong, for code to act on without reading the message,
+    # which is translated.
+    unreachable: bool = False       # offline, or the drive is unplugged
+    not_found: bool = False         # the folder does not exist (yet)
+    cert_changed: bool = False      # the trusted certificate was replaced
 
 
 def _pairs(root: Path, files) -> Iterable[tuple[Path, str]]:
@@ -259,7 +265,9 @@ class Backend:
         raise NotImplementedError
 
     def problem(self, exc: Exception) -> TestResult:
-        return TestResult(False, _("Couldn't show the folders"), str(exc))
+        # rclone reports a missing folder in English, whatever the language
+        return TestResult(False, _("Couldn't show the folders"), str(exc),
+                          not_found="not found" in str(exc).lower())
 
     # -- previous versions ------------------------------------------------
     # A changed file is not simply overwritten at the destination: the copy
@@ -365,7 +373,8 @@ class Backend:
             remote_index = self.listing()
         except Exception as exc:
             p.phase = "error"
-            p.message = f"could not list the destination: {exc}"
+            p.message = _("Couldn't read the backup destination: {error}").format(error=exc)
+            p.unreachable = True
             if on_progress:
                 on_progress(p)
             return p
@@ -414,7 +423,9 @@ class Backend:
         if p.phase != "cancelled":
             if p.errors and not p.uploaded:
                 p.phase = "error"
-                p.message = f"none of the {p.errors} files could be uploaded"
+                p.message = ngettext("The file couldn't be uploaded",
+                                     "None of the {count} files could be uploaded",
+                                     p.errors).format(count=p.errors)
             else:
                 p.phase = "done"
         if on_progress:
@@ -441,7 +452,8 @@ class Backend:
             index = self.listing()
         except Exception as exc:
             p.phase = "error"
-            p.message = f"could not read the backup: {exc}"
+            p.message = _("Couldn't read the backup: {error}").format(error=exc)
+            p.unreachable = True
             if on_progress:
                 on_progress(p)
             return p
@@ -481,7 +493,9 @@ class Backend:
         if p.phase != "cancelled":
             if p.errors and not p.restored:
                 p.phase = "error"
-                p.message = p.message or f"none of the {p.errors} files could be restored"
+                p.message = p.message or ngettext(
+                    "The file couldn't be restored",
+                    "None of the {count} files could be restored", p.errors).format(count=p.errors)
             else:
                 p.phase = "done"
         if on_progress:
@@ -540,7 +554,7 @@ class LocalBackend(Backend):
         if not str(b):
             return TestResult(False, _("No folder chosen"))
         if not b.exists():
-            return TestResult(False, _("This folder can't be found"), str(b))
+            return TestResult(False, _("This folder can't be found"), str(b), unreachable=True)
         if not b.is_dir():
             return TestResult(False, _("Not a folder"), str(b))
         if not os.access(b, os.W_OK):
@@ -557,7 +571,8 @@ class LocalBackend(Backend):
             probe.write_bytes(b"ok")
             probe.unlink()
         except OSError as exc:
-            return TestResult(False, _("Piklin can't save files in this folder"), str(exc))
+            return TestResult(False, _("Piklin can't save files in this folder"), str(exc),
+                              unreachable=True)
         return TestResult(True, _("Connected"), str(b), free)
 
     def listing(self) -> dict[str, tuple[int, float]]:
@@ -810,10 +825,12 @@ class WebDavBackend(Backend):
             except urllib.error.HTTPError as exc:
                 if exc.code == 401:
                     raise
-                return TestResult(False, f"Could not create the folder /{self.base_path}",
-                                  f"The server answered HTTP {exc.code}. The folder "
-                                  "must be inside a shared folder you can write to")
-            return TestResult(True, _("Connected"), f"created the folder /{self.base_path}")
+                return TestResult(
+                    False, _("Couldn't create the folder /{folder}").format(folder=self.base_path),
+                    _("The server answered HTTP {code}. The folder must be inside a shared "
+                      "folder you can write to").format(code=exc.code))
+            return TestResult(True, _("Connected"),
+                              _("created the folder /{folder}").format(folder=self.base_path))
         except urllib.error.HTTPError as exc:
             return self._http_problem(exc)
         except urllib.error.URLError as exc:
@@ -836,17 +853,18 @@ class WebDavBackend(Backend):
         if code in (301, 302, 303, 307, 308):
             loc = exc.headers.get("Location", "") if exc.headers else ""
             return TestResult(False, _("The server says to use another address"),
-                              f"Try {loc}" if loc else f"HTTP {code}")
+                              _("Try {address}").format(address=loc) if loc else f"HTTP {code}")
         if code == 404:
             return TestResult(False, _("This folder isn't on the server"),
-                              _("Check the address and the folder"))
-        return TestResult(False, f"Server returned HTTP {code}", str(exc.reason))
+                              _("Check the address and the folder"), not_found=True)
+        return TestResult(False, _("The server answered HTTP {code}").format(code=code),
+                          str(exc.reason))
 
     def _connection_problem(self, reason) -> TestResult:
         if isinstance(reason, CertificateChanged):
             return TestResult(False, _("The server's security certificate has changed"),
                               _("Trust the new one only if you replaced it yourself"),
-                              fingerprint=str(reason))
+                              fingerprint=str(reason), cert_changed=True)
         if isinstance(reason, ssl.SSLCertVerificationError):
             try:
                 fp = certificate_fingerprint(self.url)
@@ -857,7 +875,7 @@ class WebDavBackend(Backend):
         if isinstance(reason, ssl.SSLError):
             return TestResult(False, _("A secure connection couldn't be made"), str(reason))
         return TestResult(False, _("Can't reach the server"),
-                          str(getattr(reason, "strerror", None) or reason))
+                          str(getattr(reason, "strerror", None) or reason), unreachable=True)
 
     def _entries(self, rel: str, depth: str) -> list[tuple[str, bool, int, float]]:
         """(path relative to the backup folder, is folder, size, mtime)."""
@@ -1003,7 +1021,8 @@ class RcloneBackend(Backend):
         remote = self.remote.config.get("remote", "").rstrip(":")
         if not remote:
             return TestResult(False, _("Enter the name of the cloud service"),
-                              f"Configured: {', '.join(rclone_remotes()) or 'none'}")
+                              _("Set up in rclone: {names}").format(
+                                  names=", ".join(rclone_remotes()) or _("none")))
         try:
             # The backup folder may not exist yet; mkdir is harmless if it does.
             made = subprocess.run([exe, "mkdir", self.target],
@@ -1013,9 +1032,11 @@ class RcloneBackend(Backend):
             if out.returncode == 0:
                 return TestResult(True, _("Connected"), self.target)
             return TestResult(False, _("rclone can't reach the cloud service"),
-                              (out.stderr or made.stderr or out.stdout).strip()[:400])
+                              (out.stderr or made.stderr or out.stdout).strip()[:400],
+                              unreachable=True)
         except subprocess.TimeoutExpired:
-            return TestResult(False, _("The cloud service took too long to answer"))
+            return TestResult(False, _("The cloud service took too long to answer"),
+                              unreachable=True)
         except Exception as exc:
             return TestResult(False, _("rclone failed"), str(exc))
 
@@ -1127,7 +1148,7 @@ class RcloneBackend(Backend):
                 on_progress(p)
         proc.wait(timeout=60)
         if proc.returncode:
-            p.message = last or f"rclone exited {proc.returncode}"
+            p.message = last or _("rclone stopped with error {code}").format(code=proc.returncode)
         return proc.returncode
 
     def _sub(self, rel: str) -> str:
@@ -1169,7 +1190,8 @@ class RcloneBackend(Backend):
             remote_index = self.listing()
         except Exception as exc:
             p.phase = "error"
-            p.message = f"could not list the destination: {exc}"
+            p.message = _("Couldn't read the backup destination: {error}").format(error=exc)
+            p.unreachable = True
             if on_progress:
                 on_progress(p)
             return p
@@ -1232,7 +1254,9 @@ class RcloneBackend(Backend):
             p.done_files = len(todo)
             if p.errors:
                 p.phase = "error"
-                p.message = p.message or f"{p.errors} files could not be uploaded"
+                p.message = p.message or ngettext(
+                    "{count} file couldn't be uploaded",
+                    "{count} files couldn't be uploaded", p.errors).format(count=p.errors)
             else:
                 p.phase = "done"
                 p.done_bytes = p.total_bytes
@@ -1397,7 +1421,7 @@ def describe_providers() -> list[tuple[str, str, str]]:
          _("For QNAP, Synology, Nextcloud and similar. You need the server "
            "address, your username and your password.")),
         ("rclone", _("Cloud Service (rclone)") +
-         (f" ({len(configured)} configured)" if configured else ""),
+         (" " + _("({count} set up)").format(count=len(configured)) if configured else ""),
          (_("Google Drive, OneDrive, Dropbox, Backblaze and about seventy more, "
             "through the free rclone app. For advanced users.")
           if rc else

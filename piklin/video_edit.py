@@ -342,7 +342,8 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
     spec = EXPORT_FORMATS[fmt]
     vcodec = encoder_for("video", fmt)
     if vcodec is None:
-        raise RuntimeError(f"No {spec['label']} encoder is available.")
+        raise RuntimeError(_("{format} can't be created on this computer.").format(
+            format=_(spec["label"])))
     total = edit.output_duration() or 1.0
     inp = av.open(str(path))
     try:
@@ -518,8 +519,9 @@ def _export_gif(av, path, tmp, edit, segs, max_side, on_progress, cancel):
     from PIL import Image
     total = edit.output_duration()
     if total > GIF_MAX_SECONDS:
-        raise ValueError(f"A GIF can be at most {GIF_MAX_SECONDS:.0f} seconds long; "
-                         f"this one would be {total:.0f}.")
+        raise ValueError(_("A GIF can be at most {limit} seconds long; this one would "
+                           "be {length}.").format(limit=f"{GIF_MAX_SECONDS:.0f}",
+                                                  length=f"{total:.0f}"))
     gif_fps = 12.0
     images = []
     with av.open(str(path)) as c:

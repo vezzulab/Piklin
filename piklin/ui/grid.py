@@ -21,7 +21,7 @@ import threading
 from datetime import datetime
 
 import gi
-from ..i18n import _, N_
+from ..i18n import _, N_, ngettext, month_year, weekday_name, long_date
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -56,7 +56,7 @@ def _section_key(ts, mode):
     if mode == "year":
         return (d.strftime("%Y"), d.strftime("%Y"), "")
     if mode == "month":
-        return (d.strftime("%Y-%m"), d.strftime("%B %Y"), "")
+        return (d.strftime("%Y-%m"), month_year(d), "")
     if mode == "none":
         return ("all", "", "")
     today = datetime.now().date()
@@ -66,9 +66,9 @@ def _section_key(ts, mode):
     elif delta == 1:
         title = _("Yesterday")
     elif delta < 7:
-        title = d.strftime("%A")
+        title = weekday_name(d.weekday())
     else:
-        title = d.strftime("%A, %-d %B %Y")
+        title = long_date(d)
     return (d.strftime("%Y-%m-%d"), title, d.strftime("%H:%M"))
 
 
@@ -717,10 +717,12 @@ class PhotoGrid(Gtk.Box):
             self.status.set_icon_name("edit-find-symbolic")
             return
         if self._search:
-            title, desc = (_("No Results"), f"Nothing matches \u201c{self._search}\u201d.")
+            title, desc = (_("No Results"),
+                           _("Nothing matches “{search}”.").format(search=self._search))
             icon = "system-search-symbolic"
         else:
             title, desc = self._EMPTY.get(self._scope, self._EMPTY["library"])
+            title, desc = _(title), _(desc)
             icon = {"trash": "user-trash-symbolic",
                     "favorites": "starred-symbolic",
                     "hidden": "view-conceal-symbolic",
@@ -829,7 +831,7 @@ class PhotoGrid(Gtk.Box):
         for i in range(self.sections.get_n_items()):
             sec = self.sections.get_item(i)
             n = len(sec.items)
-            sec.subtitle = f"{n} photo" + ("s" if n != 1 else "")
+            sec.subtitle = ngettext("{count} photo", "{count} photos", n).format(count=n)
         # Re-emit so rows already on screen pick up the counts, which are
         # only final once the whole page has been grouped.
         n_items = self.sections.get_n_items()

@@ -382,7 +382,7 @@ def plan(source: Path | str, profile: str = DEFAULT_PROFILE,
         original = iio.load_rgb(src)
     except Exception as exc:
         return Result(False, src, original_bytes=size,
-                      note=f"cannot decode: {type(exc).__name__}")
+                      note=_("can't read the file ({error})").format(error=type(exc).__name__))
 
     if prof.max_side:
         original = ops.fit_within(original, prof.max_side)
@@ -425,14 +425,14 @@ def plan(source: Path | str, profile: str = DEFAULT_PROFILE,
                                "quality"))
         except Exception as exc:
             return Result(False, src, original_bytes=size,
-                          note=f"encode failed: {type(exc).__name__}")
+                          note=_("couldn't save the file ({error})").format(error=type(exc).__name__))
 
     q, metrics = best
     try:
         nbytes = len(_encode(original, out_fmt, q, exif=exif))
     except Exception as exc:
         return Result(False, src, original_bytes=size,
-                      note=f"encode failed: {type(exc).__name__}")
+                      note=_("couldn't save the file ({error})").format(error=type(exc).__name__))
     if size and nbytes >= size:
         # Never advertise a negative saving: the honest answer is that
         # this file is already smaller than we can make it.
@@ -442,7 +442,7 @@ def plan(source: Path | str, profile: str = DEFAULT_PROFILE,
                       note=_("already well compressed; original kept"))
     note = ""
     if prof.max_side:
-        note = f"long edge capped at {prof.max_side}px"
+        note = _("made smaller, up to {size} px on the long side").format(size=prof.max_side)
     return Result(True, src, original_bytes=size, output_bytes=nbytes,
                   profile=prof.id, format=out_fmt, quality=q,
                   metrics=metrics, note=note)

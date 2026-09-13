@@ -445,7 +445,7 @@ class VideoEditorView(Gtk.Box):
         turn.add_suffix(tbox)
         picture.add(turn)
         self.crop_row = Adw.ComboRow(
-            title=_("Crop"), model=Gtk.StringList.new([name for name, _ in CROPS]))
+            title=_("Crop"), model=Gtk.StringList.new([_(name) for name, _ratio in CROPS]))
         self.crop_row.connect("notify::selected", self._on_crop)
         picture.add(self.crop_row)
         page.add(picture)
@@ -545,7 +545,8 @@ class VideoEditorView(Gtk.Box):
         self.start_row.set_subtitle(format_duration(e.start) if e.start else _("Beginning"))
         self.end_row.set_subtitle(format_duration(e.stop)
                                   if e.end is not None and e.stop < e.duration - 0.01 else _("End"))
-        self.len_label.set_text(f"{format_duration(e.output_duration())} after editing"
+        self.len_label.set_text(_("{length} after editing").format(
+                                    length=format_duration(e.output_duration()))
                                 if not e.is_identity() else format_duration(e.duration))
         self._syncing = True
         try:
@@ -721,7 +722,8 @@ class VideoEditorView(Gtk.Box):
             try:
                 saved = ve.save_frame_as_photo(self.library, path, t, edit, taken)
             except Exception as exc:
-                GLib.idle_add(self._toast, f"The frame couldn’t be saved: {exc}")
+                GLib.idle_add(self._toast,
+                              _("The frame couldn’t be saved: {error}").format(error=exc))
                 return
             GLib.idle_add(self.emit, "photo-saved", str(saved))
         threading.Thread(target=work, daemon=True).start()

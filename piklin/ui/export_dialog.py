@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 import gi
-from ..i18n import _
+from ..i18n import _, ngettext
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -56,10 +56,16 @@ class ExportDialog(Adw.Dialog):
         n_photos = len(self.paths) - n_videos
         counted = []
         if n_photos:
-            counted.append(f"{n_photos} photo" + ("s" if n_photos != 1 else ""))
+            counted.append(ngettext("{count} photo", "{count} photos",
+                                    n_photos).format(count=n_photos))
         if n_videos:
-            counted.append(f"{n_videos} video" + ("s" if n_videos != 1 else ""))
-        target = Adw.PreferencesGroup(title=" and ".join(counted) or _("Nothing"))
+            counted.append(ngettext("{count} video", "{count} videos",
+                                    n_videos).format(count=n_videos))
+        if len(counted) == 2:
+            heading = _("{photos} and {videos}").format(photos=counted[0], videos=counted[1])
+        else:
+            heading = counted[0] if counted else _("Nothing")
+        target = Adw.PreferencesGroup(title=heading)
         self.dest_row = Adw.ActionRow(title=_("Save to"),
                                       subtitle=str(self.destination))
         choose = Gtk.Button(label=_("Change…"), valign=Gtk.Align.CENTER)
@@ -76,7 +82,7 @@ class ExportDialog(Adw.Dialog):
         first = None
         current = settings.get("export_profile", cz.DEFAULT_PROFILE)
         for pid, prof in cz.PROFILES.items():
-            row = Adw.ActionRow(title=prof.name, subtitle=prof.summary)
+            row = Adw.ActionRow(title=_(prof.name), subtitle=_(prof.summary))
             check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
             if first is None:
                 first = check
@@ -123,7 +129,7 @@ class ExportDialog(Adw.Dialog):
             description=_("Edited videos are saved with your trims, cuts and changes. The "
                           "original files are never changed."))
         labels = {"original": _("Same as Original")}
-        labels.update({k: v["label"] for k, v in ve.EXPORT_FORMATS.items()})
+        labels.update({k: _(v["label"]) for k, v in ve.EXPORT_FORMATS.items()})
         self.vformat_row = Adw.ComboRow(
             title=_("Format"), model=Gtk.StringList.new(
                 [labels[f] for f in self._video_formats]))
@@ -232,7 +238,8 @@ class ExportDialog(Adw.Dialog):
                             ssim.append(r.metrics["ssim"])
                 if total_in:
                     pct = (1 - total_out / total_in) * 100
-                    q = f"  ·  {min(ssim)*100:.1f}% match" if ssim else ""
+                    q = ("  ·  " + _("{percent}% match").format(
+                        percent=f"{min(ssim)*100:.1f}")) if ssim else ""
                     GLib.idle_add(self._set_badge, pid,
                                   (_("no saving") if pct < 0.5
                                    else f"−{pct:.0f}%{q}"))
@@ -270,8 +277,8 @@ class ExportDialog(Adw.Dialog):
             (str(self.library.exports / time.strftime("%Y-%m-%d")),
              _("Library exports, filed by date")),
             (str(home / "Pictures"), _("Your pictures folder")),
-            (str(home / "Desktop"), "Desktop"),
-            (str(home / "Downloads"), "Downloads"),
+            (str(home / "Desktop"), _("Desktop")),
+            (str(home / "Downloads"), _("Downloads")),
             (str(home), _("Home folder")),
         ]
         choices = [(p, d) for p, d in choices
@@ -491,12 +498,14 @@ class ExportDialog(Adw.Dialog):
         self.export_btn.set_sensitive(True)
         pct = (1 - size_out / size_in) * 100 if size_in else 0
         self.status_row.set_title(
-            f"Exported {done} photo" + ("s" if done != 1 else ""))
-        detail = f"to {self.destination}"
+            ngettext("Exported {count} item", "Exported {count} items",
+                     done).format(count=done))
+        detail = _("to {folder}").format(folder=self.destination)
         if size_in:
             detail += f"  ·  {_fmt(size_in)} → {_fmt(size_out)} ({pct:+.0f}%)"
         if errors:
-            detail += f"  ·  {errors} failed"
+            detail += "  ·  " + ngettext("{count} failed", "{count} failed",
+                                         errors).format(count=errors)
         self.status_row.set_subtitle(detail)
         self.progress.set_fraction(1.0)
         return False

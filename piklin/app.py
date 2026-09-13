@@ -305,6 +305,10 @@ def main(argv=None):
                         version=f"Piklin {VERSION}")
     args = parser.parse_args(argv)
 
+    # The language comes first: every window and message is built in it.
+    from . import i18n
+    i18n.setup()
+
     library = Library(args.library).ensure()
 
     # Set after files were restored into an empty library: the catalog is

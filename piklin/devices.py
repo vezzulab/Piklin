@@ -31,6 +31,7 @@ gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
 from . import imageio as iio
+from .i18n import _
 
 # Where cameras put pictures. DCIM is the one the standard actually
 # mandates; the others are what phones do in practice.
@@ -135,7 +136,7 @@ def list_devices() -> list[Device]:
         # A plain filesystem mount counts when it is a card with a picture
         # folder, or a USB stick or external disk - never the system's own
         # disks, which the desktop does not list as mounts for the user.
-        name = mount.get_name() or "Camera"
+        name = mount.get_name() or _("Camera")
         if kind == "storage":
             if path is None:
                 continue
@@ -143,7 +144,7 @@ def list_devices() -> list[Device]:
                 if not _is_external(mount, path):
                     continue
                 kind, icon = "drive", "drive-removable-media-symbolic"
-                name = mount.get_name() or "USB Drive"
+                name = mount.get_name() or _("USB Drive")
 
         seen.add(uri)
         devices.append(Device(

@@ -244,13 +244,13 @@ class EditorView(Gtk.Box):
                 img = Gtk.Image(icon_name=icons.get(tool.id,
                                                     "image-filter-symbolic"),
                                 pixel_size=22)
-                name = Gtk.Label(label=tool.name, wrap=True, justify=2,
+                name = Gtk.Label(label=_(tool.name), wrap=True, justify=2,
                                  max_width_chars=11)
                 name.add_css_class("pika-tool-name")
                 inner.append(img)
                 inner.append(name)
                 btn.set_child(inner)
-                btn.set_tooltip_text(tool.description or tool.name)
+                btn.set_tooltip_text(_(tool.description or tool.name))
                 btn.connect("clicked", self._on_pick_tool, tool.id)
                 flow.append(btn)
             box.append(flow)
@@ -272,7 +272,7 @@ class EditorView(Gtk.Box):
                            max_children_per_line=2, min_children_per_line=2,
                            homogeneous=True, row_spacing=4, column_spacing=4)
         for name in looks_mod.names():
-            btn = Gtk.Button(label=name)
+            btn = Gtk.Button(label=_(name))
             btn.add_css_class("flat")
             btn.add_css_class("pika-look-tile")
             btn.connect("clicked", self._on_apply_look, name)
@@ -479,8 +479,8 @@ class EditorView(Gtk.Box):
         spec = layer.spec
         if spec is None:
             return
-        self.param_title.set_text(spec.name)
-        self.param_hint.set_text(spec.description or "")
+        self.param_title.set_text(_(spec.name))
+        self.param_hint.set_text(_(spec.description) if spec.description else "")
         self.param_hint.set_visible(bool(spec.description))
 
         child = self.param_box.get_first_child()
@@ -517,9 +517,9 @@ class EditorView(Gtk.Box):
         if param.kind == CHOICE:
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8,
                           margin_top=6, margin_bottom=2)
-            row.append(Gtk.Label(label=param.label, xalign=0.0, hexpand=True))
+            row.append(Gtk.Label(label=_(param.label), xalign=0.0, hexpand=True))
             choices = [str(c) for c in param.choices]
-            drop = Gtk.DropDown.new_from_strings(choices)
+            drop = Gtk.DropDown.new_from_strings([_(c) for c in choices])
             try:
                 drop.set_selected(choices.index(str(value)))
             except ValueError:
@@ -529,14 +529,14 @@ class EditorView(Gtk.Box):
             return row
 
         if param.kind == TOGGLE:
-            row = Adw.SwitchRow(title=param.label, active=bool(value))
+            row = Adw.SwitchRow(title=_(param.label), active=bool(value))
             row.connect("notify::active", self._on_toggle, index, param.key)
             return row
 
         if param.kind == TEXT:
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
                           margin_top=6)
-            row.append(Gtk.Label(label=param.label, xalign=0.0))
+            row.append(Gtk.Label(label=_(param.label), xalign=0.0))
             buf = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD)
             buf.get_buffer().set_text(str(value or ""))
             buf.set_size_request(-1, 70)
@@ -549,7 +549,7 @@ class EditorView(Gtk.Box):
         if param.kind == COLOR:
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8,
                           margin_top=6)
-            row.append(Gtk.Label(label=param.label, xalign=0.0, hexpand=True))
+            row.append(Gtk.Label(label=_(param.label), xalign=0.0, hexpand=True))
             btn = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog())
             c = value or [1, 1, 1]
             rgba = Gdk.RGBA()
@@ -730,10 +730,11 @@ class EditorView(Gtk.Box):
         while (row := self.layer_list.get_first_child()) is not None:
             self.layer_list.remove(row)
         for i, layer in enumerate(self.stack.layers):
-            row = Adw.ActionRow(title=layer.name, activatable=True)
+            row = Adw.ActionRow(title=_(layer.name), activatable=True)
             row.add_css_class("pika-layer-row")
             if layer.opacity < 0.999:
-                row.set_subtitle(f"{layer.opacity*100:.0f}% strength")
+                row.set_subtitle(_("{percent}% strength").format(
+                    percent=f"{layer.opacity*100:.0f}"))
             toggle = Gtk.Switch(active=layer.enabled, valign=Gtk.Align.CENTER)
             toggle.connect("notify::active", self._on_layer_toggle, i)
             row.add_suffix(toggle)

@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 
 import gi
-from ..i18n import _
+from ..i18n import _, ngettext
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -147,7 +147,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         first = None
         current = self.settings.get("export_profile", cz.DEFAULT_PROFILE)
         for pid, prof in cz.PROFILES.items():
-            row = Adw.ActionRow(title=prof.name, subtitle=prof.summary)
+            row = Adw.ActionRow(title=_(prof.name), subtitle=_(prof.summary))
             check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
             if first is None:
                 first = check
@@ -209,9 +209,9 @@ class SettingsDialog(Adw.PreferencesDialog):
         profile_ids = list(cz.PROFILES.keys())
         names = []
         for pid in profile_ids:
-            label = cz.PROFILES[pid].name
+            label = _(cz.PROFILES[pid].name)
             if pid == "visually_lossless":
-                label += " (recommended)"
+                label += " " + _("(recommended)")
             names.append(label)
         storage = Adw.ComboRow(
             title=_("Make imported photos smaller"),
@@ -269,16 +269,17 @@ class SettingsDialog(Adw.PreferencesDialog):
         threading.Thread(target=work, daemon=True).start()
 
     def _show_usage(self, counts, thumb_bytes):
+        total = counts.get("total", 0)
         self.usage_row.set_subtitle(
-            f"{counts.get('total', 0):,} photos  ·  "
-            f"{_fmt(counts.get('bytes', 0))} of originals")
+            ngettext("{count} photo", "{count} photos", total).format(count=f"{total:,}")
+            + "  ·  " + _("{size} of originals").format(size=_fmt(counts.get("bytes", 0))))
         self.thumb_row.set_subtitle(
-            f"{_fmt(thumb_bytes)}  ·  rebuilt automatically when needed")
+            _fmt(thumb_bytes) + "  ·  " + _("rebuilt automatically when needed"))
         return False
 
     def _on_clear_thumbs(self, _btn):
         freed = self.thumbs.clear()
-        self.thumb_row.set_subtitle(f"Cleared {_fmt(freed)}")
+        self.thumb_row.set_subtitle(_("Cleared {size}").format(size=_fmt(freed)))
 
     # ==================================================================
     def _remotes_page(self):
@@ -404,7 +405,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         if result.detail:
             text += f" — {result.detail}"
         if result.free_bytes:
-            text += f" · {_fmt(result.free_bytes)} free"
+            text += " · " + _("{size} free").format(size=_fmt(result.free_bytes))
         return text
 
     def _on_remote_menu(self, _item, popover, handler, cfg, row, push):
@@ -599,7 +600,7 @@ class SettingsDialog(Adw.PreferencesDialog):
                 return False
             if problem is not None:
                 if (fallback and path and not problem.fingerprint
-                        and "not found" in self._result_text(problem).lower()):
+                        and problem.not_found):
                     # a folder that doesn't exist yet: show its parent
                     load("/".join(path.split("/")[:-1]))
                     return False
@@ -671,16 +672,16 @@ class SettingsDialog(Adw.PreferencesDialog):
     def _ask_trust(self, cfg, result, retry=None, on_trust=None):
         """Offer to trust a server's own certificate, by its fingerprint."""
         url = GLib.markup_escape_text(cfg.get("config", {}).get("url", ""))
-        changed = "changed" in result.message.lower()
+        changed = result.cert_changed
         dlg = Adw.AlertDialog(
             heading=_("Security Certificate Changed") if changed else _("Trust This Server?"))
         dlg.set_body_use_markup(True)
-        intro = (f"The certificate of <b>{url}</b> is not the one you trusted "
-                 "before. If you did not replace it yourself, do not continue."
+        intro = (_("The security certificate of <b>{server}</b> is not the one you "
+                   "trusted before. If you didn't replace it yourself, don't continue.")
                  if changed else
-                 f"<b>{url}</b> uses its own security certificate, which is "
-                 "normal for a server at home. Check that this fingerprint "
-                 "matches the one your server shows, then trust it.")
+                 _("<b>{server}</b> uses its own security certificate, which is normal "
+                   "for a server at home. Check that this fingerprint matches the one "
+                   "your server shows, then trust it.")).format(server=url)
         fp = GLib.markup_escape_text(
             remote_mod.format_fingerprint(result.fingerprint))
         dlg.set_body(f"{intro}\n\nSHA-256\n<tt>{fp}</tt>")
@@ -749,13 +750,19 @@ class SettingsDialog(Adw.PreferencesDialog):
                     and self._autobackup() is not None):
                 GLib.idle_add(self._autobackup().mark_clean)
             if progress.phase == "done":
-                text = (f"Backed up {progress.uploaded:,} file"
-                        + ("s" if progress.uploaded != 1 else "")
-                        + (f", {progress.skipped:,} already current"
-                           if progress.skipped else "")
-                        + (f", {progress.errors:,} failed" if progress.errors else ""))
+                text = ngettext("Backed up {count} file", "Backed up {count} files",
+                                progress.uploaded).format(count=f"{progress.uploaded:,}")
+                if progress.skipped:
+                    text += ", " + ngettext("{count} already backed up",
+                                            "{count} already backed up",
+                                            progress.skipped).format(
+                                                count=f"{progress.skipped:,}")
+                if progress.errors:
+                    text += ", " + ngettext("{count} failed", "{count} failed",
+                                            progress.errors).format(
+                                                count=f"{progress.errors:,}")
             else:
-                text = progress.message or f"Stopped: {progress.phase}"
+                text = progress.message or _("Stopped")
             GLib.idle_add(finish, text, None)
 
         def finish(text, test):
@@ -770,10 +777,10 @@ class SettingsDialog(Adw.PreferencesDialog):
     def _on_restore_remote(self, cfg, row, push):
         dlg = Adw.AlertDialog(
             heading=_("Restore Missing Files?"),
-            body=f"Piklin copies back from “{cfg.get('name', 'the backup')}” "
-                 "the photos, videos, edits and albums that are missing from "
-                 "your library.\n\nNothing in your library is replaced, and "
-                 "photos you deleted yourself stay deleted.")
+            body=_("Piklin copies back from “{backup}” the photos, videos, edits and "
+                   "albums that are missing from your library.\n\nNothing in your "
+                   "library is replaced, and photos you deleted yourself stay "
+                   "deleted.").format(backup=cfg.get("name") or _("the backup")))
         dlg.add_response("cancel", _("Cancel"))
         dlg.add_response("restore", _("Restore"))
         dlg.set_response_appearance("restore", Adw.ResponseAppearance.SUGGESTED)
@@ -798,8 +805,9 @@ class SettingsDialog(Adw.PreferencesDialog):
         def progress_text(p):
             if p.phase != "downloading":
                 return _("Reading the backup…")
-            return (f"Restoring — {p.done_files:,} of {p.total_files:,} "
-                    f"({_fmt(p.done_bytes)})")
+            return _("Restoring — {done} of {total} ({size})").format(
+                done=f"{p.done_files:,}", total=f"{p.total_files:,}",
+                size=_fmt(p.done_bytes))
 
         def work():
             backend = r.backend()
@@ -812,15 +820,21 @@ class SettingsDialog(Adw.PreferencesDialog):
                 on_progress=lambda p: GLib.idle_add(row.set_subtitle,
                                                     progress_text(p)))
             if p.phase == "done":
-                text = (f"Restored {p.restored:,} file"
-                        + ("s" if p.restored != 1 else "")
-                        + (f", {p.present:,} already in your library"
-                           if p.present else "")
-                        + (f", {p.skipped:,} you deleted left out"
-                           if p.skipped else "")
-                        + (f", {p.errors:,} failed" if p.errors else ""))
+                text = ngettext("Restored {count} file", "Restored {count} files",
+                                p.restored).format(count=f"{p.restored:,}")
+                if p.present:
+                    text += ", " + ngettext("{count} already in your library",
+                                            "{count} already in your library",
+                                            p.present).format(count=f"{p.present:,}")
+                if p.skipped:
+                    text += ", " + ngettext("{count} you deleted left out",
+                                            "{count} you deleted left out",
+                                            p.skipped).format(count=f"{p.skipped:,}")
+                if p.errors:
+                    text += ", " + ngettext("{count} failed", "{count} failed",
+                                            p.errors).format(count=f"{p.errors:,}")
             else:
-                text = p.message or f"Stopped: {p.phase}"
+                text = p.message or _("Stopped")
             GLib.idle_add(finish, text, None, p)
 
         def finish(text, test, p):
@@ -840,9 +854,11 @@ class SettingsDialog(Adw.PreferencesDialog):
     def _offer_rebuild(self, p):
         dlg = Adw.AlertDialog(
             heading=_("Reopen Piklin to Finish"),
-            body=f"{p.restored:,} files are back. Piklin reopens and rebuilds "
-                 "your library from them, with your albums, favourites and "
-                 "edits.")
+            body=ngettext("{count} file is back. Piklin reopens and rebuilds your "
+                          "library, with your albums, favourites and edits.",
+                          "{count} files are back. Piklin reopens and rebuilds your "
+                          "library, with your albums, favourites and edits.",
+                          p.restored).format(count=f"{p.restored:,}"))
         dlg.add_response("later", _("Later"))
         dlg.add_response("reopen", _("Reopen Now"))
         dlg.set_response_appearance("reopen", Adw.ResponseAppearance.SUGGESTED)
@@ -920,9 +936,11 @@ class SettingsDialog(Adw.PreferencesDialog):
         n_removed = len(self.catalog.removed_paths())
         removed = Adw.ActionRow(
             title=_("Photos Removed from Piklin"),
-            subtitle=(f"{n_removed:,} photo{'s' if n_removed != 1 else ''} you "
-                      f"removed stay out, although the files are still in "
-                      f"watched folders" if n_removed else
+            subtitle=(ngettext("{count} photo you removed doesn't come back, even "
+                               "though its file is still in your folders",
+                               "{count} photos you removed don't come back, even "
+                               "though their files are still in your folders",
+                               n_removed).format(count=f"{n_removed:,}") if n_removed else
                       _("Photos you remove don't come back, even though their files are "
                         "still in your folders")))
         again = Gtk.Button(label=_("Show Again"), valign=Gtk.Align.CENTER,
@@ -956,7 +974,9 @@ class SettingsDialog(Adw.PreferencesDialog):
             self._window._start_scan(None)
         except Exception:
             pass
-        self._toast(f"{n:,} photo{'s' if n != 1 else ''} will be back in a moment.")
+        self._toast(ngettext("{count} photo will be back in a moment.",
+                             "{count} photos will be back in a moment.",
+                             n).format(count=f"{n:,}"))
 
     def _on_forget_root(self, _btn, root_id):
         self.catalog.forget_root(root_id, drop_photos=True)
@@ -975,8 +995,10 @@ class SettingsDialog(Adw.PreferencesDialog):
         def finish(n, extra, waste):
             btn.set_sensitive(True)
             row.set_subtitle(
-                f"{n} group" + ("s" if n != 1 else "")
-                + f", {extra} duplicate file" + ("s" if extra != 1 else "")
-                + f" using {_fmt(waste)}" if n else _("No duplicates found"))
+                (ngettext("{count} group", "{count} groups", n).format(count=n)
+                 + ", " + ngettext("{count} duplicate file", "{count} duplicate files",
+                                   extra).format(count=extra)
+                 + " " + _("using {size}").format(size=_fmt(waste)))
+                if n else _("No duplicates found"))
             return False
         threading.Thread(target=work, daemon=True).start()

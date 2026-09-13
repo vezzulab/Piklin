@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import gi
-from ..i18n import _
+from ..i18n import _, ngettext
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -428,8 +428,9 @@ class MainWindow(Adw.ApplicationWindow):
         photos = max(0, int(counts.get("library", 0)) - int(counts.get("videos", 0)))
         videos = int(counts.get("videos", 0))
         self.footer_counts.set_text(
-            f"{photos:,} Photo" + ("s" if photos != 1 else "")
-            + f"  \u00b7  {videos:,} Video" + ("s" if videos != 1 else ""))
+            ngettext("{count} Photo", "{count} Photos", photos).format(count=f"{photos:,}")
+            + "  ·  "
+            + ngettext("{count} Video", "{count} Videos", videos).format(count=f"{videos:,}"))
         used = int(counts.get("bytes", 0))
         try:
             total = _sh.disk_usage(self.library.root).total
@@ -776,7 +777,7 @@ class MainWindow(Adw.ApplicationWindow):
             return
         self._device = device
         self._scope, self._album_id = "device", None
-        self.scan_label.set_text(f"Reading {device.name}…")
+        self.scan_label.set_text(_("Reading {device}…").format(device=device.name))
         self.scan_bar.set_visible(True)
         self.scan_progress.set_fraction(0.0)
 
@@ -1138,8 +1139,9 @@ class MainWindow(Adw.ApplicationWindow):
         """After import: delete from the camera, or keep."""
         n = len(sources)
         dialog = Adw.AlertDialog(
-            heading=f"Delete {n} item" + ("s" if n != 1 else "")
-                    + f" from \u201c{device.name}\u201d?",
+            heading=ngettext("Delete {count} item from “{device}”?",
+                             "Delete {count} items from “{device}”?",
+                             n).format(count=n, device=device.name),
             body=_("They are safely in your library now. Deleting them frees up space "
                    "on the camera and can't be undone."))
         dialog.add_response("keep", _("Keep Items"))
@@ -1154,10 +1156,13 @@ class MainWindow(Adw.ApplicationWindow):
 
             def work():
                 removed, failed = devicemod.delete_from_device(sources)
-                msg = f"Deleted {removed} item" + ("s" if removed != 1 else "") \
-                      + f" from {device.name}"
+                msg = ngettext("Deleted {count} item from {device}",
+                               "Deleted {count} items from {device}",
+                               removed).format(count=removed, device=device.name)
                 if failed:
-                    msg += f" ({failed} could not be deleted)"
+                    msg += " " + ngettext("({count} could not be deleted)",
+                                          "({count} could not be deleted)",
+                                          failed).format(count=failed)
                 GLib.idle_add(self._show_toast, msg)
             threading.Thread(target=work, daemon=True).start()
         dialog.connect("response", done)
@@ -1834,8 +1839,9 @@ class MainWindow(Adw.ApplicationWindow):
         if on_device:
             n_new = len(self._new_device_records())
             self._import_btn.set_label(
-                f"Import {n} Selected" if n else
-                (f"Import All New Items ({n_new})" if n_new else _("All Items Imported")))
+                _("Import {count} Selected").format(count=n) if n else
+                (_("Import All New Items ({count})").format(count=n_new) if n_new
+                 else _("All Items Imported")))
             self._import_btn.set_sensitive(bool(n or n_new))
         for key in ("favorite", "trash", "album"):
             self._bar_buttons[key].set_visible(not on_device)
@@ -1851,7 +1857,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._merge_btn.set_visible(in_dupes and not on_device)
         if in_dupes:
             n = len(self.grid.selected_ids())
-            self._merge_btn.set_label(f"Merge {n} Item" + ("s" if n != 1 else ""))
+            self._merge_btn.set_label(_("Keep One of {count}").format(count=n))
         trash_btn = self._bar_buttons["trash"]
         trash_btn.set_icon_name("edit-undo-symbolic" if in_trash
                                 else "user-trash-symbolic")
@@ -1871,8 +1877,10 @@ class MainWindow(Adw.ApplicationWindow):
         self._refresh()
         n = len(result["trashed"])
         if n:
-            self._show_toast(f"Merged. {n} extra cop" + ("ies" if n != 1 else "y")
-                        + " moved to Recently Deleted.")
+            self._show_toast(ngettext(
+                "Kept one. {count} extra copy moved to Recently Deleted.",
+                "Kept one. {count} extra copies moved to Recently Deleted.",
+                n).format(count=n))
         else:
             self._show_toast(_("Select at least two copies of the same photo."))
 
@@ -1894,8 +1902,9 @@ class MainWindow(Adw.ApplicationWindow):
         rows = [self.catalog.photo(i) for i in ids]
         paths = [r["path"] for r in rows if r]
         dialog = Adw.AlertDialog(
-            heading=f"Delete {len(ids)} photo" + ("s" if len(ids) != 1 else "")
-                    + " permanently?",
+            heading=ngettext("Delete {count} photo permanently?",
+                             "Delete {count} photos permanently?",
+                             len(ids)).format(count=len(ids)),
             body=_("These photos are in a folder on your computer.\n\n“Remove from "
                    "Library” only takes them out of Piklin. The files stay where they "
                    "are.\n\n“Delete Files” deletes the files from your computer. This "
@@ -1965,7 +1974,8 @@ class MainWindow(Adw.ApplicationWindow):
         if getattr(self, "_filters_syncing", False):
             return
         active = {k for k, c in self._filter_checks.items() if c.get_active()}
-        self.filter_btn.set_label(f"Filter ({len(active)})" if active else _("Filter"))
+        self.filter_btn.set_label(_("Filter ({count})").format(count=len(active))
+                                  if active else _("Filter"))
         self.grid.set_filters(active)
         self._sync_content_view()
 
@@ -2040,8 +2050,8 @@ class MainWindow(Adw.ApplicationWindow):
             return
         albums = self.catalog.albums()
         dialog = Adw.AlertDialog(heading=_("Add to Album"),
-                                 body=f"{len(ids)} photo"
-                                      + ("s" if len(ids) != 1 else ""))
+                                 body=ngettext("{count} photo", "{count} photos",
+                                               len(ids)).format(count=len(ids)))
         names = [a["name"] for a in albums]
         combo = Gtk.DropDown.new_from_strings(names + [_("New Album…")])
         dialog.set_extra_child(combo)
@@ -2076,7 +2086,7 @@ class MainWindow(Adw.ApplicationWindow):
                   lambda: self._on_new_album(folder_id=folder_id)),
                  ("new-folder", _("New Folder Here…"), None,
                   lambda: self._on_new_folder(folder_id))],
-                [("move-out", f"Move Out of \u201c{parent['name']}\u201d", None,
+                [("move-out", _("Move Out of “{folder}”").format(folder=parent["name"]), None,
                   lambda: self._move_out(folder_id=folder_id,
                                          to=parent["parent_id"]))]
                 if parent is not None else [],
@@ -2090,7 +2100,7 @@ class MainWindow(Adw.ApplicationWindow):
             sections = [
                 [("rename", _("Rename…"), None,
                   lambda: self._on_rename_album(album_id, name))],
-                [("move-out", f"Move Out of \u201c{holder['name']}\u201d", None,
+                [("move-out", _("Move Out of “{folder}”").format(folder=holder["name"]), None,
                   lambda: self._move_out(album_id=album_id,
                                          to=holder["parent_id"]))]
                 if holder is not None else [],
@@ -2233,7 +2243,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_delete_folder(self, folder_id, name):
         dialog = Adw.AlertDialog(
-            heading=f'Delete "{name}"?',
+            heading=_("Delete “{name}”?").format(name=name),
             body=_("This deletes the folder and the albums and folders inside it. Your "
                    "photos are not deleted."))
         dialog.add_response("cancel", _("Cancel"))
@@ -2286,7 +2296,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_delete_album(self, album_id, name):
         dialog = Adw.AlertDialog(
-            heading=f'Delete "{name}"?',
+            heading=_("Delete “{name}”?").format(name=name),
             body=_("This deletes the album. Your photos are not deleted."))
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("delete", _("Delete"))
@@ -2372,7 +2382,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_delete_smart_album(self, smart_id, name):
         dialog = Adw.AlertDialog(
-            heading=f"Delete \u201c{name}\u201d?",
+            heading=_("Delete “{name}”?").format(name=name),
             body=_("This deletes the smart album. Your photos are not deleted."))
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("delete", _("Delete"))
@@ -2546,7 +2556,13 @@ class MainWindow(Adw.ApplicationWindow):
         marks = ",".join("?" * len(ids))
         all_fav = bool(self.catalog.scalar(
             f"SELECT MIN(favorite) FROM photos WHERE id IN ({marks})", ids, 0))
-        count = "" if single else f" {len(ids)} Photos"
+        n_sel = len(ids)
+        if self._scope == "hidden":
+            hide_label = _("Unhide") if single else _("Unhide {count} Photos").format(count=n_sel)
+        else:
+            hide_label = _("Hide") if single else _("Hide {count} Photos").format(count=n_sel)
+        export_label = _("Export…") if single else _("Export {count} Photos…").format(count=n_sel)
+        delete_label = _("Delete") if single else _("Delete {count} Photos").format(count=n_sel)
         self._show_context_menu(widget, x, y, [
             [("open", _("Open"), "space",
               lambda: self._on_photo_activated(self.grid, item)),
@@ -2554,15 +2570,15 @@ class MainWindow(Adw.ApplicationWindow):
               lambda: self._rename_photo_id(item.id))] if single else [],
             [("favorite", _("Remove from Favourites") if all_fav else _("Favourite"),
               "period", lambda: self._on_bulk_favorite(None)),
-             ("hide", (_("Unhide") if self._scope == "hidden" else _("Hide")) + count,
+             ("hide", hide_label,
               "<Ctrl>l", lambda: self._on_bulk_hide())],
-            [("rotate-ccw", "Rotate Left", "<Ctrl><Shift>r",
+            [("rotate-ccw", _("Rotate Left"), "<Ctrl><Shift>r",
               lambda: self._on_rotate(-1, ids)),
-             ("rotate-cw", "Rotate Right", "<Ctrl>r",
+             ("rotate-cw", _("Rotate Right"), "<Ctrl>r",
               lambda: self._on_rotate(1, ids))],
-            [("export", f"Export{count}…", "<Ctrl>e",
+            [("export", export_label, "<Ctrl>e",
               lambda: self._on_bulk_export(None))],
-            [("delete", f"Delete{count}", "Delete",
+            [("delete", delete_label, "Delete",
               lambda: self._on_bulk_trash(None))],
         ])
 
@@ -2587,9 +2603,9 @@ class MainWindow(Adw.ApplicationWindow):
         if not (root / "catalog.db").is_file():
             dlg = Adw.AlertDialog(
                 heading=_("Not a Piklin Library"),
-                body=f"“{root.name}” does not contain a library. Choose "
-                     f"a library package, such as “Piklin Library.piklin”.")
-            dlg.add_response("ok", "OK")
+                body=_("“{name}” is not a Piklin library. Choose a library, such as "
+                       "“Piklin Library.piklin”.").format(name=root.name))
+            dlg.add_response("ok", _("OK"))
             dlg.present(self)
             return
         remember_library(root)
@@ -2624,10 +2640,12 @@ class MainWindow(Adw.ApplicationWindow):
                 label = {"scanning": _("Looking for photos"),
                          "probing": _("Reading photo details"),
                          "thumbnails": _("Preparing previews")}.get(p.phase, p.phase)
-                extra = f"  ·  {p.added} new" if p.added else ""
-                self.scan_label.set_text(f"{label} — {p.done:,}"
-                                         + (f" of {p.total:,}" if p.total else "")
-                                         + extra)
+                extra = ("  ·  " + _("{count} new").format(count=p.added)) if p.added else ""
+                self.scan_label.set_text(
+                    (_("{step} — {done} of {total}").format(
+                        step=label, done=f"{p.done:,}", total=f"{p.total:,}")
+                     if p.total else f"{label} — {p.done:,}")
+                    + extra)
                 self.scan_progress.set_fraction(p.fraction)
                 return False
             GLib.idle_add(apply)
@@ -2689,12 +2707,12 @@ class MainWindow(Adw.ApplicationWindow):
         pictures = pictures_dir()
         dialog = Adw.AlertDialog(
             heading=_("Welcome to Piklin"),
-            body=f"Point it at a folder and it will build your library.\n\n"
-                 f"Your photos are never moved or modified — edits are saved "
-                 f"alongside them and your originals stay exactly as they are.")
+            body=_("Choose a folder with your photos and Piklin will organize them.\n\n"
+                   "Your photos are never moved or changed. Edits are saved separately, "
+                   "so your originals stay exactly as they are."))
         dialog.add_response("later", _("Later"))
         if pictures.is_dir():
-            dialog.add_response("pictures", f"Use {pictures.name}")
+            dialog.add_response("pictures", _("Use {folder}").format(folder=pictures.name))
             dialog.set_response_appearance("pictures",
                                            Adw.ResponseAppearance.SUGGESTED)
         dialog.add_response("choose", _("Choose Folder…"))
@@ -2728,11 +2746,11 @@ class MainWindow(Adw.ApplicationWindow):
             website="https://vezzu.studio",
             copyright=_("© 2026 Vezzu Studio. All rights reserved."),
             comments=(
-                f"Piklin was created by Vezzu Studio.\n\n"
-                f"A photo and video library and editor for Linux. "
-                f"{len(tools_mod.REGISTRY)} editing tools · "
-                f"{len(iio_mod.supported_extensions())} file formats · "
-                f"everything runs on this machine."),
+                _("Piklin was created by Vezzu Studio.\n\nA photo and video library and "
+                  "editor for Linux. {tools} editing tools · {formats} file formats · "
+                  "everything runs on this computer.").format(
+                    tools=len(tools_mod.REGISTRY),
+                    formats=len(iio_mod.supported_extensions()))),
             license_type=Gtk.License.CUSTOM,
             license=(
                 _("Piklin is proprietary software. © 2026 Vezzu Studio. "

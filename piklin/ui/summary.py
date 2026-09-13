@@ -11,7 +11,7 @@ from __future__ import annotations
 import threading
 
 import gi
-from ..i18n import _
+from ..i18n import _, ngettext
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -120,7 +120,8 @@ class SummaryView(Gtk.ScrolledWindow):
         title = Gtk.Label(label=group["label"], xalign=0)
         title.add_css_class("pika-summary-title")
         n = group["count"]
-        sub = Gtk.Label(label=f"{n:,} photo" + ("s" if n != 1 else ""), xalign=0)
+        sub = Gtk.Label(label=ngettext("{count} photo", "{count} photos",
+                                       n).format(count=f"{n:,}"), xalign=0)
         sub.add_css_class("pika-dim")
         box.append(title)
         box.append(sub)

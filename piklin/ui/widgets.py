@@ -10,6 +10,7 @@ gi.require_version("Gdk", "4.0")
 from gi.repository import GObject, Gdk, Gtk  # noqa: E402
 
 import numpy as np
+from ..i18n import _
 
 
 class ParamSlider(Gtk.Box):
@@ -32,7 +33,7 @@ class ParamSlider(Gtk.Box):
         self.add_css_class("pika-slider-row")
 
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        self.label = Gtk.Label(label=param.label, xalign=0.0, hexpand=True)
+        self.label = Gtk.Label(label=_(param.label), xalign=0.0, hexpand=True)
         self.label.add_css_class("pika-slider-label")
         self.value_label = Gtk.Label(xalign=1.0)
         self.value_label.add_css_class("pika-slider-value")

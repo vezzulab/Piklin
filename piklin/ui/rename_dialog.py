@@ -53,7 +53,8 @@ def ask_rename_photo(parent, library, catalog, photo_id, on_renamed) -> None:
             target = old.with_name(clean_name(text, old.suffix) + old.suffix)
             if (target != old and target.exists()
                     and target.name.lower() != old.name.lower()):
-                message = f"There is already a file named “{target.name}”."
+                message = _("There is already a file named “{name}”.").format(
+                    name=target.name)
         except RenameError as exc:
             message = str(exc)
         problem.set_text(message)

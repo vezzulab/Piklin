@@ -9,6 +9,9 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 
+from piklin import i18n as _i18n
+_i18n.setup("en")
+
 PASS, FAIL = [], []
 
 def check(name, cond, detail=""):
@@ -687,9 +690,10 @@ check("restored files are not uploaded again", pp.uploaded == 1,
       f"{pp.uploaded} sent (only the newer local file should go)")
 wd = lambda url: rem.Remote(id="w", name="w", kind="webdav",
                             config={"url": url}).backend().test().message
-check("http allowed on the local network", "local network" not in wd("http://127.0.0.1:9"),
+check("http allowed on the local network", "at home" not in wd("http://127.0.0.1:9"),
       wd("http://127.0.0.1:9"))
-check("http refused for internet servers", "local network" in wd("http://photos.example.com/dav"))
+check("http refused for internet servers", "at home" in wd("http://photos.example.com/dav"),
+      wd("http://photos.example.com/dav"))
 import urllib.error as _ue
 class _ApacheDav(rem.WebDavBackend):
     # Apache (QNAP) refuses Depth: infinity with 403: walk folder by folder

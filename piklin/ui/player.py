@@ -849,7 +849,8 @@ class VideoPlayer(Gtk.Overlay):
             self.emit("ended")
         elif kind == "error":
             self._set_playing(False)
-            self._flash_note(f"This video can't be played. {detail or ''}".strip(), 0)
+            self._flash_note((_("This video can't be played.") + " "
+                              + (detail or "")).strip(), 0)
         return GLib.SOURCE_REMOVE
 
     # -- actions -----------------------------------------------------------

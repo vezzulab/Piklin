@@ -41,7 +41,7 @@ def clean_name(name: str, suffix: str) -> str:
     bad = sorted({c for c in name if c in _FORBIDDEN or ord(c) < 32})
     if bad:
         shown = " ".join("\\0" if c == "\0" else c for c in bad)
-        raise RenameError(f"A file name can't contain {shown}")
+        raise RenameError(_("A file name can't contain {characters}").format(characters=shown))
     if name.startswith("."):
         raise RenameError(_("A name starting with a dot would hide the photo."))
     if len((name + suffix).encode()) > 255:
@@ -67,7 +67,8 @@ def rename_photo(library, catalog, photo_id: int, new_name: str) -> Path:
         raise RenameError(_("That photo is no longer in the library."))
     old = Path(row["path"])
     if not old.exists():
-        raise RenameError(f"“{old.name}” is not on disk. Is its drive connected?")
+        raise RenameError(_("“{name}” isn't on this computer. Is its drive "
+                            "connected?").format(name=old.name))
     stem = clean_name(new_name, old.suffix)
     new = old.with_name(stem + old.suffix)
     if new == old:
@@ -76,17 +77,19 @@ def rename_photo(library, catalog, photo_id: int, new_name: str) -> Path:
     # already there is another file and is never overwritten.
     if new.exists() and not (new.name.lower() == old.name.lower()
                              and os.path.samefile(new, old)):
-        raise RenameError(f"There is already a file named “{new.name}” "
-                          f"in that folder.")
+        raise RenameError(_("There is already a file named “{name}” in that "
+                            "folder.").format(name=new.name))
     if catalog.photo_by_path(str(new)) is not None:
-        raise RenameError(f"“{new.name}” is already in the library.")
+        raise RenameError(_("“{name}” is already in the library.").format(name=new.name))
 
     try:
         os.rename(old, new)
     except PermissionError:
-        raise RenameError(f"This folder can't be changed: “{old.parent}”.")
+        raise RenameError(_("This folder can't be changed: “{folder}”.").format(
+            folder=old.parent))
     except OSError as exc:
-        raise RenameError(f"The file couldn't be renamed: {exc.strerror}.")
+        raise RenameError(_("The file couldn't be renamed: {error}.").format(
+            error=exc.strerror))
 
     try:
         with catalog.write() as cur:
