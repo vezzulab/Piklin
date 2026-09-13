@@ -24,6 +24,7 @@ import threading
 import time
 
 import gi
+from ..i18n import _
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -244,7 +245,7 @@ class _AvEngine:
         c = self._c
         try:
             if not c.streams.video:
-                self._on_event("error", "There is no picture in this file.")
+                self._on_event("error", _("There is no picture in this file."))
                 return
             self._v = v = c.streams.video[0]
             v.thread_type = "AUTO"
@@ -582,7 +583,7 @@ class _CvEngine:
         import cv2
         cap = cv2.VideoCapture(path, cv2.CAP_FFMPEG)
         if not cap.isOpened():
-            self._on_event("error", "This video could not be opened.")
+            self._on_event("error", _("This video could not be opened."))
             return
         self._on_event("ready", None)
         next_due = time.monotonic()
@@ -695,7 +696,7 @@ class VideoPlayer(Gtk.Overlay):
 
         self.big_play = Gtk.Button(icon_name="media-playback-start-symbolic",
                                    halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
-                                   tooltip_text="Play (Space)")
+                                   tooltip_text=_("Play (Space)"))
         self.big_play.add_css_class("pika-player-big")
         self.big_play.connect("clicked", lambda *_: self.toggle())
         self.add_overlay(self.big_play)
@@ -724,7 +725,7 @@ class VideoPlayer(Gtk.Overlay):
         bar.add_css_class("pika-player-controls")
 
         self.play_btn = Gtk.Button(icon_name="media-playback-start-symbolic",
-                                   tooltip_text="Play (Space)")
+                                   tooltip_text=_("Play (Space)"))
         self.play_btn.connect("clicked", lambda *_: self.toggle())
         bar.append(self.play_btn)
 
@@ -761,23 +762,23 @@ class VideoPlayer(Gtk.Overlay):
                                              GLib.Variant.new_string(str(r)))
             menu.append_item(item)
         self.rate_btn = Gtk.MenuButton(label="1×", menu_model=menu,
-                                       tooltip_text="Playback Speed",
+                                       tooltip_text=_("Playback Speed"),
                                        direction=Gtk.ArrowType.UP)
         self.rate_btn.add_css_class("pika-player-rate")
         bar.append(self.rate_btn)
 
         self.loop_btn = Gtk.ToggleButton(icon_name="media-playlist-repeat-symbolic",
-                                         tooltip_text="Loop")
+                                         tooltip_text=_("Loop"))
         self.loop_btn.connect("toggled", self._on_loop)
         bar.append(self.loop_btn)
 
         self.mute_btn = Gtk.ToggleButton(icon_name="audio-volume-high-symbolic",
-                                         tooltip_text="Mute (M)")
+                                         tooltip_text=_("Mute (M)"))
         self.mute_btn.connect("toggled", self._on_mute)
         bar.append(self.mute_btn)
 
         full = Gtk.Button(icon_name="view-fullscreen-symbolic",
-                          tooltip_text="Full Screen (F11)")
+                          tooltip_text=_("Full Screen (F11)"))
         full.connect("clicked", lambda *_: self.emit("toggle-fullscreen"))
         bar.append(full)
         return bar
@@ -915,7 +916,7 @@ class VideoPlayer(Gtk.Overlay):
         self._playing = playing
         icon = "media-playback-pause-symbolic" if playing else "media-playback-start-symbolic"
         self.play_btn.set_icon_name(icon)
-        self.play_btn.set_tooltip_text("Pause (Space)" if playing else "Play (Space)")
+        self.play_btn.set_tooltip_text(_("Pause (Space)") if playing else _("Play (Space)"))
         self.big_play.set_visible(not playing and self._chrome)
         if playing:
             self._schedule_hide()

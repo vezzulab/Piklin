@@ -12,6 +12,7 @@ from __future__ import annotations
 import threading
 
 import gi
+from ..i18n import _
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -29,7 +30,7 @@ class PhotoPicker(Adw.Dialog):
         "picked": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
     }
 
-    def __init__(self, catalog, thumbs, title="Choose a photo",
+    def __init__(self, catalog, thumbs, title=_("Choose a photo"),
                  exclude_path=None):
         super().__init__(title=title, content_width=760, content_height=620)
         self.catalog = catalog
@@ -39,7 +40,7 @@ class PhotoPicker(Adw.Dialog):
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar()
         header.add_css_class("pika-header")
-        self.search = Gtk.SearchEntry(placeholder_text="Search your photos",
+        self.search = Gtk.SearchEntry(placeholder_text=_("Search your photos"),
                                       width_chars=26)
         self.search.add_css_class("pika-search")
         self.search.connect("search-changed", lambda *_: self._load())
@@ -56,7 +57,7 @@ class PhotoPicker(Adw.Dialog):
         scroller.set_child(self.flow)
         toolbar.set_content(scroller)
 
-        self.status = Gtk.Label(label="No photos found")
+        self.status = Gtk.Label(label=_("No photos found"))
         self.status.add_css_class("pika-dim")
         self.status.set_visible(False)
         toolbar.add_bottom_bar(self.status)

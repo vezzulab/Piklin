@@ -52,6 +52,7 @@ from base64 import b64encode
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable
+from .i18n import _
 
 SERVICE = "Pikalicious"
 
@@ -258,7 +259,7 @@ class Backend:
         raise NotImplementedError
 
     def problem(self, exc: Exception) -> TestResult:
-        return TestResult(False, "Could not list folders", str(exc))
+        return TestResult(False, _("Couldn't show the folders"), str(exc))
 
     # -- previous versions ------------------------------------------------
     # A changed file is not simply overwritten at the destination: the copy
@@ -537,13 +538,13 @@ class LocalBackend(Backend):
     def test(self) -> TestResult:
         b = self.base
         if not str(b):
-            return TestResult(False, "No folder chosen")
+            return TestResult(False, _("No folder chosen"))
         if not b.exists():
-            return TestResult(False, "Folder does not exist", str(b))
+            return TestResult(False, _("This folder can't be found"), str(b))
         if not b.is_dir():
-            return TestResult(False, "Not a folder", str(b))
+            return TestResult(False, _("Not a folder"), str(b))
         if not os.access(b, os.W_OK):
-            return TestResult(False, "Folder is not writable", str(b))
+            return TestResult(False, _("Piklin can't save files in this folder"), str(b))
         try:
             st = os.statvfs(b)
             free = st.f_bavail * st.f_frsize
@@ -556,8 +557,8 @@ class LocalBackend(Backend):
             probe.write_bytes(b"ok")
             probe.unlink()
         except OSError as exc:
-            return TestResult(False, "Cannot write to folder", str(exc))
-        return TestResult(True, "Connected", str(b), free)
+            return TestResult(False, _("Piklin can't save files in this folder"), str(exc))
+        return TestResult(True, _("Connected"), str(b), free)
 
     def listing(self) -> dict[str, tuple[int, float]]:
         out: dict[str, tuple[int, float]] = {}
@@ -784,21 +785,21 @@ class WebDavBackend(Backend):
 
     def test(self) -> TestResult:
         if not self.url:
-            return TestResult(False, "No server address")
+            return TestResult(False, _("Enter the server address"))
         u = urllib.parse.urlparse(self.url)
         if u.scheme not in ("http", "https") or not u.hostname:
-            return TestResult(False, "The address must start with https:// or http://")
+            return TestResult(False, _("The address must start with https:// or http://"))
         if u.scheme == "http" and not _is_local_host(u.hostname):
-            return TestResult(False, "http:// only works on your local network",
-                              "Use https:// for a server on the internet, so "
-                              "your password stays private")
+            return TestResult(False, _("http:// only works at home"),
+                              _("Use https:// for a server on the internet, so "
+                              "your password stays private"))
         if self.remote.config.get("username") and not self._password():
-            return TestResult(False, "No password saved",
-                              "Edit this destination and enter the password again")
+            return TestResult(False, _("No password saved"),
+                              _("Edit this backup and enter the password again"))
         try:
             try:
                 self._request("PROPFIND", extra={"Depth": "0"})
-                return TestResult(True, "Connected", self.url)
+                return TestResult(True, _("Connected"), self.url)
             except urllib.error.HTTPError as exc:
                 if exc.code != 404 or not self.base_path:
                     raise
@@ -812,7 +813,7 @@ class WebDavBackend(Backend):
                 return TestResult(False, f"Could not create the folder /{self.base_path}",
                                   f"The server answered HTTP {exc.code}. The folder "
                                   "must be inside a shared folder you can write to")
-            return TestResult(True, "Connected", f"created the folder /{self.base_path}")
+            return TestResult(True, _("Connected"), f"created the folder /{self.base_path}")
         except urllib.error.HTTPError as exc:
             return self._http_problem(exc)
         except urllib.error.URLError as exc:
@@ -823,39 +824,39 @@ class WebDavBackend(Backend):
     def _http_problem(self, exc: urllib.error.HTTPError) -> TestResult:
         code = exc.code
         if code == 401:
-            return TestResult(False, "Sign-in rejected", "Check the username and password")
+            return TestResult(False, _("Wrong username or password"), _("Check the username and password"))
         if code == 403:
-            return TestResult(False, "Access denied",
-                              "This account may not use WebDAV on that folder")
+            return TestResult(False, _("Not allowed"),
+                              _("This account isn't allowed to use that folder"))
         if code in (405, 501):
-            return TestResult(False, "This address does not answer WebDAV",
-                              "Turn on WebDAV on the server and use the address "
-                              "and port it shows for WebDAV. On a QNAP: Control "
-                              "Panel › Network & File Services › Win/Mac/NFS/WebDAV")
+            return TestResult(False, _("This address doesn't accept backups"),
+                              _("Turn on WebDAV on your server and use the address it shows for it. "
+                                "On a QNAP: Control Panel › Network & File Services › "
+                                "Win/Mac/NFS/WebDAV"))
         if code in (301, 302, 303, 307, 308):
             loc = exc.headers.get("Location", "") if exc.headers else ""
-            return TestResult(False, "The server sends this address elsewhere",
+            return TestResult(False, _("The server says to use another address"),
                               f"Try {loc}" if loc else f"HTTP {code}")
         if code == 404:
-            return TestResult(False, "Not found on the server",
-                              "Check the address and the folder")
+            return TestResult(False, _("This folder isn't on the server"),
+                              _("Check the address and the folder"))
         return TestResult(False, f"Server returned HTTP {code}", str(exc.reason))
 
     def _connection_problem(self, reason) -> TestResult:
         if isinstance(reason, CertificateChanged):
-            return TestResult(False, "The server's certificate has changed",
-                              "Trust the new one only if you replaced it yourself",
+            return TestResult(False, _("The server's security certificate has changed"),
+                              _("Trust the new one only if you replaced it yourself"),
                               fingerprint=str(reason))
         if isinstance(reason, ssl.SSLCertVerificationError):
             try:
                 fp = certificate_fingerprint(self.url)
             except Exception:
                 fp = ""
-            return TestResult(False, "Certificate not trusted",
-                              "The server uses its own certificate", fingerprint=fp)
+            return TestResult(False, _("Confirm this server is yours"),
+                              _("It uses its own security certificate, which is normal for a NAS at home"), fingerprint=fp)
         if isinstance(reason, ssl.SSLError):
-            return TestResult(False, "Secure connection failed", str(reason))
-        return TestResult(False, "Could not reach the server",
+            return TestResult(False, _("A secure connection couldn't be made"), str(reason))
+        return TestResult(False, _("Can't reach the server"),
                           str(getattr(reason, "strerror", None) or reason))
 
     def _entries(self, rel: str, depth: str) -> list[tuple[str, bool, int, float]]:
@@ -996,13 +997,12 @@ class RcloneBackend(Backend):
         exe = rclone_path()
         if not exe:
             return TestResult(
-                False, "rclone is not installed",
-                "Install it to reach pCloud, S3, Backblaze, Google Drive, "
-                "OneDrive, Dropbox and others:  sudo apt install rclone  "
-                "(then run: rclone config)")
+                False, _("rclone is not installed"),
+                _("Install rclone to use Google Drive, OneDrive, Dropbox, pCloud and "
+                  "more: sudo apt install rclone (then run: rclone config)"))
         remote = self.remote.config.get("remote", "").rstrip(":")
         if not remote:
-            return TestResult(False, "No rclone remote chosen",
+            return TestResult(False, _("Enter the name of the cloud service"),
                               f"Configured: {', '.join(rclone_remotes()) or 'none'}")
         try:
             # The backup folder may not exist yet; mkdir is harmless if it does.
@@ -1011,21 +1011,21 @@ class RcloneBackend(Backend):
             out = subprocess.run([exe, "lsd", self.target, "--max-depth", "1"],
                                  capture_output=True, text=True, timeout=45)
             if out.returncode == 0:
-                return TestResult(True, "Connected", self.target)
-            return TestResult(False, "rclone could not reach the remote",
+                return TestResult(True, _("Connected"), self.target)
+            return TestResult(False, _("rclone can't reach the cloud service"),
                               (out.stderr or made.stderr or out.stdout).strip()[:400])
         except subprocess.TimeoutExpired:
-            return TestResult(False, "Timed out contacting the remote")
+            return TestResult(False, _("The cloud service took too long to answer"))
         except Exception as exc:
-            return TestResult(False, "rclone failed", str(exc))
+            return TestResult(False, _("rclone failed"), str(exc))
 
     def list_folders(self, path: str) -> list[str]:
         exe = rclone_path()
         if not exe:
-            raise RuntimeError("rclone is not installed")
+            raise RuntimeError(_("rclone is not installed"))
         remote = self.remote.config.get("remote", "").strip().rstrip(":")
         if not remote:
-            raise RuntimeError("Enter the name of the rclone remote first")
+            raise RuntimeError(_("Enter the name of the cloud service first"))
         out = subprocess.run(
             [exe, "lsjson", "--dirs-only", f"{remote}:{path.strip().strip('/')}"],
             capture_output=True, text=True, timeout=60)
@@ -1160,7 +1160,7 @@ class RcloneBackend(Backend):
         """
         exe = rclone_path()
         if not exe:
-            return SyncProgress(phase="error", message="rclone not installed")
+            return SyncProgress(phase="error", message=_("rclone not installed"))
         root = Path(root)
         p = SyncProgress(phase="listing")
         if on_progress:
@@ -1390,18 +1390,17 @@ def describe_providers() -> list[tuple[str, str, str]]:
     rc = rclone_path()
     configured = rclone_remotes()
     return [
-        ("local", "Folder, drive or NAS mount",
-         "Any folder your system can see: a USB disk, a QNAP or Synology "
-         "share mounted over SMB or NFS, an sshfs mount, or the folder "
-         "that pCloud Drive or Dropbox creates. No password needed."),
-        ("webdav", "WebDAV server",
-         "Works with QNAP, Synology, Nextcloud, ownCloud, pCloud and Box. "
-         "Needs the server URL and your sign-in. https://, or http:// on your home network."),
-        ("rclone", "Cloud storage via rclone" +
+        ("local", _("Folder or Drive"),
+         _("A USB drive, a network folder from your NAS, or a folder that "
+           "Dropbox or pCloud Drive keeps in sync. No password needed.")),
+        ("webdav", _("NAS or Server (WebDAV)"),
+         _("For QNAP, Synology, Nextcloud and similar. You need the server "
+           "address, your username and your password.")),
+        ("rclone", _("Cloud Service (rclone)") +
          (f" ({len(configured)} configured)" if configured else ""),
-         ("Brings S3, Backblaze B2, pCloud, Google Drive, OneDrive, "
-          "Dropbox, Azure, SFTP and about seventy others."
+         (_("Google Drive, OneDrive, Dropbox, Backblaze and about seventy more, "
+            "through the free rclone app. For advanced users.")
           if rc else
-          "Not installed. Install rclone to reach S3, Backblaze, pCloud, "
-          "Google Drive, OneDrive, Dropbox and many more.")),
+          _("Not installed yet. Install the free rclone app to use Google Drive, "
+            "OneDrive, Dropbox and many more."))),
     ]

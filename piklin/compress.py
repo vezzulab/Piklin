@@ -35,6 +35,7 @@ from PIL import Image
 from . import imageio as iio
 from . import quality as qual
 from .engine import ops
+from .i18n import _, N_
 
 
 @dataclass(frozen=True)
@@ -58,15 +59,13 @@ class Profile:
 
 PROFILES: dict[str, Profile] = {
     "original": Profile(
-        id="original", name="Original",
-        summary="Never re-encode. The file you imported is the file you keep, "
-                "byte for byte.",
+        id="original", name=N_("Original"),
+        summary=N_("Keeps your files exactly as they are."),
         passthrough=True),
     "lossless": Profile(
-        id="lossless", name="Lossless",
-        summary="Mathematically identical pixels, in a smaller container. "
-                "Typically saves 20-40% on PNG and screenshots, little on "
-                "photos.",
+        id="lossless", name=N_("Exact Picture, Smaller File"),
+        summary=N_("Exactly the same picture in a smaller file. Saves the most on "
+                  "screenshots."),
         lossless=True),
     # Thresholds below are calibrated against real photographs, not
     # guessed.  A busy frame (confetti, foliage, fine texture) cannot
@@ -77,27 +76,26 @@ PROFILES: dict[str, Profile] = {
     # where the difference is genuinely invisible and reject the rungs
     # below it.
     "visually_lossless": Profile(
-        id="visually_lossless", name="Visually Lossless",
-        summary="Smallest file with no difference a person can see. Usually "
-                "40-60% smaller than the original with nothing to notice.",
+        id="visually_lossless", name=N_("Looks the Same"),
+        summary=N_("Much smaller files that look the same to the eye. Usually about "
+                  "half the size."),
         min_ssim=0.985, min_worst_block=0.955, max_chroma_error=0.0022,
         ladder=(96, 95, 94, 93, 92, 90, 88)),
     "balanced": Profile(
-        id="balanced", name="Balanced",
-        summary="Very slightly softer under close inspection, meaningfully "
-                "smaller. A good default for a large library.",
+        id="balanced", name=N_("Balanced"),
+        summary=N_("A little softer if you look very closely, and clearly smaller. Good "
+                  "for big libraries."),
         min_ssim=0.975, min_worst_block=0.900, max_chroma_error=0.0032,
         ladder=(92, 90, 88, 85, 82, 78, 75)),
     "space_saver": Profile(
-        id="space_saver", name="Space Saver",
-        summary="Noticeably compressed if you go looking, but still good. "
-                "Roughly a quarter of the original size.",
+        id="space_saver", name=N_("Space Saver"),
+        summary=N_("Still looks good, at about a quarter of the original size."),
         min_ssim=0.960, min_worst_block=0.800, max_chroma_error=0.0048,
         ladder=(82, 76, 70, 64, 58, 52)),
     "maximum": Profile(
-        id="maximum", name="Maximum Saving",
-        summary="Smallest possible while still recognisable. Long edge "
-                "capped at 2560px - for archiving, not for printing.",
+        id="maximum", name=N_("Smallest Files"),
+        summary=N_("As small as possible. Photos are made smaller too, so it's good for "
+                  "keeping but not for printing."),
         min_ssim=0.930, min_worst_block=0.700, max_chroma_error=0.0075,
         ladder=(70, 62, 55, 48, 42, 36), max_side=2560),
 }
@@ -378,7 +376,7 @@ def plan(source: Path | str, profile: str = DEFAULT_PROFILE,
 
     if prof.passthrough:
         return Result(True, src, original_bytes=size, output_bytes=size,
-                      profile=prof.id, format="original", note="kept as-is")
+                      profile=prof.id, format="original", note=_("kept as-is"))
 
     try:
         original = iio.load_rgb(src)
@@ -402,7 +400,7 @@ def plan(source: Path | str, profile: str = DEFAULT_PROFILE,
             return Result(True, src, original_bytes=size, output_bytes=size,
                           profile=prof.id, format="original", quality=None,
                           metrics={"ssim": 1.0, "worst_block": 1.0},
-                          note="lossless would be larger; original kept")
+                          note=_("lossless would be larger; original kept"))
         return Result(True, src, original_bytes=size, output_bytes=nbytes,
                       profile=prof.id, format=out_fmt, quality=None,
                       metrics={"ssim": 1.0, "worst_block": 1.0},
@@ -423,8 +421,8 @@ def plan(source: Path | str, profile: str = DEFAULT_PROFILE,
             return Result(True, src, original_bytes=size,
                           output_bytes=len(data), profile=prof.id,
                           format=out_fmt, quality=q, metrics=metrics,
-                          note="no ladder step met the target; used highest "
-                               "quality")
+                          note=_("no ladder step met the target; used highest "
+                               "quality"))
         except Exception as exc:
             return Result(False, src, original_bytes=size,
                           note=f"encode failed: {type(exc).__name__}")
@@ -441,7 +439,7 @@ def plan(source: Path | str, profile: str = DEFAULT_PROFILE,
         return Result(True, src, original_bytes=size, output_bytes=size,
                       profile=prof.id, format="original", quality=None,
                       metrics=metrics,
-                      note="already well compressed; original kept")
+                      note=_("already well compressed; original kept"))
     note = ""
     if prof.max_side:
         note = f"long edge capped at {prof.max_side}px"
@@ -476,7 +474,7 @@ def compress_to(source: Path | str, dest: Path | str,
         if src.resolve() != out.resolve():
             shutil.copy2(src, out)
         return Result(True, src, out, size, size, prof.id, "original",
-                      note="copied unchanged")
+                      note=_("copied unchanged"))
 
     original = image if image is not None else iio.load_rgb(src)
     if prof.max_side:
@@ -519,7 +517,7 @@ def compress_to(source: Path | str, dest: Path | str,
         if src.resolve() != out.resolve():
             shutil.copy2(src, out)
         return Result(True, src, out, size, size, prof.id, "original",
-                      note="original was already smaller; copied unchanged")
+                      note=_("original was already smaller; copied unchanged"))
 
     suffix = {"jpeg": ".jpg", "webp": ".webp", "avif": ".avif",
               "png": ".png"}.get(out_fmt, out.suffix or ".jpg")

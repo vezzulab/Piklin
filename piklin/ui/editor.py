@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import gi
+from ..i18n import _
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -117,7 +118,7 @@ class EditorView(Gtk.Box):
                       margin_top=6, margin_bottom=6, margin_start=10,
                       margin_end=10)
         back = Gtk.Button(icon_name="go-previous-symbolic",
-                          tooltip_text="Back to library")
+                          tooltip_text=_("Back to library"))
         back.connect("clicked", lambda *_: self.emit("closed"))
         bar.append(back)
 
@@ -126,27 +127,27 @@ class EditorView(Gtk.Box):
         bar.append(self.title_label)
 
         self.undo_btn = Gtk.Button(icon_name="edit-undo-symbolic",
-                                   tooltip_text="Undo (Ctrl+Z)", sensitive=False)
+                                   tooltip_text=_("Undo (Ctrl+Z)"), sensitive=False)
         self.undo_btn.connect("clicked", lambda *_: self.undo())
         self.redo_btn = Gtk.Button(icon_name="edit-redo-symbolic",
-                                   tooltip_text="Redo (Ctrl+Shift+Z)",
+                                   tooltip_text=_("Redo (Ctrl+Shift+Z)"),
                                    sensitive=False)
         self.redo_btn.connect("clicked", lambda *_: self.redo())
         bar.append(self.undo_btn)
         bar.append(self.redo_btn)
 
         compare = Gtk.ToggleButton(icon_name="view-reveal-symbolic",
-                                   tooltip_text="Hold to compare with original (M)")
+                                   tooltip_text=_("Hold to compare with original (M)"))
         compare.connect("toggled", self._on_compare)
         bar.append(compare)
         self.compare_btn = compare
 
         revert = Gtk.Button(icon_name="edit-clear-all-symbolic",
-                            tooltip_text="Remove all edits")
+                            tooltip_text=_("Remove all edits"))
         revert.connect("clicked", self._on_revert)
         bar.append(revert)
 
-        export = Gtk.Button(label="Export…")
+        export = Gtk.Button(label=_("Export…"))
         export.add_css_class("suggested-action")
         export.connect("clicked", self._on_export)
         bar.append(export)
@@ -181,13 +182,13 @@ class EditorView(Gtk.Box):
         self.switcher.set_vexpand(True)
 
         self.switcher.add_titled_with_icon(
-            self._build_tools_page(), "tools", "Tools",
+            self._build_tools_page(), "tools", _("Tools"),
             "applications-graphics-symbolic")
         self.switcher.add_titled_with_icon(
-            self._build_looks_page(), "looks", "Looks",
+            self._build_looks_page(), "looks", _("Looks"),
             "image-filter-symbolic")
         self.switcher.add_titled_with_icon(
-            self._build_layers_page(), "layers", "Edits",
+            self._build_layers_page(), "layers", _("Edits"),
             "view-list-symbolic")
 
         bar = Adw.ViewSwitcherBar(stack=self.switcher)
@@ -263,7 +264,7 @@ class EditorView(Gtk.Box):
                       margin_top=10, margin_bottom=12, margin_start=10,
                       margin_end=10)
         hint = Gtk.Label(
-            label="A Look adds normal, editable layers — nothing is baked in.",
+            label=_("A Look adds edits you can still change or remove."),
             wrap=True, xalign=0.0)
         hint.add_css_class("pika-dim")
         box.append(hint)
@@ -296,7 +297,7 @@ class EditorView(Gtk.Box):
         box.append(scroller)
 
         self.layers_empty = Gtk.Label(
-            label="No edits yet.\nPick a tool to begin.",
+            label=_("No edits yet.\nPick a tool to begin."),
             justify=2, wrap=True)
         self.layers_empty.add_css_class("pika-dim")
         box.append(self.layers_empty)
@@ -315,7 +316,7 @@ class EditorView(Gtk.Box):
         self.param_title.add_css_class("heading")
         head.append(self.param_title)
         drop = Gtk.Button(icon_name="user-trash-symbolic",
-                          tooltip_text="Remove this edit")
+                          tooltip_text=_("Remove this edit"))
         drop.add_css_class("flat")
         drop.connect("clicked", lambda *_: self._delete_active())
         head.append(drop)
@@ -573,11 +574,11 @@ class EditorView(Gtk.Box):
             editor.connect("curve-changed", self._on_curve, index)
             box.append(editor)
             hint = Gtk.Label(
-                label="Double-click to add a point, right-click to remove.",
+                label=_("Double-click to add a point, right-click to remove."),
                 wrap=True, xalign=0.0)
             hint.add_css_class("pika-dim")
             box.append(hint)
-            reset = Gtk.Button(label="Reset curve")
+            reset = Gtk.Button(label=_("Reset curve"))
             reset.add_css_class("flat")
             reset.connect("clicked", lambda *_: editor.reset())
             box.append(reset)
@@ -586,24 +587,24 @@ class EditorView(Gtk.Box):
         if param.kind == IMAGE:
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8,
                           margin_top=6)
-            btn = Gtk.Button(label="Choose image…", hexpand=True)
+            btn = Gtk.Button(label=_("Choose image…"), hexpand=True)
             btn.connect("clicked", self._on_pick_image, index, param.key)
             row.append(btn)
             return row
 
         if param.kind in (POINT, STROKES):
-            label = {"crop": "Drag on the photo to set the crop.",
-                     "selective": "Click the photo to drop a control point.",
-                     "brush": "Drag on the photo to paint.",
-                     "healing": "Drag over what you want removed.",
-                     }.get(layer.tool, "Click the photo to position this.")
+            label = {"crop": _("Drag on the photo to set the crop."),
+                     "selective": _("Click the photo to drop a control point."),
+                     "brush": _("Drag on the photo to paint."),
+                     "healing": _("Drag over what you want removed."),
+                     }.get(layer.tool, _("Click the photo to position this."))
             hint = Gtk.Label(label=label, wrap=True, xalign=0.0,
                              margin_top=6, margin_bottom=2)
             hint.add_css_class("pika-dim")
             wrapper = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             wrapper.append(hint)
             if layer.tool in ("selective", "brush", "healing"):
-                clear = Gtk.Button(label="Clear")
+                clear = Gtk.Button(label=_("Clear"))
                 clear.add_css_class("flat")
                 clear.connect("clicked", self._on_clear_marks, index, param.key)
                 wrapper.append(clear)
@@ -614,7 +615,7 @@ class EditorView(Gtk.Box):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_top=10)
         sep = Gtk.Separator()
         box.append(sep)
-        p = tools.Param("__opacity", "Layer Strength", lo=0, hi=100,
+        p = tools.Param("__opacity", _("Strength"), lo=0, hi=100,
                         default=layer.opacity * 100)
         slider = ParamSlider(p, layer.opacity * 100)
 
@@ -711,7 +712,7 @@ class EditorView(Gtk.Box):
         """
         from .picker import PhotoPicker
         picker = PhotoPicker(self.catalog, self._thumbs,
-                             title="Choose a photo to blend",
+                             title=_("Choose a photo to blend"),
                              exclude_path=self.photo_path)
 
         def picked(_p, path):
@@ -815,11 +816,11 @@ class EditorView(Gtk.Box):
         if not len(self.stack):
             return
         dialog = Adw.AlertDialog(
-            heading="Remove all edits?",
-            body="Your original photo is untouched either way — this just "
-                 "clears the adjustments you have made to it.")
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("revert", "Remove Edits")
+            heading=_("Remove all edits?"),
+            body=_("Your original photo is untouched either way — this just "
+                 "clears the adjustments you have made to it."))
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("revert", _("Remove Edits"))
         dialog.set_response_appearance("revert",
                                        Adw.ResponseAppearance.DESTRUCTIVE)
 

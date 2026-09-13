@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 import gi
+from ..i18n import _
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -30,7 +31,7 @@ def _fmt(n: float) -> str:
 class ExportDialog(Adw.Dialog):
     def __init__(self, parent, library, settings, paths, stack=None,
                  catalog=None):
-        super().__init__(title="Export", content_width=520,
+        super().__init__(title=_("Export"), content_width=520,
                          content_height=620)
         self.library = library
         self.settings = settings
@@ -58,19 +59,19 @@ class ExportDialog(Adw.Dialog):
             counted.append(f"{n_photos} photo" + ("s" if n_photos != 1 else ""))
         if n_videos:
             counted.append(f"{n_videos} video" + ("s" if n_videos != 1 else ""))
-        target = Adw.PreferencesGroup(title=" and ".join(counted) or "Nothing")
-        self.dest_row = Adw.ActionRow(title="Save to",
+        target = Adw.PreferencesGroup(title=" and ".join(counted) or _("Nothing"))
+        self.dest_row = Adw.ActionRow(title=_("Save to"),
                                       subtitle=str(self.destination))
-        choose = Gtk.Button(label="Change…", valign=Gtk.Align.CENTER)
+        choose = Gtk.Button(label=_("Change…"), valign=Gtk.Align.CENTER)
         choose.connect("clicked", self._on_choose_dest)
         self.dest_row.add_suffix(choose)
         target.add(self.dest_row)
         page.add(target)
 
         self.group = Adw.PreferencesGroup(
-            title="Compression",
-            description="Each option is measured on your actual photos, "
-                        "not estimated from a quality number.")
+            title=_("File Size"),
+            description=_("Piklin tries each option on your photos to show how much smaller "
+                          "they get."))
         self._rows = {}
         first = None
         current = settings.get("export_profile", cz.DEFAULT_PROFILE)
@@ -92,18 +93,18 @@ class ExportDialog(Adw.Dialog):
             self.group.add(row)
         page.add(self.group)
 
-        fmt_group = Adw.PreferencesGroup(title="Format")
+        fmt_group = Adw.PreferencesGroup(title=_("Format"))
         self.fmt_row = Adw.ComboRow(
-            title="File type",
+            title=_("File type"),
             model=Gtk.StringList.new(
-                ["Same as original", "JPEG", "WebP", "AVIF", "PNG"]))
+                [_("Same as original"), "JPEG", "WebP", "AVIF", "PNG"]))
         fmt_group.add(self.fmt_row)
         # Size: the long edge, never enlarged.
         self._sizes = [None, 2048, 1280, 640]
         self.size_row = Adw.ComboRow(
-            title="Size",
-            model=Gtk.StringList.new(["Full Size", "Large (2048 px)",
-                                      "Medium (1280 px)", "Small (640 px)"]))
+            title=_("Size"),
+            model=Gtk.StringList.new([_("Full Size"), _("Large (2048 px)"),
+                                      _("Medium (1280 px)"), _("Small (640 px)")]))
         self.size_row.set_selected(int(settings.get("export_size", 0)))
         fmt_group.add(self.size_row)
         page.add(fmt_group)
@@ -118,21 +119,21 @@ class ExportDialog(Adw.Dialog):
         self._video_formats = ["original"] + ve.available_formats()
         self._video_sizes = [None, 3840, 1920, 1280, 854]
         video_group = Adw.PreferencesGroup(
-            title="Video",
-            description="Edited videos are rendered with their trims, cuts and "
-                        "changes. Your original files are never changed.")
-        labels = {"original": "Same as Original"}
+            title=_("Video"),
+            description=_("Edited videos are saved with your trims, cuts and changes. The "
+                          "original files are never changed."))
+        labels = {"original": _("Same as Original")}
         labels.update({k: v["label"] for k, v in ve.EXPORT_FORMATS.items()})
         self.vformat_row = Adw.ComboRow(
-            title="Format", model=Gtk.StringList.new(
+            title=_("Format"), model=Gtk.StringList.new(
                 [labels[f] for f in self._video_formats]))
         saved_fmt = settings.get("export_video_format", "original")
         if saved_fmt in self._video_formats:
             self.vformat_row.set_selected(self._video_formats.index(saved_fmt))
         video_group.add(self.vformat_row)
         self.vsize_row = Adw.ComboRow(
-            title="Movie Quality", model=Gtk.StringList.new(
-                ["Original", "4K", "1080p", "720p", "480p"]))
+            title=_("Video Quality"), model=Gtk.StringList.new(
+                [_("Original"), "4K", "1080p", "720p", "480p"]))
         self.vsize_row.set_selected(int(settings.get("export_video_size", 0)))
         video_group.add(self.vsize_row)
         video_group.set_visible(bool(n_videos))
@@ -140,40 +141,40 @@ class ExportDialog(Adw.Dialog):
 
         # What travels with the copy. Location is off by default: a shared
         # photo should not say where you live unless you choose that.
-        info_group = Adw.PreferencesGroup(title="Include")
+        info_group = Adw.PreferencesGroup(title=_("Include"))
         self.location_row = Adw.SwitchRow(
-            title="Location Information",
-            subtitle="Where it was taken (GPS)",
+            title=_("Location"),
+            subtitle=_("Where it was taken (GPS)"),
             active=bool(settings.get("export_include_location", False)))
         info_group.add(self.location_row)
         self.strip_row = Adw.SwitchRow(
-            title="Remove all metadata",
-            subtitle="Also removes the camera and capture date",
+            title=_("Remove all hidden details"),
+            subtitle=_("Also removes the camera and the date it was taken"),
             active=bool(settings.get("export_strip_metadata", False)))
         info_group.add(self.strip_row)
         page.add(info_group)
 
-        naming_group = Adw.PreferencesGroup(title="File Names")
+        naming_group = Adw.PreferencesGroup(title=_("File Names"))
         self._namings = ["filename", "title", "sequential"]
         self.name_row = Adw.ComboRow(
-            title="File Name",
-            model=Gtk.StringList.new(["Use File Name", "Use Title", "Sequential"]))
+            title=_("File Name"),
+            model=Gtk.StringList.new([_("Use File Name"), _("Use Title"), _("Numbered")]))
         self.name_row.set_selected(self._namings.index(
             settings.get("export_naming", "filename"))
             if settings.get("export_naming", "filename") in self._namings else 0)
         naming_group.add(self.name_row)
         self._subfolders = ["none", "day"]
         self.subfolder_row = Adw.ComboRow(
-            title="Subfolder Format",
-            model=Gtk.StringList.new(["None", "Day"]))
+            title=_("Put in Folders by"),
+            model=Gtk.StringList.new([_("No Folders"), _("Date")]))
         self.subfolder_row.set_selected(1 if settings.get("export_subfolder") == "day" else 0)
         naming_group.add(self.subfolder_row)
         page.add(naming_group)
 
         self.status = Adw.PreferencesGroup()
         self.status_row = Adw.ActionRow(
-            title="Measuring…",
-            subtitle="Compressing a sample to see what each option costs")
+            title=_("Measuring…"),
+            subtitle=_("Trying each option on a few of your photos"))
         self.progress = Gtk.ProgressBar(valign=Gtk.Align.CENTER,
                                         show_text=False)
         self.status_row.add_suffix(self.progress)
@@ -187,16 +188,16 @@ class ExportDialog(Adw.Dialog):
                           margin_end=12, halign=Gtk.Align.END)
         # Export Unmodified Original: the file as imported, byte for byte -
         # no edits, no re-encoding, nothing removed.
-        unmodified = Gtk.Button(label="Export Unmodified Original")
+        unmodified = Gtk.Button(label=_("Export Original Without Edits"))
         unmodified.add_css_class("flat")
         unmodified.connect("clicked", self._on_export_unmodified)
         actions.append(unmodified)
         spacer = Gtk.Box(hexpand=True)
         actions.append(spacer)
-        cancel = Gtk.Button(label="Cancel")
+        cancel = Gtk.Button(label=_("Cancel"))
         cancel.connect("clicked", lambda *_: self.close())
         actions.append(cancel)
-        self.export_btn = Gtk.Button(label="Export")
+        self.export_btn = Gtk.Button(label=_("Export"))
         self.export_btn.add_css_class("suggested-action")
         self.export_btn.connect("clicked", self._on_export)
         actions.append(self.export_btn)
@@ -233,7 +234,7 @@ class ExportDialog(Adw.Dialog):
                     pct = (1 - total_out / total_in) * 100
                     q = f"  ·  {min(ssim)*100:.1f}% match" if ssim else ""
                     GLib.idle_add(self._set_badge, pid,
-                                  ("no saving" if pct < 0.5
+                                  (_("no saving") if pct < 0.5
                                    else f"−{pct:.0f}%{q}"))
             GLib.idle_add(self._estimate_done)
         threading.Thread(target=work, daemon=True).start()
@@ -246,9 +247,9 @@ class ExportDialog(Adw.Dialog):
 
     def _estimate_done(self):
         self._estimating = False
-        self.status_row.set_title("Ready")
+        self.status_row.set_title(_("Ready"))
         self.status_row.set_subtitle(
-            "Percentages measured on a sample of the selected photos")
+            _("Sizes measured on a few of the selected photos"))
         self.progress.set_fraction(0.0)
         return False
 
@@ -267,18 +268,18 @@ class ExportDialog(Adw.Dialog):
         home = Path.home()
         choices = [
             (str(self.library.exports / time.strftime("%Y-%m-%d")),
-             "Library exports, filed by date"),
-            (str(home / "Pictures"), "Your pictures folder"),
+             _("Library exports, filed by date")),
+            (str(home / "Pictures"), _("Your pictures folder")),
             (str(home / "Desktop"), "Desktop"),
             (str(home / "Downloads"), "Downloads"),
-            (str(home), "Home folder"),
+            (str(home), _("Home folder")),
         ]
         choices = [(p, d) for p, d in choices
                    if Path(p).parent.is_dir() or Path(p).is_dir()]
 
         dialog = Adw.AlertDialog(
-            heading="Export to",
-            body="Choose where the exported photos should go.")
+            heading=_("Export to"),
+            body=_("Choose where the exported photos should go."))
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         group = Adw.PreferencesGroup()
         first = None
@@ -300,11 +301,11 @@ class ExportDialog(Adw.Dialog):
             group.add(row)
         box.append(group)
 
-        custom = Gtk.Entry(placeholder_text="…or type another folder path")
+        custom = Gtk.Entry(placeholder_text=_("…or type another folder path"))
         box.append(custom)
         dialog.set_extra_child(box)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("use", "Use Folder")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("use", _("Use Folder"))
         dialog.set_close_response("cancel")
         dialog.set_response_appearance("use", Adw.ResponseAppearance.SUGGESTED)
         # See the same fix in window.py's New Album dialog: without an
@@ -354,7 +355,7 @@ class ExportDialog(Adw.Dialog):
         stack = self.stack
         library = self.library
         self.export_btn.set_sensitive(False)
-        self.status_row.set_title("Exporting…")
+        self.status_row.set_title(_("Exporting…"))
 
         def work():
             done = saved_in = saved_out = 0
@@ -466,7 +467,7 @@ class ExportDialog(Adw.Dialog):
         subfolder = self._subfolders[self.subfolder_row.get_selected()]
         meta = self._photo_meta()
         self.export_btn.set_sensitive(False)
-        self.status_row.set_title("Exporting originals…")
+        self.status_row.set_title(_("Exporting originals…"))
 
         def work():
             done = errors = total = 0

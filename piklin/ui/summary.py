@@ -11,6 +11,7 @@ from __future__ import annotations
 import threading
 
 import gi
+from ..i18n import _
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -50,7 +51,7 @@ class SummaryView(Gtk.ScrolledWindow):
                                 margin_start=24, margin_end=24)
         self.set_child(self.flow)
 
-        self.empty = Gtk.Label(label="No Photos", vexpand=True)
+        self.empty = Gtk.Label(label=_("No Photos"), vexpand=True)
         self.empty.add_css_class("pika-dim")
 
     # -- data ------------------------------------------------------------

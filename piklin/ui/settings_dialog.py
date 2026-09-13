@@ -5,6 +5,7 @@ import threading
 from pathlib import Path
 
 import gi
+from ..i18n import _
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -25,7 +26,7 @@ def _fmt(n: float) -> str:
 class SettingsDialog(Adw.PreferencesDialog):
     def __init__(self, parent, library, catalog, settings, thumbs,
                  page="general"):
-        super().__init__(title="Preferences", content_width=640,
+        super().__init__(title=_("Preferences"), content_width=640,
                          content_height=720)
         self.library = library
         self.catalog = catalog
@@ -48,21 +49,21 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     # ==================================================================
     def _general_page(self):
-        page = Adw.PreferencesPage(title="General", name="general",
+        page = Adw.PreferencesPage(title=_("General"), name="general",
                                    icon_name="preferences-system-symbolic")
 
-        look = Adw.PreferencesGroup(title="Appearance")
-        theme = Adw.ComboRow(title="Theme",
+        look = Adw.PreferencesGroup(title=_("Appearance"))
+        theme = Adw.ComboRow(title=_("Theme"),
                              model=Gtk.StringList.new(
-                                 ["Match the system", "Light", "Dark"]))
+                                 [_("Match the computer"), _("Light"), _("Dark")]))
         theme.set_selected({"auto": 0, "light": 1,
                             "dark": 2}.get(self.settings.get("theme"), 0))
         theme.connect("notify::selected", self._on_theme)
         look.add(theme)
 
         group_by = Adw.ComboRow(
-            title="Group photos by",
-            model=Gtk.StringList.new(["Nothing", "Day", "Month", "Year"]))
+            title=_("Group photos by"),
+            model=Gtk.StringList.new([_("Don't group"), _("Day"), _("Month"), _("Year")]))
         group_by.set_selected({"none": 0, "day": 1, "month": 2,
                                "year": 3}.get(self.settings.get("group_by"), 1))
         group_by.connect(
@@ -71,7 +72,7 @@ class SettingsDialog(Adw.PreferencesDialog):
                 "group_by", ["none", "day", "month", "year"][r.get_selected()]))
         look.add(group_by)
 
-        names = Adw.SwitchRow(title="Show filenames in the grid",
+        names = Adw.SwitchRow(title=_("Show file names under photos"),
                               active=bool(self.settings.get("show_filenames")))
         names.connect("notify::active",
                       lambda r, _p: self.settings.set("show_filenames",
@@ -80,12 +81,12 @@ class SettingsDialog(Adw.PreferencesDialog):
         page.add(look)
 
         perf = Adw.PreferencesGroup(
-            title="Performance",
-            description="Higher preview resolution looks better while "
-                        "editing and costs more time per adjustment.")
+            title=_("Speed"),
+            description=_("How sharp photos look while you edit. Higher looks better, but each "
+                          "change can take a little longer."))
         preview = Adw.SpinRow.new_with_range(800, 4000, 100)
-        preview.set_title("Editing preview size")
-        preview.set_subtitle("Longest edge, in pixels")
+        preview.set_title(_("Preview quality while editing"))
+        preview.set_subtitle(_("Higher looks sharper, lower feels faster"))
         preview.set_value(self.settings.get("preview_max_side", 1600))
         preview.connect("notify::value",
                         lambda r, _p: self.settings.set(
@@ -93,8 +94,8 @@ class SettingsDialog(Adw.PreferencesDialog):
         perf.add(preview)
 
         drag = Adw.SpinRow.new_with_range(400, 2000, 100)
-        drag.set_title("Size while dragging a slider")
-        drag.set_subtitle("Lower is more responsive")
+        drag.set_title(_("Preview quality while moving a slider"))
+        drag.set_subtitle(_("Lower feels smoother"))
         drag.set_value(self.settings.get("drag_max_side", 900))
         drag.connect("notify::value",
                      lambda r, _p: self.settings.set("drag_max_side",
@@ -103,12 +104,12 @@ class SettingsDialog(Adw.PreferencesDialog):
         page.add(perf)
 
         privacy = Adw.PreferencesGroup(
-            title="Privacy",
-            description="Piklin has no accounts and no telemetry. Your photos "
-                        "never leave this computer unless you set up a backup.")
+            title=_("Privacy"),
+            description=_("Piklin has no accounts and collects nothing about you. Your photos "
+                          "only leave this computer if you set up a backup."))
         faces = Adw.SwitchRow(
-            title="Detect faces for the portrait tools",
-            subtitle="Runs locally. No image or face data is ever uploaded.",
+            title=_("Find faces for the portrait tools"),
+            subtitle=_("Done on this computer. Nothing is ever uploaded."),
             active=bool(self.settings.get("face_detection", True)))
         faces.connect("notify::active",
                       lambda r, _p: self.settings.set("face_detection",
@@ -136,14 +137,13 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     # ==================================================================
     def _storage_page(self):
-        page = Adw.PreferencesPage(title="Storage", name="storage",
+        page = Adw.PreferencesPage(title=_("Storage"), name="storage",
                                    icon_name="drive-harddisk-symbolic")
 
         export = Adw.PreferencesGroup(
-            title="Compression",
-            description="Applied when you export. Piklin encodes a "
-                        "sample and measures the result, so these are "
-                        "outcomes rather than quality numbers to guess at.")
+            title=_("Photo Size When Exporting"),
+            description=_("Piklin tries each option on your photos and shows how much smaller "
+                          "the files get."))
         first = None
         current = self.settings.get("export_profile", cz.DEFAULT_PROFILE)
         for pid, prof in cz.PROFILES.items():
@@ -159,12 +159,12 @@ class SettingsDialog(Adw.PreferencesDialog):
             export.add(row)
         page.add(export)
 
-        fmt = Adw.PreferencesGroup(title="Export format")
+        fmt = Adw.PreferencesGroup(title=_("Export Format"))
         combo = Adw.ComboRow(
-            title="File type",
-            subtitle="WebP and AVIF are much smaller; JPEG opens everywhere",
+            title=_("File type"),
+            subtitle=_("JPEG opens everywhere. WebP and AVIF make smaller files."),
             model=Gtk.StringList.new(
-                ["Same as original", "JPEG", "WebP", "AVIF", "PNG"]))
+                [_("Same as original"), "JPEG", "WebP", "AVIF", "PNG"]))
         combo.set_selected(
             ["keep", "jpeg", "webp", "avif", "png"].index(
                 self.settings.get("export_format", "keep")))
@@ -175,8 +175,8 @@ class SettingsDialog(Adw.PreferencesDialog):
         fmt.add(combo)
 
         strip = Adw.SwitchRow(
-            title="Remove metadata from exports",
-            subtitle="Camera, date and location are stripped from the copy",
+            title=_("Remove hidden details from exported photos"),
+            subtitle=_("The camera, date and place are removed from the copy"),
             active=bool(self.settings.get("export_strip_metadata")))
         strip.connect("notify::active",
                       lambda r, _p: self.settings.set("export_strip_metadata",
@@ -185,18 +185,18 @@ class SettingsDialog(Adw.PreferencesDialog):
         page.add(fmt)
 
         imp = Adw.PreferencesGroup(
-            title="Importing",
-            description="How photos are brought into the library.")
+            title=_("Importing"),
+            description=_("How photos are brought into the library."))
         policy = Adw.ComboRow(
-            title="When adding a folder",
+            title=_("When adding a folder"),
             model=Gtk.StringList.new([
-                "Leave photos where they are",
-                "Copy them into the library",
-                "Move them into the library"]))
+                _("Leave photos where they are"),
+                _("Copy them into the library"),
+                _("Move them into the library")]))
         policy.set_selected({"reference": 0, "copy": 1,
                              "move": 2}.get(self.settings.get("import_policy"), 0))
         policy.set_subtitle(
-            "Leaving them in place never touches your existing folders")
+            _("With the first option, your folders are never changed"))
         policy.connect(
             "notify::selected",
             lambda r, _p: self.settings.set(
@@ -214,8 +214,9 @@ class SettingsDialog(Adw.PreferencesDialog):
                 label += " (recommended)"
             names.append(label)
         storage = Adw.ComboRow(
-            title="Compress photos when importing",
-            subtitle="From a camera or card. Your folders are never changed.",
+            title=_("Make imported photos smaller"),
+            subtitle=_("Only photos from a camera or memory card. Your folders are never "
+                       "changed."),
             model=Gtk.StringList.new(names))
         current = self.settings.get("storage_profile", "visually_lossless")
         storage.set_selected(profile_ids.index(current)
@@ -228,11 +229,11 @@ class SettingsDialog(Adw.PreferencesDialog):
         imp.add(storage)
         video_ids = ["original", "h264"]
         video_row = Adw.ComboRow(
-            title="Videos when importing",
-            subtitle="Smaller files are re-encoded; keep the originals to "
-                     "edit later at full quality",
-            model=Gtk.StringList.new(["Keep Original Files",
-                                      "Smaller Files (H.264)"]))
+            title=_("Videos when importing"),
+            subtitle=_("Smaller files save space. Keep the originals if you want the best "
+                       "quality for editing later."),
+            model=Gtk.StringList.new([_("Keep Original Files"),
+                                      _("Smaller Files")]))
         current_video = self.settings.get("storage_video_profile", "original")
         video_row.set_selected(video_ids.index(current_video)
                                if current_video in video_ids else 0)
@@ -243,12 +244,12 @@ class SettingsDialog(Adw.PreferencesDialog):
         imp.add(video_row)
         page.add(imp)
 
-        disk = Adw.PreferencesGroup(title="Disk usage")
-        self.usage_row = Adw.ActionRow(title="Library", subtitle="Measuring…")
+        disk = Adw.PreferencesGroup(title=_("Space Used"))
+        self.usage_row = Adw.ActionRow(title=_("Library"), subtitle=_("Measuring…"))
         disk.add(self.usage_row)
-        self.thumb_row = Adw.ActionRow(title="Thumbnail cache",
-                                       subtitle="Measuring…")
-        clear = Gtk.Button(label="Clear", valign=Gtk.Align.CENTER)
+        self.thumb_row = Adw.ActionRow(title=_("Photo previews"),
+                                       subtitle=_("Measuring…"))
+        clear = Gtk.Button(label=_("Clear"), valign=Gtk.Align.CENTER)
         clear.connect("clicked", self._on_clear_thumbs)
         self.thumb_row.add_suffix(clear)
         disk.add(self.thumb_row)
@@ -281,35 +282,34 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     # ==================================================================
     def _remotes_page(self):
-        page = Adw.PreferencesPage(title="Backup", name="remotes",
+        page = Adw.PreferencesPage(title=_("Backup"), name="remotes",
                                    icon_name="network-server-symbolic")
 
         intro = Adw.PreferencesGroup(
-            title="Backup destinations",
-            description="Your library folder is designed so that copying it "
-                        "is a complete backup. These send it somewhere else "
-                        "on a schedule or on demand.")
+            title=_("Keep a Copy of Your Photos"),
+            description=_("Piklin can copy your library to a drive, a NAS or a cloud service, "
+                          "so your photos are safe even if something happens to this computer."))
         page.add(intro)
 
-        self.remote_group = Adw.PreferencesGroup(title="Configured")
+        self.remote_group = Adw.PreferencesGroup(title=_("Your Backups"))
         page.add(self.remote_group)
         self._refresh_remotes()
 
-        auto = Adw.PreferencesGroup(title="Automatic backup")
+        auto = Adw.PreferencesGroup(title=_("Automatic Backup"))
         self.autosync_row = Adw.SwitchRow(
-            title="Back Up Automatically",
-            subtitle="New photos, videos and edits are copied a minute after "
-                     "they change. Nothing runs when nothing changed, and "
-                     "backups wait while battery saver is on.",
+            title=_("Back Up Automatically"),
+            subtitle=_("New photos, videos and edits are copied a minute after they change. "
+                       "Nothing happens when nothing changed, and it waits while battery "
+                       "saver is on."),
             active=bool(self.settings.get("remote_autosync")))
         self.autosync_row.connect("notify::active", self._on_autosync)
         auto.add(self.autosync_row)
         keep_days = [7, 30, 90]
         keep = Adw.ComboRow(
-            title="Keep Replaced Versions",
-            subtitle="When a file changes, its older copy stays on the "
-                     "destination, in a .piklin-versions folder, for this long.",
-            model=Gtk.StringList.new(["7 days", "30 days", "90 days"]))
+            title=_("Keep Older Versions"),
+            subtitle=_("When a photo or edit changes, the previous copy stays in the backup "
+                       "for this long."),
+            model=Gtk.StringList.new([_("7 days"), _("30 days"), _("90 days")]))
         current = int(self.settings.get("backup_keep_versions_days", 30) or 30)
         keep.set_selected(keep_days.index(current) if current in keep_days else 1)
         keep.connect("notify::selected", lambda row, _p: self.settings.set(
@@ -317,7 +317,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         auto.add(keep)
         page.add(auto)
 
-        add_group = Adw.PreferencesGroup(title="Add a destination")
+        add_group = Adw.PreferencesGroup(title=_("Add a Place to Back Up"))
         for kind, label, help_text in remote_mod.describe_providers():
             row = Adw.ActionRow(title=label, subtitle=help_text)
             btn = Gtk.Button(icon_name="list-add-symbolic",
@@ -329,11 +329,10 @@ class SettingsDialog(Adw.PreferencesDialog):
 
         note = Adw.PreferencesGroup()
         krow = Adw.ActionRow(
-            title="Passwords",
-            subtitle=("Stored in your system keyring, never in the library "
-                      "folder." if remote_mod.keyring_available() else
-                      "No system keyring found — password-based destinations "
-                      "are unavailable. Use a mounted folder instead."))
+            title=_("Passwords"),
+            subtitle=(_("Saved safely in your computer's password manager.") if remote_mod.keyring_available() else
+                      _("This computer has no password manager, so only folders and drives "
+                        "can be used.")))
         note.add(krow)
         page.add(note)
         return page
@@ -351,32 +350,32 @@ class SettingsDialog(Adw.PreferencesDialog):
         remotes = self.settings.get("remotes", []) or []
         if not remotes:
             empty = Adw.ActionRow(
-                title="No destinations yet",
-                subtitle="Add one below to back up your library.")
+                title=_("No backups set up yet"),
+                subtitle=_("Choose a place below to keep a copy of your photos."))
             self.remote_group.add(empty)
             self._remote_rows.append(empty)
             return
         for cfg in remotes:
             r = remote_mod.Remote.from_dict(cfg)
             row = Adw.ActionRow(title=r.name, subtitle=self._describe(r))
-            push = Gtk.Button(label="Back Up Now", valign=Gtk.Align.CENTER)
+            push = Gtk.Button(label=_("Back Up Now"), valign=Gtk.Align.CENTER)
             push.add_css_class("suggested-action")
             push.connect("clicked", self._on_push_remote, cfg, row)
             row.add_suffix(push)
 
             more = Gtk.MenuButton(icon_name="view-more-symbolic",
                                   valign=Gtk.Align.CENTER,
-                                  tooltip_text="More Options")
+                                  tooltip_text=_("More Options"))
             more.add_css_class("flat")
             popover = Gtk.Popover()
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2,
                           margin_top=6, margin_bottom=6,
                           margin_start=6, margin_end=6)
             for label, handler in (
-                    ("Test Connection", self._on_test_remote),
-                    ("Restore Missing Files…", self._on_restore_remote),
-                    ("Edit…", self._on_edit_remote),
-                    ("Remove", self._on_remove_remote)):
+                    (_("Check Connection"), self._on_test_remote),
+                    (_("Restore Missing Files…"), self._on_restore_remote),
+                    (_("Edit…"), self._on_edit_remote),
+                    (_("Remove"), self._on_remove_remote)):
                 item = Gtk.Button(label=label)
                 item.add_css_class("flat")
                 item.get_child().set_halign(Gtk.Align.START)
@@ -419,7 +418,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         self._prompt_remote(kind)
 
     def _choose_local_folder(self, existing=None):
-        dialog = Gtk.FileDialog(title="Choose a backup folder")
+        dialog = Gtk.FileDialog(title=_("Choose a backup folder"))
 
         def done(dlg, res):
             try:
@@ -432,7 +431,7 @@ class SettingsDialog(Adw.PreferencesDialog):
                     "id": (existing["id"] if existing
                            else f"local-{abs(hash(path))%10**8}"),
                     "name": ((existing or {}).get("name")
-                             or Path(path).name or "Backup"),
+                             or Path(path).name or _("Backup")),
                     "kind": "local",
                     "config": {"path": path}})
         dialog.select_folder(self.get_root(), None, done)
@@ -447,26 +446,26 @@ class SettingsDialog(Adw.PreferencesDialog):
         conf = (existing or {}).get("config", {})
         webdav = kind == "webdav"
         dialog = Adw.AlertDialog(
-            heading=("Edit Destination" if existing
-                     else "WebDAV Server" if webdav else "rclone Remote"),
-            body=("Enter the address of your WebDAV server, starting with "
-                  "https:// (or http:// on your home network), and your "
-                  "account. Then choose a folder with the folder button."
+            heading=(_("Edit Backup") if existing
+                     else _("NAS or Server (WebDAV)") if webdav else _("Cloud Service (rclone)")),
+            body=(_("Enter your server's address (it starts with https://, or http:// at "
+                    "home), your username and password. Then choose a folder with the "
+                    "folder button.")
                   if webdav else
-                  "Pick a remote you have already set up with "
-                  "'rclone config'."))
+                  _("Enter the name of a cloud service you set up in rclone, with the "
+                    "command rclone config.")))
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         entries = {}
         if webdav:
-            fields = [("name", "Name"), ("url", "Server address"),
-                      ("base", "Folder on the server"),
-                      ("username", "Username"),
-                      ("password", "Password (leave empty to keep it)"
-                       if existing else "Password")]
+            fields = [("name", _("Name")), ("url", _("Server address")),
+                      ("base", _("Folder on the server")),
+                      ("username", _("Username")),
+                      ("password", _("Password (leave empty to keep it)")
+                       if existing else _("Password"))]
         else:
-            fields = [("name", "Name"),
-                      ("remote", "rclone remote name"),
-                      ("path", "Folder on the remote")]
+            fields = [("name", _("Name")),
+                      ("remote", _("Name in rclone")),
+                      ("path", _("Folder in the cloud"))]
         folder_key = "base" if webdav else "path"
         # a server certificate trusted while browsing, saved with the destination
         pending = {"pin": conf.get("cert_sha256", ""), "pin_url": conf.get("url", "")}
@@ -488,8 +487,8 @@ class SettingsDialog(Adw.PreferencesDialog):
             else:
                 box.append(e)
         dialog.set_extra_child(box)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("add", "Save" if existing else "Add")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("add", _("Save") if existing else _("Add"))
         dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
         # First field (the destination's name) gets focus once the
         # dialog is mapped - same fix as the other entry dialogs, and
@@ -516,8 +515,8 @@ class SettingsDialog(Adw.PreferencesDialog):
             if password and not remote_mod.store_secret(rid, password):
                 # Refuse to silently write a password into the library
                 # folder, which the user has been told to back up.
-                self._toast("Your keyring is locked, so the password was not "
-                            "saved. Unlock it and edit this destination again.")
+                self._toast(_("The password couldn't be saved because your password manager is "
+                              "locked. Unlock it and edit this backup again."))
             self._save_remote(cfg)
         dialog.connect("response", done)
         dialog.present(self.get_root())
@@ -526,7 +525,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         """A button that lists the folders on the server, to pick one."""
         folder_entry = entries[folder_key]
         button = Gtk.MenuButton(icon_name="folder-open-symbolic",
-                                tooltip_text="Choose a Folder",
+                                tooltip_text=_("Choose a Folder"),
                                 valign=Gtk.Align.CENTER)
         popover = Gtk.Popover()
         popover.add_css_class("pika-folder-browser")
@@ -543,7 +542,7 @@ class SettingsDialog(Adw.PreferencesDialog):
             hscrollbar_policy=Gtk.PolicyType.NEVER, min_content_height=40,
             max_content_height=320, propagate_natural_height=True,
             child=listbox)
-        use = Gtk.Button(label="Use This Folder")
+        use = Gtk.Button(label=_("Use This Folder"))
         use.add_css_class("suggested-action")
         for w in (where, status, scroller, use):
             outer.append(w)
@@ -578,8 +577,8 @@ class SettingsDialog(Adw.PreferencesDialog):
             state["token"] += 1
             token = state["token"]
             folder_entry.set_text("/" + path if path else "")
-            where.set_text("/" + path if path else "Top Level")
-            status.set_text("Connecting…")
+            where.set_text("/" + path if path else _("Top Level"))
+            status.set_text(_("Connecting…"))
             status.set_visible(True)
             listbox.remove_all()
             scroller.set_visible(False)
@@ -616,14 +615,14 @@ class SettingsDialog(Adw.PreferencesDialog):
                 return False
             use.set_sensitive(True)
             if path:
-                add_row("Parent Folder", "go-up-symbolic",
+                add_row(_("Back"), "go-up-symbolic",
                         "/".join(path.split("/")[:-1]))
             for n in names:
                 add_row(n, "folder-symbolic", f"{path}/{n}" if path else n)
             scroller.set_visible(bool(path or names))
             status.set_text("" if names else
-                            "No folders here. Use this one, or add a new "
-                            "folder name to the path and Piklin creates it.")
+                            _("There are no folders here. You can use this one, or type a new "
+                              "folder name at the end and Piklin will create it."))
             status.set_visible(not names)
             return False
 
@@ -674,7 +673,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         url = GLib.markup_escape_text(cfg.get("config", {}).get("url", ""))
         changed = "changed" in result.message.lower()
         dlg = Adw.AlertDialog(
-            heading="Certificate Changed" if changed else "Trust This Server?")
+            heading=_("Security Certificate Changed") if changed else _("Trust This Server?"))
         dlg.set_body_use_markup(True)
         intro = (f"The certificate of <b>{url}</b> is not the one you trusted "
                  "before. If you did not replace it yourself, do not continue."
@@ -685,8 +684,8 @@ class SettingsDialog(Adw.PreferencesDialog):
         fp = GLib.markup_escape_text(
             remote_mod.format_fingerprint(result.fingerprint))
         dlg.set_body(f"{intro}\n\nSHA-256\n<tt>{fp}</tt>")
-        dlg.add_response("cancel", "Cancel")
-        dlg.add_response("trust", "Trust Certificate")
+        dlg.add_response("cancel", _("Cancel"))
+        dlg.add_response("trust", _("Trust This Server"))
         dlg.set_response_appearance(
             "trust", Adw.ResponseAppearance.DESTRUCTIVE if changed
             else Adw.ResponseAppearance.SUGGESTED)
@@ -710,7 +709,7 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     def _on_test_remote(self, cfg, row, _push):
         r = remote_mod.Remote.from_dict(cfg)
-        row.set_subtitle("Testing…")
+        row.set_subtitle(_("Testing…"))
 
         def work():
             result = r.backend().test()
@@ -727,8 +726,8 @@ class SettingsDialog(Adw.PreferencesDialog):
         btn.set_sensitive(False)
         library = self.library
         r = remote_mod.Remote.from_dict(cfg)
-        labels = {"listing": "Checking what is already backed up",
-                  "uploading": "Backing up"}
+        labels = {"listing": _("Checking what is already backed up"),
+                  "uploading": _("Backing up")}
 
         def work():
             backend = r.backend()
@@ -770,13 +769,13 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     def _on_restore_remote(self, cfg, row, push):
         dlg = Adw.AlertDialog(
-            heading="Restore Missing Files?",
+            heading=_("Restore Missing Files?"),
             body=f"Piklin copies back from “{cfg.get('name', 'the backup')}” "
                  "the photos, videos, edits and albums that are missing from "
                  "your library.\n\nNothing in your library is replaced, and "
                  "photos you deleted yourself stay deleted.")
-        dlg.add_response("cancel", "Cancel")
-        dlg.add_response("restore", "Restore")
+        dlg.add_response("cancel", _("Cancel"))
+        dlg.add_response("restore", _("Restore"))
         dlg.set_response_appearance("restore", Adw.ResponseAppearance.SUGGESTED)
 
         def done(_d, response):
@@ -787,7 +786,7 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     def _run_restore(self, cfg, row, push):
         push.set_sensitive(False)
-        row.set_subtitle("Connecting…")
+        row.set_subtitle(_("Connecting…"))
         library = self.library
         r = remote_mod.Remote.from_dict(cfg)
         try:
@@ -798,7 +797,7 @@ class SettingsDialog(Adw.PreferencesDialog):
 
         def progress_text(p):
             if p.phase != "downloading":
-                return "Reading the backup…"
+                return _("Reading the backup…")
             return (f"Restoring — {p.done_files:,} of {p.total_files:,} "
                     f"({_fmt(p.done_bytes)})")
 
@@ -840,12 +839,12 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     def _offer_rebuild(self, p):
         dlg = Adw.AlertDialog(
-            heading="Reopen Piklin to Finish",
+            heading=_("Reopen Piklin to Finish"),
             body=f"{p.restored:,} files are back. Piklin reopens and rebuilds "
                  "your library from them, with your albums, favourites and "
                  "edits.")
-        dlg.add_response("later", "Later")
-        dlg.add_response("reopen", "Reopen Now")
+        dlg.add_response("later", _("Later"))
+        dlg.add_response("reopen", _("Reopen Now"))
         dlg.set_response_appearance("reopen", Adw.ResponseAppearance.SUGGESTED)
 
         def done(_d, response):
@@ -869,15 +868,14 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     # ==================================================================
     def _library_page(self):
-        page = Adw.PreferencesPage(title="Library", name="library",
+        page = Adw.PreferencesPage(title=_("Library"), name="library",
                                    icon_name="folder-pictures-symbolic")
         group = Adw.PreferencesGroup(
-            title="Location",
-            description="Everything Piklin owns lives in this one "
-                        "package, so copying it is a complete backup. Move it "
-                        "anywhere, even another disk, and open it with "
-                        "Open Library… in the main menu.")
-        row = Adw.ActionRow(title="Library",
+            title=_("Where Your Library Is"),
+            description=_("Everything Piklin keeps is in this one package, so copying it "
+                          "copies everything. You can move it anywhere, even to another drive, "
+                          "and open it with Open Library… in the menu."))
+        row = Adw.ActionRow(title=_("Library"),
                             subtitle=str(self.library.root))
         row.set_subtitle_selectable(True)
         open_btn = Gtk.Button(icon_name="folder-open-symbolic",
@@ -888,54 +886,54 @@ class SettingsDialog(Adw.PreferencesDialog):
         page.add(group)
 
         folders = Adw.PreferencesGroup(
-            title="Watched folders",
-            description="Photos in these folders are indexed where they "
-                        "are. They are never moved or modified.")
+            title=_("Your Photo Folders"),
+            description=_("Photos in these folders stay where they are. Piklin never moves or "
+                          "changes them."))
         roots = self.catalog.roots(enabled_only=False)
         if not roots:
-            folders.add(Adw.ActionRow(title="None yet"))
+            folders.add(Adw.ActionRow(title=_("None yet")))
         for r in roots:
             n = self.catalog.scalar(
                 "SELECT COUNT(*) FROM photos WHERE root_id=?", (r["id"],), 0)
             rr = Adw.ActionRow(title=r["path"], subtitle=f"{n:,} photos")
             drop = Gtk.Button(icon_name="list-remove-symbolic",
                               valign=Gtk.Align.CENTER,
-                              tooltip_text="Stop watching (files are kept)")
+                              tooltip_text=_("Stop using this folder (the files stay)"))
             drop.connect("clicked", self._on_forget_root, r["id"])
             rr.add_suffix(drop)
             folders.add(rr)
         page.add(folders)
 
         maint = Adw.PreferencesGroup(
-            title="Maintenance",
-            description="catalog.db is an index, not your data. It can "
-                        "always be rebuilt from your photos and the edit "
-                        "files beside them.")
+            title=_("Maintenance"),
+            description=_("Piklin keeps a list of your photos to find them quickly. If "
+                          "something looks wrong, the list can be rebuilt without losing "
+                          "anything."))
         dupes = Adw.ActionRow(
-            title="Find duplicates",
-            subtitle="Groups photos with identical content")
-        dbtn = Gtk.Button(label="Scan", valign=Gtk.Align.CENTER)
+            title=_("Find Duplicate Photos"),
+            subtitle=_("Finds photos that are exact copies"))
+        dbtn = Gtk.Button(label=_("Find"), valign=Gtk.Align.CENTER)
         dbtn.connect("clicked", self._on_find_dupes, dupes)
         dupes.add_suffix(dbtn)
         maint.add(dupes)
 
         n_removed = len(self.catalog.removed_paths())
         removed = Adw.ActionRow(
-            title="Removed from library",
+            title=_("Photos Removed from Piklin"),
             subtitle=(f"{n_removed:,} photo{'s' if n_removed != 1 else ''} you "
                       f"removed stay out, although the files are still in "
                       f"watched folders" if n_removed else
-                      "Photos you remove stay out, even if their files are "
-                      "still in a watched folder"))
-        again = Gtk.Button(label="Show Again", valign=Gtk.Align.CENTER,
+                      _("Photos you remove don't come back, even though their files are "
+                        "still in your folders")))
+        again = Gtk.Button(label=_("Show Again"), valign=Gtk.Align.CENTER,
                            sensitive=bool(n_removed))
         again.connect("clicked", self._on_show_removed, removed)
         removed.add_suffix(again)
         maint.add(removed)
 
         rebuild = Adw.ActionRow(
-            title="Rebuild index",
-            subtitle="Run: piklin --rebuild-index")
+            title=_("Rebuild the Photo List"),
+            subtitle=_("Close Piklin and run: piklin --rebuild-index"))
         maint.add(rebuild)
         page.add(maint)
         return page
@@ -951,7 +949,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         """Let removed photos back in: they return with the next scan."""
         n = self.catalog.restore_removed()
         btn.set_sensitive(False)
-        row.set_subtitle("Coming back with the scan that is running now")
+        row.set_subtitle(_("They'll be back in a moment"))
         try:
             from .. import sidecars
             sidecars.write_removed(self.library, self.catalog)
@@ -962,11 +960,11 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     def _on_forget_root(self, _btn, root_id):
         self.catalog.forget_root(root_id, drop_photos=True)
-        self._toast("Folder removed from the library. No files were deleted.")
+        self._toast(_("Folder removed from the library. No files were deleted."))
 
     def _on_find_dupes(self, btn, row):
         btn.set_sensitive(False)
-        row.set_subtitle("Scanning…")
+        row.set_subtitle(_("Scanning…"))
 
         def work():
             groups = self.catalog.duplicate_groups()
@@ -979,6 +977,6 @@ class SettingsDialog(Adw.PreferencesDialog):
             row.set_subtitle(
                 f"{n} group" + ("s" if n != 1 else "")
                 + f", {extra} duplicate file" + ("s" if extra != 1 else "")
-                + f" using {_fmt(waste)}" if n else "No duplicates found")
+                + f" using {_fmt(waste)}" if n else _("No duplicates found"))
             return False
         threading.Thread(target=work, daemon=True).start()

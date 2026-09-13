@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import gi
+from ..i18n import _
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -129,9 +130,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.split = Adw.NavigationSplitView(
             min_sidebar_width=210, max_sidebar_width=280)
         self.split.set_sidebar(Adw.NavigationPage(
-            child=self._build_sidebar(), title="Library"))
+            child=self._build_sidebar(), title=_("Library")))
         self.split.set_content(Adw.NavigationPage(
-            child=self._build_content(), title="Photos"))
+            child=self._build_content(), title=_("Photos")))
         return self.split
 
     def _build_sidebar(self):
@@ -149,34 +150,34 @@ class MainWindow(Adw.ApplicationWindow):
         header.set_title_widget(self.brand)
         menu = Gio.Menu()
         sort_menu = Gio.Menu()
-        for key, label in (("taken_desc", "Newest First"),
-                           ("taken_asc", "Oldest First"),
-                           ("added_desc", "Recently Added"),
-                           ("name_asc", "Name"),
-                           ("size_desc", "File Size"),
-                           ("rating_desc", "Rating")):
+        for key, label in (("taken_desc", _("Newest First")),
+                           ("taken_asc", _("Oldest First")),
+                           ("added_desc", _("Recently Added")),
+                           ("name_asc", _("Name")),
+                           ("size_desc", _("File Size")),
+                           ("rating_desc", _("Rating"))):
             item = Gio.MenuItem.new(label, None)
             item.set_action_and_target_value(
                 "win.sort", GLib.Variant.new_string(key))
             sort_menu.append_item(item)
-        menu.append_submenu("Sort By", sort_menu)
-        menu.append("Open Library…", "win.open-library")
-        menu.append("Add Folder…", "win.add-folder")
-        menu.append("Rescan Library", "win.rescan")
+        menu.append_submenu(_("Sort By"), sort_menu)
+        menu.append(_("Open Library…"), "win.open-library")
+        menu.append(_("Add Folder…"), "win.add-folder")
+        menu.append(_("Look for New Photos"), "win.rescan")
         section = Gio.Menu()
-        section.append("Back Up & Cloud…", "win.remotes")
-        section.append("Storage & Compression…", "win.storage")
+        section.append(_("Backups…"), "win.remotes")
+        section.append(_("Storage…"), "win.storage")
         menu.append_section(None, section)
         end = Gio.Menu()
-        end.append("Preferences", "win.preferences")
-        end.append("Check for Updates…", "win.check-updates")
-        end.append("About Piklin", "win.about")
+        end.append(_("Preferences"), "win.preferences")
+        end.append(_("Check for Updates…"), "win.check-updates")
+        end.append(_("About Piklin"), "win.about")
         menu.append_section(None, end)
         # An icon-only button has no name a screen reader can announce;
         # the tooltip text doubles as its accessible label.
         btn = Gtk.MenuButton(icon_name="open-menu-symbolic",
                              menu_model=menu, primary=True,
-                             tooltip_text="Main Menu")
+                             tooltip_text=_("Main Menu"))
         header.pack_end(btn)
         toolbar.add_top_bar(header)
 
@@ -231,12 +232,12 @@ class MainWindow(Adw.ApplicationWindow):
         from ..paths import SUPPORT_URL
         if SUPPORT_URL:
             coffee = Gtk.Button(halign=Gtk.Align.FILL, margin_top=10,
-                                tooltip_text="Support Piklin")
+                                tooltip_text=_("Support Piklin"))
             coffee.add_css_class("pika-support")
             inner = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
             inner.append(Gtk.Image(icon_name="emblem-favorite-symbolic",
                                    pixel_size=15))
-            inner.append(Gtk.Label(label="Support on Ko-fi"))
+            inner.append(Gtk.Label(label=_("Support on Ko-fi")))
             coffee.set_child(inner)
             coffee.connect("clicked", lambda *_: Gtk.UriLauncher.new(
                 SUPPORT_URL).launch(self, None, None, None))
@@ -254,7 +255,7 @@ class MainWindow(Adw.ApplicationWindow):
         # the desktop's own setting would put them in.
         header.set_decoration_layout(":minimize,maximize,close")
 
-        self.search = Gtk.SearchEntry(placeholder_text="Search photos",
+        self.search = Gtk.SearchEntry(placeholder_text=_("Search photos"),
                                       width_chars=22)
         self.search.add_css_class("pika-search")
         self.search.connect("search-changed", self._on_search)
@@ -269,8 +270,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._view_buttons = {}
         first = None
         current = self.settings.get("group_by", "day")
-        for key, label in (("year", "Years"), ("month", "Months"),
-                           ("day", "Days"), ("none", "All Photos")):
+        for key, label in (("year", _("Years")), ("month", _("Months")),
+                           ("day", _("Days")), ("none", _("All Photos"))):
             btn = Gtk.ToggleButton(label=label)
             if first is None:
                 first = btn
@@ -288,7 +289,7 @@ class MainWindow(Adw.ApplicationWindow):
         zoom.set_value(self.settings.get("grid_size", 200))
         zoom.set_draw_value(False)
         zoom.set_size_request(104, -1)
-        zoom.set_tooltip_text("Thumbnail size")
+        zoom.set_tooltip_text(_("Photo size"))
         zoom.connect("value-changed", self._on_zoom)
         header.pack_start(zoom)
 
@@ -300,8 +301,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Filter: a pop-up of what to show, several
         # at once, inside whichever view is open.
-        self.filter_btn = Gtk.MenuButton(label="Filter",
-                                         tooltip_text="Filter photos")
+        self.filter_btn = Gtk.MenuButton(label=_("Filter"),
+                                         tooltip_text=_("Filter photos"))
         self.filter_btn.add_css_class("flat")
         self.filter_btn.add_css_class("pika-filter")
         pop = Gtk.Popover()
@@ -309,17 +310,17 @@ class MainWindow(Adw.ApplicationWindow):
                        margin_top=8, margin_bottom=8, margin_start=10,
                        margin_end=10)
         self._filter_checks = {}
-        for key, label in (("favorites", "Favourites"), ("edited", "Edited"),
-                           ("photos", "Photos"), ("videos", "Videos"),
-                           ("screenshots", "Screenshots"),
-                           ("not_in_album", "Not in an Album"),
-                           ("has_location", "Has Location")):
+        for key, label in (("favorites", _("Favourites")), ("edited", _("Edited")),
+                           ("photos", _("Photos")), ("videos", _("Videos")),
+                           ("screenshots", _("Screenshots")),
+                           ("not_in_album", _("Not in an Album")),
+                           ("has_location", _("Has Location"))):
             chk = Gtk.CheckButton(label=label)
             chk.connect("toggled", self._on_filter_toggled)
             pbox.append(chk)
             self._filter_checks[key] = chk
         pbox.append(Gtk.Separator(margin_top=4, margin_bottom=4))
-        show_all = Gtk.Button(label="Show All")
+        show_all = Gtk.Button(label=_("Show All"))
         show_all.add_css_class("flat")
         show_all.connect("clicked", lambda *_: self._clear_filters())
         pbox.append(show_all)
@@ -330,7 +331,7 @@ class MainWindow(Adw.ApplicationWindow):
         # Aspect Ratio: square thumbnails, or each photo at its own shape.
         self.aspect_btn = Gtk.ToggleButton(
             icon_name="view-grid-symbolic",
-            tooltip_text="Show photos at their original aspect ratio",
+            tooltip_text=_("Show whole photos instead of squares"),
             active=self.settings.get("grid_aspect") == "original")
         self.aspect_btn.add_css_class("flat")
         self.aspect_btn.connect("toggled", self._on_aspect_toggled)
@@ -341,13 +342,13 @@ class MainWindow(Adw.ApplicationWindow):
         self.action_bar.set_revealed(False)
         self._bar_buttons = {}
         for key, icon, tip, cb in (
-                ("favorite", "starred-symbolic", "Favourite",
+                ("favorite", "starred-symbolic", _("Favourite"),
                  self._on_bulk_favorite),
-                ("trash", "user-trash-symbolic", "Move to Recently Deleted",
+                ("trash", "user-trash-symbolic", _("Move to Recently Deleted"),
                  self._on_trash_button),
-                ("export", "document-save-symbolic", "Export…",
+                ("export", "document-save-symbolic", _("Export…"),
                  self._on_bulk_export),
-                ("album", "list-add-symbolic", "Add to album…",
+                ("album", "list-add-symbolic", _("Add to Album…"),
                  self._on_bulk_album)):
             b = Gtk.Button(icon_name=icon, tooltip_text=tip)
             b.connect("clicked", cb)
@@ -355,7 +356,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._bar_buttons[key] = b
         # Only meaningful inside Recently Deleted, so it is hidden until
         # you are actually standing there.
-        self._import_btn = Gtk.Button(label="Import")
+        self._import_btn = Gtk.Button(label=_("Import"))
         self._import_btn.add_css_class("suggested-action")
         self._import_btn.connect("clicked", self._on_import_device)
         self._import_btn.set_visible(False)
@@ -363,32 +364,32 @@ class MainWindow(Adw.ApplicationWindow):
 
         # The import screen: where the photos go, and whether the
         # camera keeps them afterwards.
-        self._import_delete = Gtk.CheckButton(label="Delete items after import")
+        self._import_delete = Gtk.CheckButton(label=_("Delete from the camera after importing"))
         self._import_delete.set_visible(False)
         self.action_bar.pack_end(self._import_delete)
-        self._import_album = Gtk.DropDown.new_from_strings(["Library"])
-        self._import_album.set_tooltip_text("Import to")
+        self._import_album = Gtk.DropDown.new_from_strings([_("Library")])
+        self._import_album.set_tooltip_text(_("Import to"))
         self._import_album.set_visible(False)
         self._import_album_ids = [None]
-        self._import_album_label = Gtk.Label(label="Import to:")
+        self._import_album_label = Gtk.Label(label=_("Import to:"))
         self._import_album_label.add_css_class("pika-dim")
         self._import_album_label.set_visible(False)
         self.action_bar.pack_start(self._import_album_label)
         self.action_bar.pack_start(self._import_album)
 
         # Duplicates view only: keep one copy of each selected group.
-        self._merge_btn = Gtk.Button(label="Merge")
+        self._merge_btn = Gtk.Button(label=_("Keep One"))
         self._merge_btn.add_css_class("suggested-action")
         self._merge_btn.connect("clicked", self._on_merge_duplicates)
         self._merge_btn.set_visible(False)
         self.action_bar.pack_end(self._merge_btn)
 
-        self._purge_btn = Gtk.Button(label="Delete Permanently…")
+        self._purge_btn = Gtk.Button(label=_("Delete Permanently…"))
         self._purge_btn.add_css_class("destructive-action")
         self._purge_btn.connect("clicked", self._on_purge)
         self._purge_btn.set_visible(False)
         self.action_bar.pack_start(self._purge_btn)
-        clear = Gtk.Button(label="Clear selection")
+        clear = Gtk.Button(label=_("Unselect"))
         clear.add_css_class("flat")
         clear.connect("clicked", lambda *_: self.grid.unselect_all())
         self.action_bar.pack_end(clear)
@@ -582,7 +583,7 @@ class MainWindow(Adw.ApplicationWindow):
                 plus = Gtk.MenuButton(icon_name="list-add-symbolic",
                                       menu_model=menu_model,
                                       valign=Gtk.Align.CENTER,
-                                      tooltip_text="New Album or Folder")
+                                      tooltip_text=_("New Album or Folder"))
                 plus.add_css_class("flat")
                 plus.add_css_class("pika-sidebar-add")
                 box.append(plus)
@@ -592,7 +593,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._devices = devicemod.list_devices()
         if self._devices:
-            header("Devices")
+            header(_("Devices"))
             for dev in self._devices:
                 add(f"device:{dev.id}", dev.name, dev.icon)
 
@@ -602,27 +603,27 @@ class MainWindow(Adw.ApplicationWindow):
         # last, under a dividing line: however many there are, they grow
         # downwards without pushing anything else out of view.
         # Library is where everything starts; it stays open.
-        header("Library", collapsible=False)
-        add("library", "All Photos", "image-x-generic-symbolic",
+        header(_("Library"), collapsible=False)
+        add("library", _("All Photos"), "image-x-generic-symbolic",
             counts.get("library"))
-        add("favorites", "Favourites", "starred-symbolic",
+        add("favorites", _("Favourites"), "starred-symbolic",
             counts.get("favorites"))
-        add("trash", "Recently Deleted", "user-trash-symbolic",
+        add("trash", _("Recently Deleted"), "user-trash-symbolic",
             counts.get("trash"))
 
-        header("Media Types")
-        add("videos", "Videos", "video-x-generic-symbolic",
+        header(_("Types"))
+        add("videos", _("Videos"), "video-x-generic-symbolic",
             counts.get("videos"))
-        add("screenshots", "Screenshots", "video-display-symbolic",
+        add("screenshots", _("Screenshots"), "video-display-symbolic",
             counts.get("screenshots"))
 
-        header("Utilities")
-        add("hidden", "Hidden", "view-conceal-symbolic", counts.get("hidden"))
-        add("duplicates", "Duplicates", "edit-copy-symbolic",
+        header(_("Utilities"))
+        add("hidden", _("Hidden"), "view-conceal-symbolic", counts.get("hidden"))
+        add("duplicates", _("Duplicates"), "edit-copy-symbolic",
             counts.get("duplicates"))
-        add("edited", "Recently Edited", "document-edit-symbolic",
+        add("edited", _("Recently Edited"), "document-edit-symbolic",
             counts.get("edited"))
-        add("imports", "Imports", "document-save-symbolic",
+        add("imports", _("Imports"), "document-save-symbolic",
             counts.get("imports"))
 
         divider = Gtk.ListBoxRow(selectable=False, activatable=False,
@@ -633,10 +634,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.sidebar_list.append(divider)
 
         add_menu = Gio.Menu()
-        add_menu.append("New Album…", "win.new-album")
-        add_menu.append("New Smart Album…", "win.new-smart-album")
-        add_menu.append("New Folder…", "win.new-folder")
-        header("Albums", add_menu)
+        add_menu.append(_("New Album…"), "win.new-album")
+        add_menu.append(_("New Smart Album…"), "win.new-smart-album")
+        add_menu.append(_("New Folder…"), "win.new-folder")
+        header(_("Albums"), add_menu)
         self._add_tree_rows(self.catalog.tree(), add, depth=0)
 
         for child in self.sidebar_list:
@@ -1130,7 +1131,7 @@ class MainWindow(Adw.ApplicationWindow):
         albums = self.catalog.albums()
         self._import_album_ids = [None] + [a["id"] for a in albums]
         self._import_album.set_model(Gtk.StringList.new(
-            ["Library"] + [a["name"] for a in albums]))
+            [_("Library")] + [a["name"] for a in albums]))
         self._import_album.set_selected(0)
 
     def _ask_delete_from_device(self, device, sources):
@@ -1139,10 +1140,10 @@ class MainWindow(Adw.ApplicationWindow):
         dialog = Adw.AlertDialog(
             heading=f"Delete {n} item" + ("s" if n != 1 else "")
                     + f" from \u201c{device.name}\u201d?",
-            body="They are safely in your library. Deleting frees space on "
-                 "the camera; it cannot be undone there.")
-        dialog.add_response("keep", "Keep Items")
-        dialog.add_response("delete", "Delete Items")
+            body=_("They are safely in your library now. Deleting them frees up space "
+                   "on the camera and can't be undone."))
+        dialog.add_response("keep", _("Keep Items"))
+        dialog.add_response("delete", _("Delete Items"))
         dialog.set_response_appearance("delete",
                                        Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_close_response("keep")
@@ -1733,7 +1734,7 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_frame_saved(self, _editor, path):
         """A video frame saved as a photo joins the library at once."""
         self._start_scan([str(Path(path).parent)])
-        self.toasts.add_toast(Adw.Toast(title="Frame saved to your library",
+        self.toasts.add_toast(Adw.Toast(title=_("Frame saved to your library"),
                                         timeout=3))
 
     # -- updates ------------------------------------------------------------
@@ -1834,7 +1835,7 @@ class MainWindow(Adw.ApplicationWindow):
             n_new = len(self._new_device_records())
             self._import_btn.set_label(
                 f"Import {n} Selected" if n else
-                (f"Import All New Items ({n_new})" if n_new else "All Items Imported"))
+                (f"Import All New Items ({n_new})" if n_new else _("All Items Imported")))
             self._import_btn.set_sensitive(bool(n or n_new))
         for key in ("favorite", "trash", "album"):
             self._bar_buttons[key].set_visible(not on_device)
@@ -1845,7 +1846,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._purge_btn.set_visible(in_trash and not on_device)
         if in_trash:
             none = not self.grid.selected_ids()
-            self._purge_btn.set_label("Delete All…" if none else "Delete Permanently…")
+            self._purge_btn.set_label(_("Delete All…") if none else _("Delete Permanently…"))
         in_dupes = self._scope == "duplicates"
         self._merge_btn.set_visible(in_dupes and not on_device)
         if in_dupes:
@@ -1855,9 +1856,9 @@ class MainWindow(Adw.ApplicationWindow):
         trash_btn.set_icon_name("edit-undo-symbolic" if in_trash
                                 else "user-trash-symbolic")
         trash_btn.set_tooltip_text(
-            ("Recover All" if not self.grid.selected_ids() else "Recover") if in_trash
-            else ("Remove from this album" if self._scope == "album"
-                  else "Move to Recently Deleted"))
+            (_("Recover All") if not self.grid.selected_ids() else _("Recover")) if in_trash
+            else (_("Remove from this album") if self._scope == "album"
+                  else _("Move to Recently Deleted")))
         for key in ("favorite", "album"):
             self._bar_buttons[key].set_sensitive(not in_trash)
 
@@ -1873,7 +1874,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._show_toast(f"Merged. {n} extra cop" + ("ies" if n != 1 else "y")
                         + " moved to Recently Deleted.")
         else:
-            self._show_toast("Select at least two copies of the same photo to merge.")
+            self._show_toast(_("Select at least two copies of the same photo."))
 
     def _on_purge(self, _btn):
         """Empty selected items out of Recently Deleted.
@@ -1895,15 +1896,13 @@ class MainWindow(Adw.ApplicationWindow):
         dialog = Adw.AlertDialog(
             heading=f"Delete {len(ids)} photo" + ("s" if len(ids) != 1 else "")
                     + " permanently?",
-            body="Piklin does not own these files - it indexes them "
-                 "where they live.\n\n"
-                 "“Remove from Library” forgets them here and leaves the "
-                 "files on disk, untouched.\n\n"
-                 "“Delete Files” erases the actual files. That cannot be "
-                 "undone.")
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("forget", "Remove from Library")
-        dialog.add_response("erase", "Delete Files")
+            body=_("These photos are in a folder on your computer.\n\n“Remove from "
+                   "Library” only takes them out of Piklin. The files stay where they "
+                   "are.\n\n“Delete Files” deletes the files from your computer. This "
+                   "can't be undone."))
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("forget", _("Remove from Library"))
+        dialog.add_response("erase", _("Delete Files"))
         dialog.set_response_appearance("erase",
                                        Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_close_response("cancel")
@@ -1966,7 +1965,7 @@ class MainWindow(Adw.ApplicationWindow):
         if getattr(self, "_filters_syncing", False):
             return
         active = {k for k, c in self._filter_checks.items() if c.get_active()}
-        self.filter_btn.set_label(f"Filter ({len(active)})" if active else "Filter")
+        self.filter_btn.set_label(f"Filter ({len(active)})" if active else _("Filter"))
         self.grid.set_filters(active)
         self._sync_content_view()
 
@@ -1975,7 +1974,7 @@ class MainWindow(Adw.ApplicationWindow):
         for chk in self._filter_checks.values():
             chk.set_active(False)
         self._filters_syncing = False
-        self.filter_btn.set_label("Filter")
+        self.filter_btn.set_label(_("Filter"))
         self.grid.set_filters(set())
         self._sync_content_view()
         self.filter_btn.popdown()
@@ -2040,14 +2039,14 @@ class MainWindow(Adw.ApplicationWindow):
         if not ids:
             return
         albums = self.catalog.albums()
-        dialog = Adw.AlertDialog(heading="Add to album",
+        dialog = Adw.AlertDialog(heading=_("Add to Album"),
                                  body=f"{len(ids)} photo"
                                       + ("s" if len(ids) != 1 else ""))
         names = [a["name"] for a in albums]
-        combo = Gtk.DropDown.new_from_strings(names + ["New album…"])
+        combo = Gtk.DropDown.new_from_strings(names + [_("New Album…")])
         dialog.set_extra_child(combo)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("add", "Add")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("add", _("Add"))
         dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
 
         def done(d, response):
@@ -2071,17 +2070,17 @@ class MainWindow(Adw.ApplicationWindow):
                 "SELECT p.id, p.name, p.parent_id FROM folders f "
                 "JOIN folders p ON p.id=f.parent_id WHERE f.id=?", (folder_id,))
             sections = [
-                [("rename", "Rename…", None,
+                [("rename", _("Rename…"), None,
                   lambda: self._on_rename_folder(folder_id, name))],
-                [("new-album", "New Album Here…", None,
+                [("new-album", _("New Album Here…"), None,
                   lambda: self._on_new_album(folder_id=folder_id)),
-                 ("new-folder", "New Folder Here…", None,
+                 ("new-folder", _("New Folder Here…"), None,
                   lambda: self._on_new_folder(folder_id))],
                 [("move-out", f"Move Out of \u201c{parent['name']}\u201d", None,
                   lambda: self._move_out(folder_id=folder_id,
                                          to=parent["parent_id"]))]
                 if parent is not None else [],
-                [("delete", "Delete Folder…", None,
+                [("delete", _("Delete Folder…"), None,
                   lambda: self._on_delete_folder(folder_id, name))],
             ]
         else:
@@ -2089,13 +2088,13 @@ class MainWindow(Adw.ApplicationWindow):
                 "SELECT f.id, f.name, f.parent_id FROM albums a "
                 "JOIN folders f ON f.id=a.folder_id WHERE a.id=?", (album_id,))
             sections = [
-                [("rename", "Rename…", None,
+                [("rename", _("Rename…"), None,
                   lambda: self._on_rename_album(album_id, name))],
                 [("move-out", f"Move Out of \u201c{holder['name']}\u201d", None,
                   lambda: self._move_out(album_id=album_id,
                                          to=holder["parent_id"]))]
                 if holder is not None else [],
-                [("delete", "Delete Album…", None,
+                [("delete", _("Delete Album…"), None,
                   lambda: self._on_delete_album(album_id, name))],
             ]
         self._show_context_menu(gesture.get_widget(), x, y, sections)
@@ -2178,11 +2177,11 @@ class MainWindow(Adw.ApplicationWindow):
         popover.popup()
 
     def _on_rename_folder(self, folder_id, current_name):
-        dialog = Adw.AlertDialog(heading="Rename folder")
+        dialog = Adw.AlertDialog(heading=_("Rename Folder"))
         entry = Gtk.Entry(text=current_name, activates_default=True)
         dialog.set_extra_child(entry)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("rename", "Rename")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("rename", _("Rename"))
         dialog.set_response_appearance("rename", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_close_response("cancel")
         dialog.set_default_response("rename")
@@ -2205,11 +2204,11 @@ class MainWindow(Adw.ApplicationWindow):
         dialog.present(self)
 
     def _on_rename_album(self, album_id, current_name):
-        dialog = Adw.AlertDialog(heading="Rename album")
+        dialog = Adw.AlertDialog(heading=_("Rename Album"))
         entry = Gtk.Entry(text=current_name, activates_default=True)
         dialog.set_extra_child(entry)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("rename", "Rename")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("rename", _("Rename"))
         dialog.set_response_appearance("rename", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_close_response("cancel")
         dialog.set_default_response("rename")
@@ -2235,12 +2234,10 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_delete_folder(self, folder_id, name):
         dialog = Adw.AlertDialog(
             heading=f'Delete "{name}"?',
-            body="This deletes the folder and everything organised "
-                 "inside it - its albums and any folders nested in it. "
-                 "Your photos themselves are never deleted; only the "
-                 "folder and album organisation is removed.")
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("delete", "Delete")
+            body=_("This deletes the folder and the albums and folders inside it. Your "
+                   "photos are not deleted."))
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("delete", _("Delete"))
         dialog.set_response_appearance("delete",
                                        Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_close_response("cancel")
@@ -2290,10 +2287,9 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_delete_album(self, album_id, name):
         dialog = Adw.AlertDialog(
             heading=f'Delete "{name}"?',
-            body="This removes the album. Your photos are not deleted "
-                 "and stay exactly where they are.")
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("delete", "Delete")
+            body=_("This deletes the album. Your photos are not deleted."))
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("delete", _("Delete"))
         dialog.set_response_appearance("delete",
                                        Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_close_response("cancel")
@@ -2314,13 +2310,13 @@ class MainWindow(Adw.ApplicationWindow):
         dialog.present(self)
 
     def _on_new_folder(self, parent_id=None):
-        dialog = Adw.AlertDialog(heading="New folder",
-                                 body="Give the folder a name.")
-        entry = Gtk.Entry(placeholder_text="Folder name",
+        dialog = Adw.AlertDialog(heading=_("New Folder"),
+                                 body=_("Give the folder a name."))
+        entry = Gtk.Entry(placeholder_text=_("Folder name"),
                           activates_default=True)
         dialog.set_extra_child(entry)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("create", "Create")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("create", _("Create"))
         dialog.set_response_appearance("create",
                                        Adw.ResponseAppearance.SUGGESTED)
         dialog.set_close_response("cancel")
@@ -2334,7 +2330,7 @@ class MainWindow(Adw.ApplicationWindow):
         def done(d, response):
             if response != "create":
                 return
-            name = entry.get_text().strip() or "Untitled Folder"
+            name = entry.get_text().strip() or _("Untitled Folder")
             self.catalog.create_folder(name, parent_id=parent_id)
             self.refresh_sidebar()
             self._mirror_state()
@@ -2368,18 +2364,18 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_smart_right_click(self, gesture, _n, x, y, smart_id, name):
         self._show_context_menu(gesture.get_widget(), x, y, [
-            [("edit", "Edit Smart Album…", None,
+            [("edit", _("Edit Smart Album…"), None,
               lambda: self._on_new_smart_album(smart_id=smart_id))],
-            [("delete", "Delete Smart Album…", None,
+            [("delete", _("Delete Smart Album…"), None,
               lambda: self._on_delete_smart_album(smart_id, name))],
         ])
 
     def _on_delete_smart_album(self, smart_id, name):
         dialog = Adw.AlertDialog(
             heading=f"Delete \u201c{name}\u201d?",
-            body="This removes the Smart Album. No photos are deleted.")
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("delete", "Delete")
+            body=_("This deletes the smart album. Your photos are not deleted."))
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("delete", _("Delete"))
         dialog.set_response_appearance("delete",
                                        Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_close_response("cancel")
@@ -2398,13 +2394,13 @@ class MainWindow(Adw.ApplicationWindow):
         dialog.present(self)
 
     def _on_new_album(self, ids=None, folder_id=None):
-        dialog = Adw.AlertDialog(heading="New album",
-                                 body="Give the album a name.")
-        entry = Gtk.Entry(placeholder_text="Album name",
+        dialog = Adw.AlertDialog(heading=_("New Album"),
+                                 body=_("Give the album a name."))
+        entry = Gtk.Entry(placeholder_text=_("Album name"),
                           activates_default=True)
         dialog.set_extra_child(entry)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("create", "Create")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("create", _("Create"))
         dialog.set_response_appearance("create",
                                        Adw.ResponseAppearance.SUGGESTED)
         # Escape and the close button both map to Cancel, and Cancel
@@ -2435,7 +2431,7 @@ class MainWindow(Adw.ApplicationWindow):
         def done(d, response):
             if response != "create":
                 return
-            name = entry.get_text().strip() or "Untitled Album"
+            name = entry.get_text().strip() or _("Untitled Album")
             aid = self.catalog.create_album(name, folder_id=folder_id)
             if ids:
                 self.catalog.album_add(aid, ids)
@@ -2543,8 +2539,8 @@ class MainWindow(Adw.ApplicationWindow):
         if self._scope == "trash":
             # In Recently Deleted the choices are to bring back or erase.
             self._show_context_menu(widget, x, y, [
-                [("recover", "Recover", None, lambda: self._on_trash_button(None))],
-                [("purge", "Delete Permanently…", "Delete", lambda: self._on_purge(None))],
+                [("recover", _("Recover"), None, lambda: self._on_trash_button(None))],
+                [("purge", _("Delete Permanently…"), "Delete", lambda: self._on_purge(None))],
             ])
             return
         marks = ",".join("?" * len(ids))
@@ -2552,13 +2548,13 @@ class MainWindow(Adw.ApplicationWindow):
             f"SELECT MIN(favorite) FROM photos WHERE id IN ({marks})", ids, 0))
         count = "" if single else f" {len(ids)} Photos"
         self._show_context_menu(widget, x, y, [
-            [("open", "Open", "space",
+            [("open", _("Open"), "space",
               lambda: self._on_photo_activated(self.grid, item)),
-             ("rename", "Rename…", "F2",
+             ("rename", _("Rename…"), "F2",
               lambda: self._rename_photo_id(item.id))] if single else [],
-            [("favorite", "Remove from Favourites" if all_fav else "Favourite",
+            [("favorite", _("Remove from Favourites") if all_fav else _("Favourite"),
               "period", lambda: self._on_bulk_favorite(None)),
-             ("hide", ("Unhide" if self._scope == "hidden" else "Hide") + count,
+             ("hide", (_("Unhide") if self._scope == "hidden" else _("Hide")) + count,
               "<Ctrl>l", lambda: self._on_bulk_hide())],
             [("rotate-ccw", "Rotate Left", "<Ctrl><Shift>r",
               lambda: self._on_rotate(-1, ids)),
@@ -2572,7 +2568,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     # -- libraries -------------------------------------------------------
     def _on_open_library(self):
-        dialog = Gtk.FileDialog(title="Open a Piklin Library")
+        dialog = Gtk.FileDialog(title=_("Open a Piklin Library"))
 
         def done(dlg, res):
             try:
@@ -2590,7 +2586,7 @@ class MainWindow(Adw.ApplicationWindow):
             return
         if not (root / "catalog.db").is_file():
             dlg = Adw.AlertDialog(
-                heading="Not a Piklin Library",
+                heading=_("Not a Piklin Library"),
                 body=f"“{root.name}” does not contain a library. Choose "
                      f"a library package, such as “Piklin Library.piklin”.")
             dlg.add_response("ok", "OK")
@@ -2603,7 +2599,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     # -- folders & scanning ---------------------------------------------
     def _on_add_folder(self):
-        dialog = Gtk.FileDialog(title="Choose a folder of photos")
+        dialog = Gtk.FileDialog(title=_("Choose a Folder with Photos"))
 
         def done(dlg, res):
             try:
@@ -2616,7 +2612,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _start_scan(self, roots):
         self.scan_bar.set_visible(True)
-        self.scan_label.set_text("Scanning…")
+        self.scan_label.set_text(_("Looking for photos…"))
 
         def progress(p):
             def apply():
@@ -2625,9 +2621,9 @@ class MainWindow(Adw.ApplicationWindow):
                     self._refresh()
                     return False
                 self.scan_bar.set_visible(True)
-                label = {"scanning": "Looking for photos",
-                         "probing": "Reading photo details",
-                         "thumbnails": "Making thumbnails"}.get(p.phase, p.phase)
+                label = {"scanning": _("Looking for photos"),
+                         "probing": _("Reading photo details"),
+                         "thumbnails": _("Preparing previews")}.get(p.phase, p.phase)
                 extra = f"  ·  {p.added} new" if p.added else ""
                 self.scan_label.set_text(f"{label} — {p.done:,}"
                                          + (f" of {p.total:,}" if p.total else "")
@@ -2666,17 +2662,17 @@ class MainWindow(Adw.ApplicationWindow):
         if self.get_visible_dialog() is not None:
             return True                 # after the welcome is answered
         dialog = Adw.AlertDialog(
-            heading="Keep a Copy of Your Photos",
-            body="Piklin can back up your photos and videos to a drive, a NAS "
+            heading=_("Keep a Copy of Your Photos"),
+            body=_("Piklin can back up your photos and videos to a drive, a NAS "
                  "or a cloud service. Once one is connected, new photos, "
                  "videos and edits are copied there automatically.\n\n"
-                 "Nothing leaves your computer unless you choose where.")
+                 "Nothing leaves your computer unless you choose where."))
         # Stacked buttons read bottom-up, so "Not Now" is added first to end
         # up last, under the three choices.
-        dialog.add_response("later", "Not Now")
-        dialog.add_response("rclone", "Cloud Service (rclone)")
-        dialog.add_response("webdav", "NAS or WebDAV Server")
-        dialog.add_response("local", "Folder or Drive")
+        dialog.add_response("later", _("Not Now"))
+        dialog.add_response("rclone", _("Cloud Service (rclone)"))
+        dialog.add_response("webdav", _("NAS or WebDAV Server"))
+        dialog.add_response("local", _("Folder or Drive"))
         dialog.set_close_response("later")
 
         def done(_d, response):
@@ -2692,16 +2688,16 @@ class MainWindow(Adw.ApplicationWindow):
         from ..paths import pictures_dir
         pictures = pictures_dir()
         dialog = Adw.AlertDialog(
-            heading="Welcome to Piklin",
+            heading=_("Welcome to Piklin"),
             body=f"Point it at a folder and it will build your library.\n\n"
                  f"Your photos are never moved or modified — edits are saved "
                  f"alongside them and your originals stay exactly as they are.")
-        dialog.add_response("later", "Later")
+        dialog.add_response("later", _("Later"))
         if pictures.is_dir():
             dialog.add_response("pictures", f"Use {pictures.name}")
             dialog.set_response_appearance("pictures",
                                            Adw.ResponseAppearance.SUGGESTED)
-        dialog.add_response("choose", "Choose Folder…")
+        dialog.add_response("choose", _("Choose Folder…"))
         dialog.set_close_response("later")      # Escape means "Later"
 
         def done(d, response):
@@ -2730,7 +2726,7 @@ class MainWindow(Adw.ApplicationWindow):
             version=VERSION,
             developer_name="Vezzu Studio",
             website="https://vezzu.studio",
-            copyright="© 2026 Vezzu Studio. All rights reserved.",
+            copyright=_("© 2026 Vezzu Studio. All rights reserved."),
             comments=(
                 f"Piklin was created by Vezzu Studio.\n\n"
                 f"A photo and video library and editor for Linux. "
@@ -2739,11 +2735,11 @@ class MainWindow(Adw.ApplicationWindow):
                 f"everything runs on this machine."),
             license_type=Gtk.License.CUSTOM,
             license=(
-                "Piklin is proprietary software. © 2026 Vezzu Studio. "
+                _("Piklin is proprietary software. © 2026 Vezzu Studio. "
                 "All rights reserved.\n\n"
                 "Your licence lets you install and use Piklin on your own "
                 "computers. You may not copy, redistribute, resell or "
-                "reverse-engineer it."))
+                "reverse-engineer it.")))
         # Libraries Piklin ships, each under its own licence (full texts in
         # /usr/share/doc/piklin/third-party).
         for title, licence in (
@@ -2752,7 +2748,7 @@ class MainWindow(Adw.ApplicationWindow):
                 ("OpenCV", Gtk.License.APACHE_2_0),
                 ("NumPy", Gtk.License.BSD_3),
                 ("Pillow, pi-heif, rawpy, miniaudio", Gtk.License.MIT_X11),
-                ("Inter typeface", Gtk.License.CUSTOM)):
+                (_("Inter typeface"), Gtk.License.CUSTOM)):
             about.add_legal_section(
                 title, None, licence,
                 "SIL Open Font License 1.1" if licence == Gtk.License.CUSTOM else None)

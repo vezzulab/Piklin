@@ -25,6 +25,7 @@ from typing import Callable
 from gi.repository import Gio, GLib
 
 from . import remote as remote_mod
+from .i18n import _
 
 QUIET_SECONDS = 60
 RETRY_MINUTES = (5, 15, 60)
@@ -260,20 +261,20 @@ class AutoBackup:
         if not self.settings.get("remotes"):
             return ""
         if self._running:
-            return self._progress or "Backing up…"
+            return self._progress or _("Backing up…")
         if not self.settings.get("remote_autosync"):
-            return "Automatic backup is off"
+            return _("Automatic backup is off")
         if self._waiting == "power":
-            return "Backup waits for battery saver to be off"
+            return _("Backup waits until battery saver is off")
         if self._waiting == "network":
             return (f"Can't reach {self._problem.split(':')[0]} — will try again"
-                    if self._problem else "Backup waits for a connection")
+                    if self._problem else _("Backup waits for a connection"))
         if self._problem:
             return f"Backup stopped — {self._problem}"
         if self._state.get("pending"):
-            return "Changes waiting to back up"
+            return _("Changes waiting to back up")
         last = self._state.get("last") or 0
-        return f"Backed up {describe_last(last)}" if last else "Not backed up yet"
+        return f"Backed up {describe_last(last)}" if last else _("Not backed up yet")
 
     def refresh_status(self, progress: str | None = None):
         if progress is not None:

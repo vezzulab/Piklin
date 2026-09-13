@@ -22,6 +22,7 @@ from pathlib import Path
 
 from .video import VIDEO_EXT
 from typing import Any, Iterable, Iterator, Sequence
+from .i18n import N_
 
 SCHEMA_VERSION = 3
 
@@ -203,34 +204,34 @@ def search_text(rec: dict) -> str:
 # ==========================================================================
 SMART_FIELDS = {
     # key            (column,          label,            kind)
-    "filename":      ("p.filename",     "Filename",       "text"),
-    "folder":        ("p.path",         "Folder path",    "text"),
-    "camera_make":   ("p.camera_make",  "Camera make",    "text"),
-    "camera_model":  ("p.camera_model", "Camera model",   "text"),
-    "lens":          ("p.lens",         "Lens",           "text"),
-    "rating":        ("p.rating",       "Rating",         "number"),
+    "filename":      ("p.filename",     N_("Filename"),       "text"),
+    "folder":        ("p.path",         N_("Folder path"),    "text"),
+    "camera_make":   ("p.camera_make",  N_("Camera make"),    "text"),
+    "camera_model":  ("p.camera_model", N_("Camera model"),   "text"),
+    "lens":          ("p.lens",         N_("Lens"),           "text"),
+    "rating":        ("p.rating",       N_("Rating"),         "number"),
     "iso":           ("p.iso",          "ISO",            "number"),
-    "f_number":      ("p.f_number",     "Aperture (f/)",  "number"),
-    "focal_length":  ("p.focal_length", "Focal length",   "number"),
-    "width":         ("p.width",        "Width",          "number"),
-    "height":        ("p.height",       "Height",         "number"),
-    "bytes":         ("p.bytes",        "File size",      "number"),
-    "favorite":      ("p.favorite",     "Favourite",      "bool"),
-    "edited":        ("p.edit_version", "Edited",         "bool"),
-    "has_location":  ("p.gps_lat",      "Has location",   "bool_null"),
-    "taken_at":      ("p.taken_at",     "Date taken",     "date"),
-    "ext":           ("p.ext",          "File type",      "text"),
-    "media_type":    ("p.ext",          "Media type",     "media"),
-    "duration":      ("p.duration",     "Video length (seconds)", "number"),
+    "f_number":      ("p.f_number",     N_("Aperture (f/)"),  "number"),
+    "focal_length":  ("p.focal_length", N_("Focal length"),   "number"),
+    "width":         ("p.width",        N_("Width"),          "number"),
+    "height":        ("p.height",       N_("Height"),         "number"),
+    "bytes":         ("p.bytes",        N_("File size"),      "number"),
+    "favorite":      ("p.favorite",     N_("Favourite"),      "bool"),
+    "edited":        ("p.edit_version", N_("Edited"),         "bool"),
+    "has_location":  ("p.gps_lat",      N_("Has location"),   "bool_null"),
+    "taken_at":      ("p.taken_at",     N_("Date taken"),     "date"),
+    "ext":           ("p.ext",          N_("File type"),      "text"),
+    "media_type":    ("p.ext",          N_("Media type"),     "media"),
+    "duration":      ("p.duration",     N_("Video length (seconds)"), "number"),
 }
 
 SMART_OPS = {
-    "text":      ["is", "is not", "contains", "does not contain"],
-    "number":    ["is", "is not", "greater than", "less than"],
-    "bool":      ["is true", "is false"],
-    "bool_null": ["is true", "is false"],
-    "date":      ["in the last days", "before", "after"],
-    "media":     ["is video", "is photo"],
+    "text":      ["is", N_("is not"), "contains", N_("does not contain")],
+    "number":    ["is", N_("is not"), N_("greater than"), N_("less than")],
+    "bool":      [N_("is true"), N_("is false")],
+    "bool_null": [N_("is true"), N_("is false")],
+    "date":      [N_("in the last days"), "before", "after"],
+    "media":     [N_("is video"), N_("is photo")],
 }
 
 

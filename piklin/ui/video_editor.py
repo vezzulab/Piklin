@@ -19,6 +19,7 @@ from pathlib import Path
 
 import cairo
 import gi
+from ..i18n import _, N_
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -30,7 +31,7 @@ from ..video import format_duration, frame_at, stream_info
 from .player import VideoPlayer
 
 SPEEDS = (0.25, 0.5, 1.0, 1.5, 2.0)
-CROPS = (("Original", None), ("Square", 1.0), ("16:9", 16 / 9), ("9:16", 9 / 16),
+CROPS = ((N_("Original"), None), (N_("Square"), 1.0), ("16:9", 16 / 9), ("9:16", 9 / 16),
          ("4:3", 4 / 3), ("4:5", 4 / 5))
 
 
@@ -326,25 +327,25 @@ class VideoEditorView(Gtk.Box):
     def _build_bar(self):
         bar = Gtk.Box(spacing=6, margin_top=6, margin_bottom=6,
                       margin_start=10, margin_end=10)
-        back = Gtk.Button(icon_name="go-previous-symbolic", tooltip_text="Done")
+        back = Gtk.Button(icon_name="go-previous-symbolic", tooltip_text=_("Back"))
         back.connect("clicked", lambda *_: self.close())
         bar.append(back)
         self.title_label = Gtk.Label(xalign=0.0, hexpand=True)
         self.title_label.add_css_class("pika-dim")
         bar.append(self.title_label)
         self.undo_btn = Gtk.Button(icon_name="edit-undo-symbolic",
-                                   tooltip_text="Undo (Ctrl+Z)", sensitive=False)
+                                   tooltip_text=_("Undo (Ctrl+Z)"), sensitive=False)
         self.undo_btn.connect("clicked", lambda *_: self.undo())
         self.redo_btn = Gtk.Button(icon_name="edit-redo-symbolic",
-                                   tooltip_text="Redo (Ctrl+Shift+Z)", sensitive=False)
+                                   tooltip_text=_("Redo (Ctrl+Shift+Z)"), sensitive=False)
         self.redo_btn.connect("clicked", lambda *_: self.redo())
         bar.append(self.undo_btn)
         bar.append(self.redo_btn)
         revert = Gtk.Button(icon_name="edit-clear-all-symbolic",
-                            tooltip_text="Revert to Original")
+                            tooltip_text=_("Revert to Original"))
         revert.connect("clicked", self._on_revert)
         bar.append(revert)
-        export = Gtk.Button(label="Export…")
+        export = Gtk.Button(label=_("Export…"))
         export.add_css_class("suggested-action")
         export.connect("clicked", self._on_export)
         bar.append(export)
@@ -380,17 +381,17 @@ class VideoEditorView(Gtk.Box):
         panel.set_size_request(320, -1)
         page = Adw.PreferencesPage()
 
-        trim = Adw.PreferencesGroup(title="Trim",
-                                    description="Drag the white handles on the "
-                                                "timeline, or set them here.")
-        self.start_row = Adw.ActionRow(title="Start")
-        btn = Gtk.Button(label="Set to Playhead", valign=Gtk.Align.CENTER,
-                         tooltip_text="Start here (I)")
+        trim = Adw.PreferencesGroup(title=_("Trim"),
+                                    description=_("Drag the white handles on the "
+                                                "timeline, or set them here."))
+        self.start_row = Adw.ActionRow(title=_("Start"))
+        btn = Gtk.Button(label=_("Set Here"), valign=Gtk.Align.CENTER,
+                         tooltip_text=_("Start here (I)"))
         btn.connect("clicked", lambda *_: self.set_start_here())
         self.start_row.add_suffix(btn)
-        self.end_row = Adw.ActionRow(title="End")
-        btn = Gtk.Button(label="Set to Playhead", valign=Gtk.Align.CENTER,
-                         tooltip_text="End here (O)")
+        self.end_row = Adw.ActionRow(title=_("End"))
+        btn = Gtk.Button(label=_("Set Here"), valign=Gtk.Align.CENTER,
+                         tooltip_text=_("End here (O)"))
         btn.connect("clicked", lambda *_: self.set_end_here())
         self.end_row.add_suffix(btn)
         trim.add(self.start_row)
@@ -398,22 +399,22 @@ class VideoEditorView(Gtk.Box):
         page.add(trim)
 
         cut = Adw.PreferencesGroup(
-            title="Cut Out",
-            description="Shift-drag on the timeline, or mark the piece with "
-                        "the playhead, then cut it out.")
-        marks = Adw.ActionRow(title="Selection")
+            title=_("Cut Out"),
+            description=_("Hold Shift and drag on the timeline, or mark the start and end, "
+                          "then cut it out."))
+        marks = Adw.ActionRow(title=_("Selection"))
         self.sel_label = marks
         mark_box = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
-        b_in = Gtk.Button(label="In", tooltip_text="Mark In ([)")
+        b_in = Gtk.Button(label=_("Mark Start"), tooltip_text=_("Mark the start ([)"))
         b_in.connect("clicked", lambda *_: self.mark_in())
-        b_out = Gtk.Button(label="Out", tooltip_text="Mark Out (])")
+        b_out = Gtk.Button(label=_("Mark End"), tooltip_text=_("Mark the end (])"))
         b_out.connect("clicked", lambda *_: self.mark_out())
         mark_box.append(b_in)
         mark_box.append(b_out)
         marks.add_suffix(mark_box)
         cut.add(marks)
-        self.cut_btn = Gtk.Button(label="Cut Out Selection", sensitive=False,
-                                  margin_top=8, tooltip_text="Cut out (X)")
+        self.cut_btn = Gtk.Button(label=_("Cut Out Selection"), sensitive=False,
+                                  margin_top=8, tooltip_text=_("Cut out (X)"))
         self.cut_btn.connect("clicked", lambda *_: self.cut_selection())
         cut.add(self.cut_btn)
         self.cuts_group = Adw.PreferencesGroup()
@@ -421,44 +422,44 @@ class VideoEditorView(Gtk.Box):
         page.add(cut)
         page.add(self.cuts_group)
 
-        motion = Adw.PreferencesGroup(title="Playback")
+        motion = Adw.PreferencesGroup(title=_("Playback"))
         self.speed_row = Adw.ComboRow(
-            title="Speed", subtitle="Sound keeps its pitch",
+            title=_("Speed"), subtitle=_("Voices sound normal at any speed"),
             model=Gtk.StringList.new([f"{s:g}×" for s in SPEEDS]))
         self.speed_row.connect("notify::selected", self._on_speed)
         motion.add(self.speed_row)
-        self.mute_row = Adw.SwitchRow(title="Mute", subtitle="Export without sound")
+        self.mute_row = Adw.SwitchRow(title=_("Mute"), subtitle=_("Export without sound"))
         self.mute_row.connect("notify::active", self._on_mute)
         motion.add(self.mute_row)
         page.add(motion)
 
-        picture = Adw.PreferencesGroup(title="Picture")
-        turn = Adw.ActionRow(title="Rotate and Flip")
+        picture = Adw.PreferencesGroup(title=_("Picture"))
+        turn = Adw.ActionRow(title=_("Rotate and Flip"))
         tbox = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
-        for icon, tip, cb in (("object-rotate-left-symbolic", "Rotate Left", lambda: self._rotate(-90)),
-                              ("object-rotate-right-symbolic", "Rotate Right", lambda: self._rotate(90)),
-                              ("object-flip-horizontal-symbolic", "Flip", self._flip)):
+        for icon, tip, cb in (("object-rotate-left-symbolic", _("Rotate Left"), lambda: self._rotate(-90)),
+                              ("object-rotate-right-symbolic", _("Rotate Right"), lambda: self._rotate(90)),
+                              ("object-flip-horizontal-symbolic", _("Flip"), self._flip)):
             b = Gtk.Button(icon_name=icon, tooltip_text=tip)
             b.connect("clicked", lambda *_a, c=cb: c())
             tbox.append(b)
         turn.add_suffix(tbox)
         picture.add(turn)
         self.crop_row = Adw.ComboRow(
-            title="Crop", model=Gtk.StringList.new([name for name, _ in CROPS]))
+            title=_("Crop"), model=Gtk.StringList.new([name for name, _ in CROPS]))
         self.crop_row.connect("notify::selected", self._on_crop)
         picture.add(self.crop_row)
         page.add(picture)
 
-        frames = Adw.PreferencesGroup(title="Frames")
-        poster = Adw.ActionRow(title="Poster Frame", subtitle="The frame shown in the library")
-        pb = Gtk.Button(label="Use Current", valign=Gtk.Align.CENTER)
+        frames = Adw.PreferencesGroup(title=_("Frames"))
+        poster = Adw.ActionRow(title=_("Cover Frame"), subtitle=_("The frame shown in the library"))
+        pb = Gtk.Button(label=_("Use This Frame"), valign=Gtk.Align.CENTER)
         pb.connect("clicked", lambda *_: self._set_poster())
         poster.add_suffix(pb)
         frames.add(poster)
-        still = Adw.ActionRow(title="Save Frame as Photo",
-                              subtitle="Full resolution, into your library")
+        still = Adw.ActionRow(title=_("Save Frame as Photo"),
+                              subtitle=_("Full resolution, into your library"))
         sb = Gtk.Button(icon_name="camera-photo-symbolic", valign=Gtk.Align.CENTER,
-                        tooltip_text="Save the frame at the playhead")
+                        tooltip_text=_("Save the frame you are seeing"))
         sb.connect("clicked", lambda *_: self.save_frame())
         still.add_suffix(sb)
         frames.add(still)
@@ -541,9 +542,9 @@ class VideoEditorView(Gtk.Box):
 
     def _refresh_panel(self):
         e = self.edit
-        self.start_row.set_subtitle(format_duration(e.start) if e.start else "Beginning")
+        self.start_row.set_subtitle(format_duration(e.start) if e.start else _("Beginning"))
         self.end_row.set_subtitle(format_duration(e.stop)
-                                  if e.end is not None and e.stop < e.duration - 0.01 else "End")
+                                  if e.end is not None and e.stop < e.duration - 0.01 else _("End"))
         self.len_label.set_text(f"{format_duration(e.output_duration())} after editing"
                                 if not e.is_identity() else format_duration(e.duration))
         self._syncing = True
@@ -563,15 +564,15 @@ class VideoEditorView(Gtk.Box):
         sel = self._selection()
         self.sel_label.set_subtitle(
             f"{format_duration(sel[0])} – {format_duration(sel[1])}" if sel
-            else "Nothing selected")
+            else _("Nothing selected"))
         self.cut_btn.set_sensitive(bool(sel))
         for row in self._cut_rows:
             self.cuts_group.remove(row)
         self._cut_rows = []
-        self.cuts_group.set_title("Pieces Cut Out" if e.cuts else "")
+        self.cuts_group.set_title(_("Pieces Cut Out") if e.cuts else "")
         for index, (a, b) in enumerate(e.cuts):
             row = Adw.ActionRow(title=f"{format_duration(a)} – {format_duration(b)}")
-            restore = Gtk.Button(label="Restore", valign=Gtk.Align.CENTER)
+            restore = Gtk.Button(label=_("Restore"), valign=Gtk.Align.CENTER)
             restore.connect("clicked", lambda *_a, i=index: self._restore_cut(i))
             row.add_suffix(restore)
             self.cuts_group.add(row)
@@ -704,7 +705,7 @@ class VideoEditorView(Gtk.Box):
     def _set_poster(self):
         t = self.player.position()
         self._change(lambda e: setattr(e, "poster", t))
-        self._toast("Poster frame set")
+        self._toast(_("Poster frame set"))
 
     def save_frame(self):
         if self.path is None:
@@ -730,11 +731,11 @@ class VideoEditorView(Gtk.Box):
         if self.edit.is_identity() and self.edit.poster is None:
             return
         dialog = Adw.AlertDialog(
-            heading="Revert to Original?",
-            body="Your video file is untouched either way — this clears the "
-                 "trims, cuts and other changes made to it.")
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("revert", "Revert")
+            heading=_("Revert to Original?"),
+            body=_("Your video file is untouched either way — this clears the "
+                 "trims, cuts and other changes made to it."))
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("revert", _("Revert"))
         dialog.set_response_appearance("revert", Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_close_response("cancel")
 

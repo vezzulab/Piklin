@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
+from .i18n import _, N_
 
 FORMAT = "piklin-video-edit"
 VERSION = 1
@@ -278,11 +279,11 @@ def save_frame_as_photo(library, path, t: float, edit: VideoEdit | None,
 
 # -- export ----------------------------------------------------------------------
 EXPORT_FORMATS = {
-    "mp4": {"label": "MP4 (H.264)", "suffix": ".mp4", "container": "mp4",
+    "mp4": {"label": N_("MP4 (H.264)"), "suffix": ".mp4", "container": "mp4",
             "video": ("libopenh264", "h264", "mpeg4"), "audio": ("aac",)},
-    "webm": {"label": "WebM (VP9)", "suffix": ".webm", "container": "webm",
+    "webm": {"label": N_("WebM (VP9)"), "suffix": ".webm", "container": "webm",
              "video": ("libvpx-vp9", "libvpx"), "audio": ("libopus",)},
-    "gif": {"label": "Animated GIF", "suffix": ".gif"},
+    "gif": {"label": N_("Animated GIF"), "suffix": ".gif"},
 }
 
 
@@ -316,7 +317,7 @@ def export(path, dst, edit: VideoEdit, fmt: str = "mp4",
     import av
     segs = edit.segments()
     if not segs:
-        raise ValueError("Nothing is left to export: the whole video is cut out.")
+        raise ValueError(_("Nothing is left to export: the whole video is cut out."))
     dst = Path(dst).with_suffix(EXPORT_FORMATS[fmt]["suffix"])
     dst.parent.mkdir(parents=True, exist_ok=True)
     tmp = dst.with_name(f".{dst.name}.part")
@@ -553,7 +554,7 @@ def _export_gif(av, path, tmp, edit, segs, max_side, on_progress, cancel):
                     on_progress(min(1.0, out_t / (total or 1.0)))
             offset += (e - s) / speed
     if not images:
-        raise ValueError("No frames to put in the GIF.")
+        raise ValueError(_("No frames to put in the GIF."))
     images[0].save(tmp, "GIF", save_all=True, append_images=images[1:],
                    duration=int(1000 / gif_fps), loop=0, optimize=True, disposal=2)
     if on_progress:

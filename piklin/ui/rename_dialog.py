@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import gi
+from ..i18n import _
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -20,15 +21,14 @@ def ask_rename_photo(parent, library, catalog, photo_id, on_renamed) -> None:
         return
     old = Path(row["path"])
     dialog = Adw.AlertDialog(
-        heading="Rename Photo",
-        body="The file is renamed in its folder too, so the new name is the "
-             "one you see everywhere - here, in your file manager and in "
-             "backups.")
+        heading=_("Rename Photo"),
+        body=_("The file is renamed on your computer too, so you'll see the new "
+               "name everywhere."))
 
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
     line = Gtk.Box(spacing=6)
     entry = Gtk.Entry(text=old.stem, activates_default=True, hexpand=True)
-    entry.update_property([Gtk.AccessibleProperty.LABEL], ["New name"])
+    entry.update_property([Gtk.AccessibleProperty.LABEL], [_("New name")])
     # The extension is shown, not edited: renaming never changes the format.
     ext = Gtk.Label(label=old.suffix)
     ext.add_css_class("dim-label")
@@ -40,8 +40,8 @@ def ask_rename_photo(parent, library, catalog, photo_id, on_renamed) -> None:
     box.append(problem)
     dialog.set_extra_child(box)
 
-    dialog.add_response("cancel", "Cancel")
-    dialog.add_response("rename", "Rename")
+    dialog.add_response("cancel", _("Cancel"))
+    dialog.add_response("rename", _("Rename"))
     dialog.set_response_appearance("rename", Adw.ResponseAppearance.SUGGESTED)
     dialog.set_default_response("rename")
     dialog.set_close_response("cancel")
@@ -69,7 +69,7 @@ def ask_rename_photo(parent, library, catalog, photo_id, on_renamed) -> None:
         try:
             new = rename_photo(library, catalog, photo_id, entry.get_text())
         except RenameError as exc:
-            fail = Adw.AlertDialog(heading="Couldn’t Rename", body=str(exc))
+            fail = Adw.AlertDialog(heading=_("Couldn’t Rename"), body=str(exc))
             fail.add_response("ok", "OK")
             fail.present(parent)
             return

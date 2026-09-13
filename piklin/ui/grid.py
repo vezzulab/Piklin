@@ -21,6 +21,7 @@ import threading
 from datetime import datetime
 
 import gi
+from ..i18n import _, N_
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -50,7 +51,7 @@ class DaySection(GObject.Object):
 
 def _section_key(ts, mode):
     if not ts:
-        return ("unknown", "Undated", "")
+        return ("unknown", _("No Date"), "")
     d = datetime.fromtimestamp(ts)
     if mode == "year":
         return (d.strftime("%Y"), d.strftime("%Y"), "")
@@ -61,9 +62,9 @@ def _section_key(ts, mode):
     today = datetime.now().date()
     delta = (today - d.date()).days
     if delta == 0:
-        title = "Today"
+        title = _("Today")
     elif delta == 1:
-        title = "Yesterday"
+        title = _("Yesterday")
     elif delta < 7:
         title = d.strftime("%A")
     else:
@@ -121,8 +122,8 @@ class PhotoGrid(Gtk.Box):
 
         self.status = Adw.StatusPage(
             icon_name="image-x-generic-symbolic",
-            title="No photos here yet",
-            description="Add a folder and Piklin will build your library.")
+            title=_("No photos here yet"),
+            description=_("Add a folder and Piklin will build your library."))
         self.status.set_vexpand(True)
         self.status.set_visible(False)
         self.append(self.status)
@@ -247,7 +248,7 @@ class PhotoGrid(Gtk.Box):
             cell = tile.get_parent()
             if cell is not None:
                 cell.update_property([Gtk.AccessibleProperty.LABEL],
-                                     [getattr(item, "filename", "") or "Photo"])
+                                     [getattr(item, "filename", "") or _("Photo")])
 
     def _on_unbind(self, _factory, list_item):
         flow = list_item._flow
@@ -277,7 +278,7 @@ class PhotoGrid(Gtk.Box):
         # A tile is otherwise an unnamed box to a screen reader; give it
         # the photo's name so each one can be told apart and announced.
         container.update_property([Gtk.AccessibleProperty.LABEL],
-                                  [getattr(item, "filename", "") or "Photo"])
+                                  [getattr(item, "filename", "") or _("Photo")])
         container.add_css_class("pika-tile-button")
         container.set_can_target(True)
         container.set_cursor_from_name("pointer")
@@ -634,27 +635,27 @@ class PhotoGrid(Gtk.Box):
     # album is not an empty library, and "add a folder" was the wrong
     # advice everywhere except the library itself.
     _EMPTY = {
-        "library": ("No Photos", "Add a folder of photos, or connect a camera, "
-                                 "and they will appear here."),
-        "favorites": ("No Favourites", "Select photos and press . (period) to "
-                                       "mark them as favourites."),
-        "edited": ("No Edited Photos", "Photos you edit appear here. Your "
-                                       "originals are never changed."),
-        "hidden": ("No Hidden Photos", "Select photos and press Ctrl+L to hide "
-                                       "them from the library."),
-        "trash": ("No Recently Deleted Items", "Deleted photos stay here for "
+        "library": (N_("No Photos"), N_("Add a folder of photos, or connect a camera, "
+                                 "and they will appear here.")),
+        "favorites": (N_("No Favourites"), N_("Select photos and press the period key (.) to add them to your "
+                                         "favourites.")),
+        "edited": (N_("No Edited Photos"), N_("Photos you edit appear here. Your "
+                                       "originals are never changed.")),
+        "hidden": (N_("No Hidden Photos"), N_("Select photos and press Ctrl+L to hide "
+                                       "them from the library.")),
+        "trash": (N_("No Recently Deleted Items"), N_("Deleted photos stay here for "
                                                "30 days before they leave the "
-                                               "library."),
-        "album": ("This Album Is Empty", "Drag photos onto the album in the "
-                                         "sidebar to add them."),
-        "screenshots": ("No Screenshots", "Screenshots in your folders appear "
-                                          "here."),
-        "videos": ("No Videos", "Videos in your folders and from your camera "
-                                "appear here."),
-        "duplicates": ("No Duplicates", "Photos that are exact copies of each "
-                                        "other are gathered here."),
-        "imports": ("No Imports", "Photos you import from a camera appear here, "
-                                  "newest import first."),
+                                               "library.")),
+        "album": (N_("This Album Is Empty"), N_("Drag photos onto the album in the "
+                                         "sidebar to add them.")),
+        "screenshots": (N_("No Screenshots"), N_("Screenshots in your folders appear "
+                                          "here.")),
+        "videos": (N_("No Videos"), N_("Videos in your folders and from your camera "
+                                "appear here.")),
+        "duplicates": (N_("No Duplicates"), N_("Photos that are exact copies of each "
+                                        "other are gathered here.")),
+        "imports": (N_("No Imports"), N_("Photos you import from a camera appear here, "
+                                  "newest import first.")),
     }
 
     def scroll_to_time(self, ts: float) -> None:
@@ -710,13 +711,13 @@ class PhotoGrid(Gtk.Box):
 
     def _describe_empty(self):
         if self._filters and not self._search:
-            self.status.set_title("No Matching Photos")
-            self.status.set_description("Nothing here matches the filter. "
-                                        "Choose Show All in the Filter menu.")
+            self.status.set_title(_("No Matching Photos"))
+            self.status.set_description(_("Nothing here matches the filter. "
+                                        "Choose Show All in the Filter menu."))
             self.status.set_icon_name("edit-find-symbolic")
             return
         if self._search:
-            title, desc = ("No Results", f"Nothing matches \u201c{self._search}\u201d.")
+            title, desc = (_("No Results"), f"Nothing matches \u201c{self._search}\u201d.")
             icon = "system-search-symbolic"
         else:
             title, desc = self._EMPTY.get(self._scope, self._EMPTY["library"])

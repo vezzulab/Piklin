@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import gi
+from ..i18n import _
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -77,7 +78,7 @@ class ViewerView(Gtk.Box):
         self.live_btn = Gtk.Button(label="LIVE", halign=Gtk.Align.START,
                                    valign=Gtk.Align.START, margin_start=16,
                                    margin_top=14, visible=False,
-                                   tooltip_text="Play the live photo")
+                                   tooltip_text=_("Play the live photo"))
         self.live_btn.add_css_class("pika-live-button")
         self.live_btn.connect("clicked", lambda *_: self._play_live())
         photo_overlay.add_overlay(self.live_btn)
@@ -107,13 +108,13 @@ class ViewerView(Gtk.Box):
                       margin_top=6, margin_bottom=6, margin_start=10,
                       margin_end=10)
         back = Gtk.Button(icon_name="go-previous-symbolic",
-                          tooltip_text="Back (Esc)")
+                          tooltip_text=_("Back (Esc)"))
         back.connect("clicked", lambda *_: self.emit("closed"))
         bar.append(back)
 
-        prev = Gtk.Button(icon_name="pan-start-symbolic", tooltip_text="Previous")
+        prev = Gtk.Button(icon_name="pan-start-symbolic", tooltip_text=_("Previous"))
         prev.connect("clicked", lambda *_: self.emit("navigate", -1))
-        nxt = Gtk.Button(icon_name="pan-end-symbolic", tooltip_text="Next")
+        nxt = Gtk.Button(icon_name="pan-end-symbolic", tooltip_text=_("Next"))
         nxt.connect("clicked", lambda *_: self.emit("navigate", 1))
         bar.append(prev)
         bar.append(nxt)
@@ -131,29 +132,29 @@ class ViewerView(Gtk.Box):
             bar.append(rot)
 
         self.fav_btn = Gtk.ToggleButton(icon_name="starred-symbolic",
-                                        tooltip_text="Favourite (F)")
+                                        tooltip_text=_("Favourite (F)"))
         self.fav_btn.connect("toggled", self._on_favorite)
         bar.append(self.fav_btn)
 
         full = Gtk.Button(icon_name="view-fullscreen-symbolic",
-                          tooltip_text="Full Screen (F11)")
+                          tooltip_text=_("Full Screen (F11)"))
         full.connect("clicked", lambda *_: self.toggle_fullscreen())
         bar.append(full)
 
         info_btn = Gtk.ToggleButton(icon_name="dialog-information-symbolic",
-                                    tooltip_text="Info (Ctrl+I)")
+                                    tooltip_text=_("Info (Ctrl+I)"))
         info_btn.connect("toggled",
                          lambda b: self.split.set_show_sidebar(b.get_active()))
         bar.append(info_btn)
         self.info_btn = info_btn
 
-        self.edit_btn = edit = Gtk.Button(label="Edit")
+        self.edit_btn = edit = Gtk.Button(label=_("Edit"))
         edit.add_css_class("suggested-action")
         edit.connect("clicked", lambda *_: self.emit("edit-requested"))
         bar.append(edit)
 
         trash = Gtk.Button(icon_name="user-trash-symbolic",
-                           tooltip_text="Move to trash (Delete)")
+                           tooltip_text=_("Move to Recently Deleted (Delete)"))
         trash.connect("clicked", self._on_trash)
         bar.append(trash)
         # This bar replaces the library's header while a photo is open, so
@@ -185,9 +186,9 @@ class ViewerView(Gtk.Box):
         # written.
         self.words_group = Adw.PreferencesGroup()
         self._text_rows = {}
-        for key, label in (("title", "Add a Title"),
-                           ("caption", "Add a Caption"),
-                           ("keywords", "Add Keywords")):
+        for key, label in (("title", _("Add a Title")),
+                           ("caption", _("Add a Caption")),
+                           ("keywords", _("Add Keywords"))):
             row = Adw.EntryRow(title=label, show_apply_button=True)
             row.connect("apply", self._on_text_apply, key)
             row.connect("entry-activated", self._on_text_apply, key)
@@ -195,24 +196,24 @@ class ViewerView(Gtk.Box):
             self._text_rows[key] = row
         box.append(self.words_group)
 
-        self.info_group = Adw.PreferencesGroup(title="Photo", margin_top=18)
+        self.info_group = Adw.PreferencesGroup(title=_("Photo"), margin_top=18)
         box.append(self.info_group)
         self._info_rows = {}
-        for key, label in (("filename", "File"), ("dimensions", "Dimensions"),
-                           ("duration", "Length"),
-                           ("size", "Size"), ("taken", "Taken"),
-                           ("camera", "Camera"), ("lens", "Lens"),
-                           ("exposure", "Exposure"), ("location", "Location"),
-                           ("albums", "Albums"),
-                           ("edits", "Edits"), ("path", "Folder")):
+        for key, label in (("filename", _("File")), ("dimensions", _("Dimensions")),
+                           ("duration", _("Length")),
+                           ("size", _("Size")), ("taken", _("Taken")),
+                           ("camera", _("Camera")), ("lens", _("Lens")),
+                           ("exposure", _("Exposure")), ("location", _("Location")),
+                           ("albums", _("Albums")),
+                           ("edits", _("Edits")), ("path", _("Folder"))):
             row = Adw.ActionRow(title=label, subtitle="—")
             row.set_subtitle_selectable(True)
             if key in ("taken", "location"):
                 # Adjust Date and Time / Adjust Location.
                 edit = Gtk.Button(icon_name="document-edit-symbolic",
                                   valign=Gtk.Align.CENTER,
-                                  tooltip_text=("Adjust Date and Time" if key == "taken"
-                                                else "Adjust Location"))
+                                  tooltip_text=(_("Adjust Date and Time") if key == "taken"
+                                                else _("Adjust Location")))
                 edit.add_css_class("flat")
                 edit.connect("clicked", self._on_adjust_date if key == "taken"
                              else self._on_adjust_location)
@@ -220,7 +221,7 @@ class ViewerView(Gtk.Box):
             elif key == "filename":
                 rename = Gtk.Button(icon_name="document-edit-symbolic",
                                     valign=Gtk.Align.CENTER,
-                                    tooltip_text="Rename (F2)")
+                                    tooltip_text=_("Rename (F2)"))
                 rename.add_css_class("flat")
                 rename.connect("clicked", self.rename_file)
                 row.add_suffix(rename)
@@ -350,7 +351,7 @@ class ViewerView(Gtk.Box):
         self._info_rows["duration"].set_visible(bool(length))
         # A video has no lens or exposure to show; the group says what it is.
         video = bool(getattr(self.item, "is_video", False))
-        self.info_group.set_title("Video" if video else "Photo")
+        self.info_group.set_title(_("Video") if video else _("Photo"))
         for key in ("lens", "exposure"):
             self._info_rows[key].set_visible(not video)
         put("duration", format_duration(length) if length else None)
@@ -384,7 +385,7 @@ class ViewerView(Gtk.Box):
             put("location", None)
         put("edits", f"{row['edit_version']} adjustment"
             + ("s" if row["edit_version"] != 1 else "")
-            if row["edit_version"] else "None — original")
+            if row["edit_version"] else _("None, it's the original"))
         put("path", str(Path(row["path"]).parent))
         albums = self.catalog.albums_for_photo(self.item.id)
         put("albums", ", ".join(a["name"] for a in albums))
@@ -406,10 +407,10 @@ class ViewerView(Gtk.Box):
             box.append(e)
             entries.append(e)
         dialog.set_extra_child(box)
-        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("cancel", _("Cancel"))
         if extra:
             dialog.add_response("extra", extra[0])
-        dialog.add_response("ok", "Adjust")
+        dialog.add_response("ok", _("Adjust"))
         dialog.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_default_response("ok")
         dialog.set_close_response("cancel")
@@ -446,9 +447,8 @@ class ViewerView(Gtk.Box):
             self.catalog.set_taken_at([self.item.id], ts)
             self._update_info()
             self.emit("changed")
-        self._ask("Adjust Date and Time",
-                  "The photo file is not changed; the new date is kept in your "
-                  "library.", [("YYYY-MM-DD HH:MM", current)], ok)
+        self._ask(_("Adjust Date and Time"),
+                  _("The photo file isn't changed. The new date is saved in Piklin."), [(_("YYYY-MM-DD HH:MM"), current)], ok)
 
     def _on_adjust_location(self, _btn):
         if self.item is None:
@@ -472,10 +472,11 @@ class ViewerView(Gtk.Box):
             self.catalog.set_location([self.item.id], None, None)
             self._update_info()
             self.emit("changed")
-        self._ask("Adjust Location",
-                  "Latitude and longitude, for example 40.41680, -3.70380.",
-                  [("latitude, longitude", current)], ok,
-                  extra=("Remove Location", remove))
+        self._ask(_("Adjust Location"),
+                  _("Enter the latitude and longitude, for example 40.41680, -3.70380. "
+                    "You can copy them from a map app."),
+                  [(_("latitude, longitude"), current)], ok,
+                  extra=(_("Remove Location"), remove))
 
     def _play_live(self):
         if not self._live_path:

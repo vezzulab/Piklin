@@ -8,6 +8,7 @@ album will hold is visible before it is saved.
 from __future__ import annotations
 
 import gi
+from ..i18n import _
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -45,9 +46,9 @@ class _ConditionRow(Gtk.Box):
         self.op = Gtk.DropDown.new_from_strings([""])
         self.value = Gtk.Entry(hexpand=True, placeholder_text="value")
         self.remove_btn = Gtk.Button(icon_name="list-remove-symbolic",
-                                     tooltip_text="Remove this condition")
+                                     tooltip_text=_("Remove this condition"))
         self.add_btn = Gtk.Button(icon_name="list-add-symbolic",
-                                  tooltip_text="Add a condition")
+                                  tooltip_text=_("Add a condition"))
         for b in (self.remove_btn, self.add_btn):
             b.add_css_class("flat")
             b.add_css_class("circular")
@@ -78,7 +79,7 @@ class _ConditionRow(Gtk.Box):
         # True/false fields need no value; dates "in the last" take days.
         self.value.set_visible(kind not in ("bool", "bool_null", "media"))
         self.value.set_placeholder_text(
-            {"date": "days, or YYYY-MM-DD", "number": "number"}.get(kind, "text"))
+            {"date": _("days, or YYYY-MM-DD"), "number": "number"}.get(kind, "text"))
 
     def _on_field(self, *_):
         self._sync_ops()
@@ -102,7 +103,7 @@ class SmartAlbumDialog(Adw.Dialog):
 
     def __init__(self, catalog, smart_id: int | None = None,
                  folder_id: int | None = None):
-        super().__init__(title="Smart Album", content_width=620)
+        super().__init__(title=_("Smart Album"), content_width=620)
         self.catalog = catalog
         self.smart_id = smart_id
         self.folder_id = folder_id
@@ -129,21 +130,21 @@ class SmartAlbumDialog(Adw.Dialog):
                        margin_start=24, margin_end=24)
 
         name_row = Gtk.Box(spacing=10)
-        name_label = Gtk.Label(label="Smart Album Name:", xalign=0)
+        name_label = Gtk.Label(label=_("Smart Album Name:"), xalign=0)
         self.name = Gtk.Entry(hexpand=True, activates_default=True,
-                              text=existing["name"] if existing else "Smart Album")
+                              text=existing["name"] if existing else _("Smart Album"))
         name_row.append(name_label)
         name_row.append(self.name)
         body.append(name_row)
 
         match_row = Gtk.Box(spacing=8)
-        match_row.append(Gtk.Label(label="Match"))
+        match_row.append(Gtk.Label(label=_("Match")))
         self.match = Gtk.DropDown.new_from_strings(["all", "any"])
         if existing is not None and existing["match_mode"] == "any":
             self.match.set_selected(1)
         self.match.connect("notify::selected", lambda *_: self._update_count())
         match_row.append(self.match)
-        match_row.append(Gtk.Label(label="of the following conditions:"))
+        match_row.append(Gtk.Label(label=_("of the following conditions:")))
         body.append(match_row)
 
         # The count label exists before any row: adding a row refreshes it.
@@ -157,7 +158,7 @@ class SmartAlbumDialog(Adw.Dialog):
         body.append(self.count)
 
         buttons = Gtk.Box(spacing=8, halign=Gtk.Align.END, margin_top=6)
-        cancel = Gtk.Button(label="Cancel")
+        cancel = Gtk.Button(label=_("Cancel"))
         cancel.connect("clicked", lambda *_: self.close())
         self.ok = Gtk.Button(label="OK")
         self.ok.add_css_class("suggested-action")
@@ -222,10 +223,10 @@ class SmartAlbumDialog(Adw.Dialog):
                 f"SELECT COUNT(*) FROM photos p WHERE {where}", params, 0))
             self.count.set_text(f"{n:,} photo" + ("s" if n != 1 else "") + " match")
         except Exception:
-            self.count.set_text("Check the values of the conditions")
+            self.count.set_text(_("Check the values of the conditions"))
 
     def _on_ok(self, *_):
-        name = self.name.get_text().strip() or "Smart Album"
+        name = self.name.get_text().strip() or _("Smart Album")
         if self.smart_id is None:
             sid = self.catalog.create_smart_album(
                 name, self.rules(), self.match_mode(), folder_id=self.folder_id)

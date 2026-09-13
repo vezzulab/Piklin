@@ -25,6 +25,7 @@ import numpy as np
 
 from . import ops
 from .ops import F32, gray3
+from ..i18n import N_
 
 # -- declaration types ---------------------------------------------------
 SLIDER, CHOICE, TOGGLE, POINT, TEXT, COLOR, CURVE, STROKES, IMAGE = (
@@ -136,17 +137,16 @@ def _tune(img, p, ctx):
 
 
 register(Tool(
-    id="tune", name="Tune Image", group="Adjust", kind="global",
-    description="Brightness, contrast, colour and the local-contrast "
-                "'ambiance' control, in one pass.",
+    id="tune", name=N_("Tune Image"), group=N_("Adjust"), kind="global",
+    description=N_("Adjust brightness, contrast, color and more."),
     params=(
-        Param("brightness", "Brightness"),
-        Param("contrast", "Contrast"),
-        Param("saturation", "Saturation"),
-        Param("ambiance", "Ambiance"),
-        Param("highlights", "Highlights"),
-        Param("shadows", "Shadows"),
-        Param("warmth", "Warmth"),
+        Param("brightness", N_("Brightness")),
+        Param("contrast", N_("Contrast")),
+        Param("saturation", N_("Saturation")),
+        Param("ambiance", N_("Ambiance")),
+        Param("highlights", N_("Highlights")),
+        Param("shadows", N_("Shadows")),
+        Param("warmth", N_("Warmth")),
     ),
     apply=_tune))
 
@@ -165,12 +165,11 @@ def _details(img, p, ctx):
 
 
 register(Tool(
-    id="details", name="Details", group="Adjust", kind="global",
-    description="Multi-scale local contrast (Structure) and a "
-                "threshold-guarded unsharp mask (Sharpening).",
+    id="details", name=N_("Details"), group=N_("Adjust"), kind="global",
+    description=N_("Bring out texture and make the photo sharper."),
     params=(
-        Param("structure", "Structure"),
-        Param("sharpening", "Sharpening", lo=0, hi=100, default=0),
+        Param("structure", N_("Structure")),
+        Param("sharpening", N_("Sharpening"), lo=0, hi=100, default=0),
     ),
     apply=_details))
 
@@ -179,16 +178,16 @@ register(Tool(
 # Curves
 # ========================================================================
 CURVE_PRESETS = {
-    "Neutral": [(0, 0), (1, 1)],
-    "Soft Contrast": [(0, 0), (0.25, 0.21), (0.75, 0.79), (1, 1)],
-    "Hard Contrast": [(0, 0), (0.25, 0.14), (0.75, 0.86), (1, 1)],
-    "Bright": [(0, 0.04), (0.5, 0.58), (1, 1)],
-    "Dark": [(0, 0), (0.5, 0.42), (1, 0.96)],
-    "Film": [(0, 0.05), (0.25, 0.22), (0.75, 0.80), (1, 0.96)],
-    "Faded": [(0, 0.12), (0.5, 0.52), (1, 0.92)],
-    "Matte": [(0, 0.10), (0.3, 0.34), (0.7, 0.74), (1, 0.95)],
-    "Lift Shadows": [(0, 0.09), (0.35, 0.38), (1, 1)],
-    "Crush Blacks": [(0, 0), (0.18, 0.06), (0.6, 0.62), (1, 1)],
+    N_("Neutral"): [(0, 0), (1, 1)],
+    N_("Soft Contrast"): [(0, 0), (0.25, 0.21), (0.75, 0.79), (1, 1)],
+    N_("Hard Contrast"): [(0, 0), (0.25, 0.14), (0.75, 0.86), (1, 1)],
+    N_("Bright"): [(0, 0.04), (0.5, 0.58), (1, 1)],
+    N_("Dark"): [(0, 0), (0.5, 0.42), (1, 0.96)],
+    N_("Film"): [(0, 0.05), (0.25, 0.22), (0.75, 0.80), (1, 0.96)],
+    N_("Faded"): [(0, 0.12), (0.5, 0.52), (1, 0.92)],
+    N_("Matte"): [(0, 0.10), (0.3, 0.34), (0.7, 0.74), (1, 0.95)],
+    N_("Lift Shadows"): [(0, 0.09), (0.35, 0.38), (1, 1)],
+    N_("Crush Blacks"): [(0, 0), (0.18, 0.06), (0.6, 0.62), (1, 1)],
 }
 
 
@@ -214,13 +213,12 @@ def _curves(img, p, ctx):
 
 
 register(Tool(
-    id="curves", name="Curves", group="Adjust", kind="global",
-    description="Monotone spline curves on the composite, each colour "
-                "channel, and luminance.",
+    id="curves", name=N_("Curves"), group=N_("Adjust"), kind="global",
+    description=N_("Fine-tune light and color with curves."),
     params=(
-        Param("curves", "Curves", kind=CURVE,
+        Param("curves", N_("Curves"), kind=CURVE,
               default={"rgb": [(0.0, 0.0), (1.0, 1.0)]}),
-        Param("preset", "Preset", kind=CHOICE, default="Neutral",
+        Param("preset", N_("Preset"), kind=CHOICE, default=N_("Neutral"),
               choices=tuple(CURVE_PRESETS)),
     ),
     apply=_curves))
@@ -271,13 +269,12 @@ def auto_white_balance(img: np.ndarray) -> tuple[float, float]:
 
 
 register(Tool(
-    id="white_balance", name="White Balance", group="Adjust", kind="global",
-    description="Temperature and tint applied in linear light, plus a "
-                "neutral-point picker and a grey-world auto.",
+    id="white_balance", name=N_("White Balance"), group=N_("Adjust"), kind="global",
+    description=N_("Make colors warmer or cooler, or fix a color cast."),
     params=(
-        Param("temperature", "Temperature"),
-        Param("tint", "Tint"),
-        Param("picker", "Neutral point", kind=POINT, default=[0, 0]),
+        Param("temperature", N_("Temperature")),
+        Param("tint", N_("Tint")),
+        Param("picker", N_("Pick something gray"), kind=POINT, default=[0, 0]),
     ),
     apply=_white_balance))
 
@@ -327,16 +324,15 @@ def _tonal_contrast(img, p, ctx):
 
 
 register(Tool(
-    id="tonal_contrast", name="Tonal Contrast", group="Effects", kind="global",
-    description="Independent local contrast in the shadows, midtones and "
-                "highlights, with protection for the extremes.",
+    id="tonal_contrast", name=N_("Tonal Contrast"), group=N_("Effects"), kind="global",
+    description=N_("Add punch to the dark, middle and bright parts separately."),
     params=(
-        Param("high_tones", "High Tones", lo=-100, hi=100, default=25),
-        Param("mid_tones", "Mid Tones", lo=-100, hi=100, default=35),
-        Param("low_tones", "Low Tones", lo=-100, hi=100, default=25),
-        Param("protect_shadows", "Protect Shadows", lo=0, hi=100, default=0),
-        Param("protect_highlights", "Protect Highlights", lo=0, hi=100, default=0),
-        Param("style", "Style", kind=CHOICE, default="S1",
+        Param("high_tones", N_("High Tones"), lo=-100, hi=100, default=25),
+        Param("mid_tones", N_("Mid Tones"), lo=-100, hi=100, default=35),
+        Param("low_tones", N_("Low Tones"), lo=-100, hi=100, default=25),
+        Param("protect_shadows", N_("Protect Shadows"), lo=0, hi=100, default=0),
+        Param("protect_highlights", N_("Protect Highlights"), lo=0, hi=100, default=0),
+        Param("style", N_("Style"), kind=CHOICE, default="S1",
               choices=tuple(TONAL_STYLES)),
     ),
     apply=_tonal_contrast))
@@ -346,10 +342,10 @@ register(Tool(
 # HDR Scape
 # ========================================================================
 HDR_STYLES = {
-    "Nature": dict(strength=45, brightness=0, saturation=10, smoothing=50),
-    "People": dict(strength=35, brightness=5, saturation=0, smoothing=70),
-    "Fine":   dict(strength=55, brightness=0, saturation=5, smoothing=30),
-    "Strong": dict(strength=80, brightness=-5, saturation=20, smoothing=25),
+    N_("Nature"): dict(strength=45, brightness=0, saturation=10, smoothing=50),
+    N_("People"): dict(strength=35, brightness=5, saturation=0, smoothing=70),
+    N_("Fine"):   dict(strength=55, brightness=0, saturation=5, smoothing=30),
+    N_("Strong"): dict(strength=80, brightness=-5, saturation=20, smoothing=25),
 }
 
 
@@ -385,15 +381,14 @@ def _hdr(img, p, ctx):
 
 
 register(Tool(
-    id="hdr", name="HDR Scape", group="Effects", kind="global",
-    description="Single-exposure tone mapping: global range compressed, "
-                "local detail expanded.",
+    id="hdr", name=N_("HDR Scape"), group=N_("Effects"), kind="global",
+    description=N_("Bring out detail in both bright and dark areas."),
     params=(
-        Param("strength", "Filter Strength", lo=0, hi=100, default=45),
-        Param("brightness", "Brightness"),
-        Param("saturation", "Saturation"),
-        Param("smoothing", "Smoothing", lo=0, hi=100, default=50),
-        Param("style", "Style", kind=CHOICE, default="Nature",
+        Param("strength", N_("Filter Strength"), lo=0, hi=100, default=45),
+        Param("brightness", N_("Brightness")),
+        Param("saturation", N_("Saturation")),
+        Param("smoothing", N_("Smoothing"), lo=0, hi=100, default=50),
+        Param("style", N_("Style"), kind=CHOICE, default=N_("Nature"),
               choices=tuple(HDR_STYLES)),
     ),
     apply=_hdr))
@@ -435,13 +430,13 @@ def _glamour(img, p, ctx):
 
 
 register(Tool(
-    id="glamour", name="Glamour Glow", group="Effects", kind="global",
-    description="Soft diffusion bloom, screened back over the original.",
+    id="glamour", name=N_("Glamour Glow"), group=N_("Effects"), kind="global",
+    description=N_("Add a soft, dreamy glow."),
     params=(
-        Param("glow", "Glow", lo=0, hi=100, default=35),
-        Param("saturation", "Saturation"),
-        Param("warmth", "Warmth"),
-        Param("style", "Style", kind=CHOICE, default="1",
+        Param("glow", N_("Glow"), lo=0, hi=100, default=35),
+        Param("saturation", N_("Saturation")),
+        Param("warmth", N_("Warmth")),
+        Param("style", N_("Style"), kind=CHOICE, default="1",
               choices=tuple(GLAMOUR_STYLES)),
     ),
     apply=_glamour))
@@ -451,12 +446,12 @@ register(Tool(
 # Drama
 # ========================================================================
 DRAMA_STYLES = {
-    "Drama 1": dict(strength=50, saturation=-20, bright=0, dark=0),
-    "Drama 2": dict(strength=70, saturation=-40, bright=0, dark=10),
-    "Bright 1": dict(strength=45, saturation=-10, bright=25, dark=0),
-    "Bright 2": dict(strength=60, saturation=-25, bright=40, dark=0),
-    "Dark 1": dict(strength=55, saturation=-30, bright=0, dark=30),
-    "Dark 2": dict(strength=75, saturation=-50, bright=-10, dark=45),
+    N_("Drama 1"): dict(strength=50, saturation=-20, bright=0, dark=0),
+    N_("Drama 2"): dict(strength=70, saturation=-40, bright=0, dark=10),
+    N_("Bright 1"): dict(strength=45, saturation=-10, bright=25, dark=0),
+    N_("Bright 2"): dict(strength=60, saturation=-25, bright=40, dark=0),
+    N_("Dark 1"): dict(strength=55, saturation=-30, bright=0, dark=30),
+    N_("Dark 2"): dict(strength=75, saturation=-50, bright=-10, dark=45),
 }
 
 
@@ -491,13 +486,12 @@ def _drama(img, p, ctx):
 
 
 register(Tool(
-    id="drama", name="Drama", group="Effects", kind="global",
-    description="Four octaves of local contrast with desaturated, "
-                "crushed tone.",
+    id="drama", name=N_("Drama"), group=N_("Effects"), kind="global",
+    description=N_("A bold, moody look with strong detail."),
     params=(
-        Param("strength", "Filter Strength", lo=0, hi=100, default=50),
-        Param("saturation", "Saturation", default=-20),
-        Param("style", "Style", kind=CHOICE, default="Drama 1",
+        Param("strength", N_("Filter Strength"), lo=0, hi=100, default=50),
+        Param("saturation", N_("Saturation"), default=-20),
+        Param("style", N_("Style"), kind=CHOICE, default=N_("Drama 1"),
               choices=tuple(DRAMA_STYLES)),
     ),
     apply=_drama))
@@ -531,13 +525,13 @@ def _vignette(img, p, ctx):
 
 
 register(Tool(
-    id="vignette", name="Vignette", group="Effects", kind="global",
-    description="Darken or brighten the edges around a movable centre.",
+    id="vignette", name=N_("Vignette"), group=N_("Effects"), kind="global",
+    description=N_("Darken or brighten the edges of the photo."),
     params=(
-        Param("outer_brightness", "Outer Brightness", default=-50),
-        Param("inner_brightness", "Inner Brightness", default=0),
-        Param("size", "Size", lo=10, hi=100, default=62),
-        Param("center", "Center", kind=POINT, default=[0.5, 0.5]),
+        Param("outer_brightness", N_("Outer Brightness"), default=-50),
+        Param("inner_brightness", N_("Inner Brightness"), default=0),
+        Param("size", N_("Size"), lo=10, hi=100, default=62),
+        Param("center", N_("Center"), kind=POINT, default=[0.5, 0.5]),
     ),
     apply=_vignette))
 
@@ -576,12 +570,12 @@ def channel_mix_mono(img: np.ndarray, weights) -> np.ndarray:
 
 
 BW_FILTERS = {
-    "Neutral": (0.2126, 0.7152, 0.0722),
-    "Red":     (0.80, 0.20, 0.02),
-    "Orange":  (0.60, 0.38, 0.04),
-    "Yellow":  (0.42, 0.53, 0.07),
-    "Green":   (0.16, 0.74, 0.12),
-    "Blue":    (0.10, 0.28, 0.64),
+    N_("Neutral"): (0.2126, 0.7152, 0.0722),
+    N_("Red"):     (0.80, 0.20, 0.02),
+    N_("Orange"):  (0.60, 0.38, 0.04),
+    N_("Yellow"):  (0.42, 0.53, 0.07),
+    N_("Green"):   (0.16, 0.74, 0.12),
+    N_("Blue"):    (0.10, 0.28, 0.64),
 }
 
 
@@ -646,16 +640,15 @@ def _vintage(img, p, ctx):
 
 
 register(Tool(
-    id="vintage", name="Vintage", group="Looks", kind="global",
-    description="Twelve period colour grades with lifted blacks, split "
-                "toning, corner softness and vignette.",
+    id="vintage", name=N_("Vintage"), group=N_("Looks"), kind="global",
+    description=N_("Old-photo color styles."),
     params=(
-        Param("brightness", "Brightness"),
-        Param("saturation", "Saturation"),
-        Param("style_strength", "Style Strength", lo=0, hi=100, default=60),
-        Param("center_focus", "Center Focus", lo=0, hi=100, default=30),
-        Param("vignette_strength", "Vignette Strength", lo=0, hi=100, default=40),
-        Param("style", "Style", kind=CHOICE, default="V1",
+        Param("brightness", N_("Brightness")),
+        Param("saturation", N_("Saturation")),
+        Param("style_strength", N_("Style Strength"), lo=0, hi=100, default=60),
+        Param("center_focus", N_("Center Focus"), lo=0, hi=100, default=30),
+        Param("vignette_strength", N_("Vignette Strength"), lo=0, hi=100, default=40),
+        Param("style", N_("Style"), kind=CHOICE, default="V1",
               choices=tuple(VINTAGE_STYLES)),
     ),
     apply=_vintage))
@@ -691,12 +684,12 @@ def _grainy_film(img, p, ctx):
 
 
 register(Tool(
-    id="grainy_film", name="Grainy Film", group="Looks", kind="global",
-    description="Film stock emulations with resolution-independent grain.",
+    id="grainy_film", name=N_("Grainy Film"), group=N_("Looks"), kind="global",
+    description=N_("Film looks with grain."),
     params=(
-        Param("grain", "Grain", lo=0, hi=100, default=45),
-        Param("style_strength", "Style Strength", lo=0, hi=100, default=55),
-        Param("style", "Style", kind=CHOICE, default="X1",
+        Param("grain", N_("Grain"), lo=0, hi=100, default=45),
+        Param("style_strength", N_("Style Strength"), lo=0, hi=100, default=55),
+        Param("style", N_("Style"), kind=CHOICE, default="X1",
               choices=tuple(FILM_STYLES)),
     ),
     apply=_grainy_film))
@@ -740,18 +733,17 @@ def _retrolux(img, p, ctx):
 
 
 register(Tool(
-    id="retrolux", name="Retrolux", group="Looks", kind="global",
-    description="Retro grades with procedural scratches, light leaks and "
-                "edge blur - generated, not stamped from bitmaps.",
+    id="retrolux", name=N_("Retrolux"), group=N_("Looks"), kind="global",
+    description=N_("Retro looks with scratches and light leaks."),
     params=(
-        Param("brightness", "Brightness"),
-        Param("contrast", "Contrast"),
-        Param("saturation", "Saturation"),
-        Param("style_strength", "Style Strength", lo=0, hi=100, default=60),
-        Param("scratches", "Scratches", lo=0, hi=100, default=25),
-        Param("light_leaks", "Light Leaks", lo=0, hi=100, default=40),
-        Param("blur", "Blur", lo=0, hi=100, default=0),
-        Param("style", "Style", kind=CHOICE, default="R1",
+        Param("brightness", N_("Brightness")),
+        Param("contrast", N_("Contrast")),
+        Param("saturation", N_("Saturation")),
+        Param("style_strength", N_("Style Strength"), lo=0, hi=100, default=60),
+        Param("scratches", N_("Scratches"), lo=0, hi=100, default=25),
+        Param("light_leaks", N_("Light Leaks"), lo=0, hi=100, default=40),
+        Param("blur", N_("Blur"), lo=0, hi=100, default=0),
+        Param("style", N_("Style"), kind=CHOICE, default="R1",
               choices=tuple(RETRO_STYLES)),
     ),
     apply=_retrolux))
@@ -791,16 +783,16 @@ def _grunge(img, p, ctx):
 
 
 register(Tool(
-    id="grunge", name="Grunge", group="Looks", kind="global",
-    description="Aggressive grades with procedural paper and dirt texture.",
+    id="grunge", name=N_("Grunge"), group=N_("Looks"), kind="global",
+    description=N_("Rough, textured looks."),
     params=(
-        Param("style_strength", "Style Strength", lo=0, hi=100, default=65),
-        Param("texture_strength", "Texture Strength", lo=0, hi=100, default=50),
-        Param("brightness", "Brightness"),
-        Param("contrast", "Contrast"),
-        Param("saturation", "Saturation"),
-        Param("blur", "Blur", lo=0, hi=100, default=0),
-        Param("style", "Style", kind=CHOICE, default="G1",
+        Param("style_strength", N_("Style Strength"), lo=0, hi=100, default=65),
+        Param("texture_strength", N_("Texture Strength"), lo=0, hi=100, default=50),
+        Param("brightness", N_("Brightness")),
+        Param("contrast", N_("Contrast")),
+        Param("saturation", N_("Saturation")),
+        Param("blur", N_("Blur"), lo=0, hi=100, default=0),
+        Param("style", N_("Style"), kind=CHOICE, default="G1",
               choices=tuple(GRUNGE_STYLES)),
     ),
     apply=_grunge))
@@ -810,12 +802,12 @@ register(Tool(
 # Black & White
 # ========================================================================
 BW_STYLES = {
-    "Neutral": dict(contrast=.00, curve=None),
-    "Contrast": dict(contrast=.35, curve=[(0, 0), (.25, .17), (.75, .83), (1, 1)]),
-    "Bright": dict(contrast=.10, curve=[(0, .05), (.5, .58), (1, 1)]),
-    "Dark": dict(contrast=.20, curve=[(0, 0), (.5, .41), (1, .95)]),
-    "Film": dict(contrast=.22, curve=[(0, .04), (.3, .28), (.7, .76), (1, .97)]),
-    "Smooth": dict(contrast=-.10, curve=[(0, .08), (.5, .52), (1, .93)]),
+    N_("Neutral"): dict(contrast=.00, curve=None),
+    N_("Contrast"): dict(contrast=.35, curve=[(0, 0), (.25, .17), (.75, .83), (1, 1)]),
+    N_("Bright"): dict(contrast=.10, curve=[(0, .05), (.5, .58), (1, 1)]),
+    N_("Dark"): dict(contrast=.20, curve=[(0, 0), (.5, .41), (1, .95)]),
+    N_("Film"): dict(contrast=.22, curve=[(0, .04), (.3, .28), (.7, .76), (1, .97)]),
+    N_("Smooth"): dict(contrast=-.10, curve=[(0, .08), (.5, .52), (1, .93)]),
 }
 
 
@@ -840,16 +832,15 @@ def _black_white(img, p, ctx):
 
 
 register(Tool(
-    id="black_white", name="Black & White", group="Looks", kind="global",
-    description="Monochrome conversion through coloured filters, the way "
-                "glass filters worked on panchromatic film.",
+    id="black_white", name=N_("Black & White"), group=N_("Looks"), kind="global",
+    description=N_("Turn the photo black and white."),
     params=(
-        Param("brightness", "Brightness"),
-        Param("contrast", "Contrast"),
-        Param("grain", "Grain", lo=0, hi=100, default=0),
-        Param("filter", "Color Filter", kind=CHOICE, default="Neutral",
+        Param("brightness", N_("Brightness")),
+        Param("contrast", N_("Contrast")),
+        Param("grain", N_("Grain"), lo=0, hi=100, default=0),
+        Param("filter", N_("Color Filter"), kind=CHOICE, default=N_("Neutral"),
               choices=tuple(BW_FILTERS)),
-        Param("style", "Style", kind=CHOICE, default="Neutral",
+        Param("style", N_("Style"), kind=CHOICE, default=N_("Neutral"),
               choices=tuple(BW_STYLES)),
     ),
     apply=_black_white))
@@ -861,11 +852,11 @@ register(Tool(
 NOIR_STYLES = {
     f"{pre}{i}": dict(weights=BW_FILTERS[flt], contrast=c, wash=wash)
     for pre, flt, c, wash, i in (
-        ("N", "Neutral", .45, .00, 1), ("N", "Neutral", .60, .08, 2),
-        ("N", "Neutral", .75, .00, 3), ("S", "Yellow", .50, .12, 1),
-        ("S", "Yellow", .65, .20, 2), ("F", "Red", .55, .05, 1),
-        ("F", "Red", .70, .15, 2), ("H", "Green", .80, .00, 1),
-        ("H", "Green", .90, .10, 2), ("B", "Blue", .55, .18, 1),
+        ("N", N_("Neutral"), .45, .00, 1), ("N", N_("Neutral"), .60, .08, 2),
+        ("N", N_("Neutral"), .75, .00, 3), ("S", N_("Yellow"), .50, .12, 1),
+        ("S", N_("Yellow"), .65, .20, 2), ("F", N_("Red"), .55, .05, 1),
+        ("F", N_("Red"), .70, .15, 2), ("H", N_("Green"), .80, .00, 1),
+        ("H", N_("Green"), .90, .10, 2), ("B", N_("Blue"), .55, .18, 1),
     )}
 
 
@@ -894,14 +885,14 @@ def _noir(img, p, ctx):
 
 
 register(Tool(
-    id="noir", name="Noir", group="Looks", kind="global",
-    description="Hard monochrome with a faded silver-print wash.",
+    id="noir", name=N_("Noir"), group=N_("Looks"), kind="global",
+    description=N_("A dark, classic black and white look."),
     params=(
-        Param("brightness", "Brightness"),
-        Param("wash", "Wash", lo=0, hi=100, default=20),
-        Param("grain", "Grain", lo=0, hi=100, default=40),
-        Param("strength", "Filter Strength", lo=0, hi=100, default=70),
-        Param("style", "Style", kind=CHOICE, default="N1",
+        Param("brightness", N_("Brightness")),
+        Param("wash", N_("Wash"), lo=0, hi=100, default=20),
+        Param("grain", N_("Grain"), lo=0, hi=100, default=40),
+        Param("strength", N_("Filter Strength"), lo=0, hi=100, default=70),
+        Param("style", N_("Style"), kind=CHOICE, default="N1",
               choices=tuple(NOIR_STYLES)),
     ),
     apply=_noir))
@@ -956,17 +947,16 @@ def _lens_blur(img, p, ctx):
 
 
 register(Tool(
-    id="lens_blur", name="Lens Blur", group="Effects", kind="global",
-    description="Disc-kernel defocus in linear light, with a movable "
-                "circular or planar focus region.",
+    id="lens_blur", name=N_("Lens Blur"), group=N_("Effects"), kind="global",
+    description=N_("Blur the background so your subject stands out."),
     params=(
-        Param("blur_strength", "Blur Strength", lo=0, hi=100, default=50),
-        Param("transition", "Transition", lo=0, hi=100, default=50),
-        Param("vignette_strength", "Vignette Strength", lo=0, hi=100, default=30),
-        Param("size", "Size", lo=5, hi=100, default=40),
-        Param("center", "Center", kind=POINT, default=[0.5, 0.5]),
-        Param("shape", "Shape", kind=CHOICE, default="Circle",
-              choices=("Circle", "Planar")),
+        Param("blur_strength", N_("Blur Strength"), lo=0, hi=100, default=50),
+        Param("transition", N_("Transition"), lo=0, hi=100, default=50),
+        Param("vignette_strength", N_("Vignette Strength"), lo=0, hi=100, default=30),
+        Param("size", N_("Size"), lo=5, hi=100, default=40),
+        Param("center", N_("Center"), kind=POINT, default=[0.5, 0.5]),
+        Param("shape", N_("Shape"), kind=CHOICE, default=N_("Circle"),
+              choices=(N_("Circle"), N_("Planar"))),
     ),
     apply=_lens_blur))
 
@@ -975,9 +965,9 @@ register(Tool(
 # Geometry: Crop
 # ========================================================================
 CROP_ASPECTS = {
-    "Free": None, "Original": 0.0, "Square": 1.0, "3:2": 3 / 2, "2:3": 2 / 3,
+    N_("Free"): None, N_("Original"): 0.0, N_("Square"): 1.0, "3:2": 3 / 2, "2:3": 2 / 3,
     "4:3": 4 / 3, "3:4": 3 / 4, "5:4": 5 / 4, "4:5": 4 / 5, "7:5": 7 / 5,
-    "5:7": 5 / 7, "16:9": 16 / 9, "9:16": 9 / 16, "DIN": 1.4142, "Golden": 1.618,
+    "5:7": 5 / 7, "16:9": 16 / 9, "9:16": 9 / 16, "DIN": 1.4142, N_("Golden"): 1.618,
 }
 
 
@@ -1001,11 +991,11 @@ def _crop(img, p, ctx):
 
 
 register(Tool(
-    id="crop", name="Crop", group="Geometry", kind="geometry", maskable=False,
-    description="Aspect-locked or free crop, stored in normalised units.",
+    id="crop", name=N_("Crop"), group=N_("Geometry"), kind="geometry", maskable=False,
+    description=N_("Cut the photo to a new shape."),
     params=(
-        Param("rect", "Rectangle", kind=POINT, default=[0.0, 0.0, 1.0, 1.0]),
-        Param("aspect", "Aspect", kind=CHOICE, default="Free",
+        Param("rect", N_("Rectangle"), kind=POINT, default=[0.0, 0.0, 1.0, 1.0]),
+        Param("aspect", N_("Aspect"), kind=CHOICE, default=N_("Free"),
               choices=tuple(CROP_ASPECTS)),
     ),
     apply=_crop))
@@ -1047,15 +1037,14 @@ def _rotate(img, p, ctx):
 
 
 register(Tool(
-    id="rotate", name="Rotate", group="Geometry", kind="geometry", maskable=False,
-    description="Quarter turns, mirror, and a straighten that re-crops to "
-                "avoid empty corners.",
+    id="rotate", name=N_("Rotate"), group=N_("Geometry"), kind="geometry", maskable=False,
+    description=N_("Turn, straighten or mirror the photo."),
     params=(
-        Param("quarter_turns", "Rotate", kind=CHOICE, default=0,
+        Param("quarter_turns", N_("Rotate"), kind=CHOICE, default=0,
               choices=(0, 1, 2, 3)),
-        Param("straighten", "Straighten", lo=-45, hi=45, default=0, step=0.1),
-        Param("flip_h", "Mirror", kind=TOGGLE, default=False),
-        Param("flip_v", "Flip", kind=TOGGLE, default=False),
+        Param("straighten", N_("Straighten"), lo=-45, hi=45, default=0, step=0.1),
+        Param("flip_h", N_("Mirror"), kind=TOGGLE, default=False),
+        Param("flip_v", N_("Flip"), kind=TOGGLE, default=False),
     ),
     apply=_rotate))
 
@@ -1157,17 +1146,16 @@ def _perspective(img, p, ctx):
 
 
 register(Tool(
-    id="perspective", name="Perspective", group="Geometry", kind="geometry",
+    id="perspective", name=N_("Perspective"), group=N_("Geometry"), kind="geometry",
     maskable=False,
-    description="Keystone correction, with the exposed edges inpainted "
-                "from surrounding content.",
+    description=N_("Straighten buildings and tilted lines."),
     params=(
-        Param("tilt_h", "Tilt Horizontal"),
-        Param("tilt_v", "Tilt Vertical"),
-        Param("rotate", "Rotate"),
-        Param("scale", "Scale"),
-        Param("fill", "Fill", kind=CHOICE, default="Smart",
-              choices=("Smart", "White", "Black")),
+        Param("tilt_h", N_("Tilt Horizontal")),
+        Param("tilt_v", N_("Tilt Vertical")),
+        Param("rotate", N_("Rotate")),
+        Param("scale", N_("Scale")),
+        Param("fill", N_("Fill"), kind=CHOICE, default=N_("Smart"),
+              choices=(N_("Smart"), N_("White"), N_("Black"))),
     ),
     apply=_perspective))
 
@@ -1217,15 +1205,14 @@ def _expand(img, p, ctx):
 
 
 register(Tool(
-    id="expand", name="Expand", group="Geometry", kind="geometry", maskable=False,
-    description="Enlarge the canvas, filling the new area by reflection "
-                "and blur or with a flat colour.",
+    id="expand", name=N_("Expand"), group=N_("Geometry"), kind="geometry", maskable=False,
+    description=N_("Add space around the photo."),
     params=(
-        Param("amount", "Amount", lo=0, hi=100, default=25),
-        Param("sides", "Sides", kind=CHOICE, default="All",
-              choices=("All", "Horizontal", "Vertical")),
-        Param("fill", "Fill", kind=CHOICE, default="Smart",
-              choices=("Smart", "White", "Black")),
+        Param("amount", N_("Amount"), lo=0, hi=100, default=25),
+        Param("sides", N_("Sides"), kind=CHOICE, default=N_("All"),
+              choices=(N_("All"), N_("Horizontal"), N_("Vertical"))),
+        Param("fill", N_("Fill"), kind=CHOICE, default=N_("Smart"),
+              choices=(N_("Smart"), N_("White"), N_("Black"))),
     ),
     apply=_expand))
 
@@ -1321,12 +1308,11 @@ def _selective(img, p, ctx):
 
 
 register(Tool(
-    id="selective", name="Selective", group="Local", kind="local",
+    id="selective", name=N_("Selective"), group=N_("Local"), kind="local",
     maskable=False,
-    description="Colour-aware control points - a local edit that finds "
-                "its own edges.",
+    description=N_("Change light or color in just one area."),
     params=(
-        Param("points", "Control Points", kind=POINT, default=[]),
+        Param("points", N_("Points"), kind=POINT, default=[]),
     ),
     apply=_selective))
 
@@ -1334,7 +1320,7 @@ register(Tool(
 # ========================================================================
 # Local: Brush
 # ========================================================================
-BRUSH_MODES = ("Dodge & Burn", "Exposure", "Temperature", "Saturation")
+BRUSH_MODES = (N_("Dodge & Burn"), N_("Exposure"), N_("Temperature"), N_("Saturation"))
 
 
 def _brush(img, p, ctx):
@@ -1370,15 +1356,14 @@ def _brush(img, p, ctx):
 
 
 register(Tool(
-    id="brush", name="Brush", group="Local", kind="local", maskable=False,
-    description="Dodge & burn, exposure, temperature and saturation "
-                "brushes, stored as resolution-independent strokes.",
+    id="brush", name=N_("Brush"), group=N_("Local"), kind="local", maskable=False,
+    description=N_("Paint light, darkness or color onto parts of the photo."),
     params=(
-        Param("strokes", "Strokes", kind=STROKES, default=[]),
-        Param("mode", "Brush", kind=CHOICE, default="Dodge & Burn",
+        Param("strokes", N_("Strokes"), kind=STROKES, default=[]),
+        Param("mode", N_("Brush"), kind=CHOICE, default=N_("Dodge & Burn"),
               choices=BRUSH_MODES),
-        Param("size", "Size", lo=1, hi=100, default=20),
-        Param("value", "Amount", lo=-100, hi=100, default=50),
+        Param("size", N_("Size"), lo=1, hi=100, default=20),
+        Param("value", N_("Amount"), lo=-100, hi=100, default=50),
     ),
     apply=_brush))
 
@@ -1399,12 +1384,11 @@ def _healing(img, p, ctx):
 
 
 register(Tool(
-    id="healing", name="Healing", group="Local", kind="local", maskable=False,
-    description="Remove blemishes and objects by inpainting from the "
-                "surrounding content.",
+    id="healing", name=N_("Healing"), group=N_("Local"), kind="local", maskable=False,
+    description=N_("Remove spots and small objects."),
     params=(
-        Param("strokes", "Strokes", kind=STROKES, default=[]),
-        Param("size", "Size", lo=1, hi=100, default=12),
+        Param("strokes", N_("Strokes"), kind=STROKES, default=[]),
+        Param("size", N_("Size"), lo=1, hi=100, default=12),
     ),
     apply=_healing))
 
@@ -1413,12 +1397,12 @@ register(Tool(
 # Portrait
 # ========================================================================
 PORTRAIT_STYLES = {
-    "Spotlight":  dict(spotlight=45, smooth=35, eyes=25, warm=0.06),
-    "Smooth":     dict(spotlight=20, smooth=65, eyes=15, warm=0.04),
-    "Bright":     dict(spotlight=60, smooth=40, eyes=30, warm=0.10),
-    "Fair":       dict(spotlight=35, smooth=50, eyes=20, warm=-0.04),
-    "Even":       dict(spotlight=25, smooth=45, eyes=20, warm=0.00),
-    "Warm":       dict(spotlight=40, smooth=45, eyes=25, warm=0.16),
+    N_("Spotlight"):  dict(spotlight=45, smooth=35, eyes=25, warm=0.06),
+    N_("Smooth"):     dict(spotlight=20, smooth=65, eyes=15, warm=0.04),
+    N_("Bright"):     dict(spotlight=60, smooth=40, eyes=30, warm=0.10),
+    N_("Fair"):       dict(spotlight=35, smooth=50, eyes=20, warm=-0.04),
+    N_("Even"):       dict(spotlight=25, smooth=45, eyes=20, warm=0.00),
+    N_("Warm"):       dict(spotlight=40, smooth=45, eyes=25, warm=0.16),
 }
 
 
@@ -1475,15 +1459,14 @@ def _portrait(img, p, ctx):
 
 
 register(Tool(
-    id="portrait", name="Portrait", group="Portrait", kind="global",
+    id="portrait", name=N_("Portrait"), group=N_("Portrait"), kind="global",
     maskable=False,
-    description="Detects faces, then lights them, evens the skin and "
-                "sharpens the eyes. Runs entirely on this machine.",
+    description=N_("Brighten faces, smooth skin and sharpen eyes. Done on this computer."),
     params=(
-        Param("spotlight", "Face Spotlight", lo=0, hi=100, default=45),
-        Param("skin_smoothing", "Skin Smoothing", lo=0, hi=100, default=35),
-        Param("eye_clarity", "Eye Clarity", lo=0, hi=100, default=25),
-        Param("style", "Style", kind=CHOICE, default="Spotlight",
+        Param("spotlight", N_("Face Spotlight"), lo=0, hi=100, default=45),
+        Param("skin_smoothing", N_("Skin Smoothing"), lo=0, hi=100, default=35),
+        Param("eye_clarity", N_("Eye Clarity"), lo=0, hi=100, default=25),
+        Param("style", N_("Style"), kind=CHOICE, default=N_("Spotlight"),
               choices=tuple(PORTRAIT_STYLES)),
     ),
     apply=_portrait))
@@ -1570,16 +1553,15 @@ def _head_pose(img, p, ctx):
 
 
 register(Tool(
-    id="head_pose", name="Head Pose", group="Portrait", kind="global",
+    id="head_pose", name=N_("Head Pose"), group=N_("Portrait"), kind="global",
     maskable=False,
-    description="Nudge a subject's head orientation and expression. A "
-                "local warp, not a 3D reconstruction - keep it subtle.",
+    description=N_("Gently turn a face or add a smile. Keep it subtle."),
     params=(
-        Param("pitch", "Up / Down", lo=-100, hi=100, default=0),
-        Param("yaw", "Left / Right", lo=-100, hi=100, default=0),
-        Param("roll", "Tilt", lo=-100, hi=100, default=0),
-        Param("smile", "Smile", lo=0, hi=100, default=0),
-        Param("pupil_size", "Eye Emphasis", lo=0, hi=100, default=0),
+        Param("pitch", N_("Up / Down"), lo=-100, hi=100, default=0),
+        Param("yaw", N_("Left / Right"), lo=-100, hi=100, default=0),
+        Param("roll", N_("Tilt"), lo=-100, hi=100, default=0),
+        Param("smile", N_("Smile"), lo=0, hi=100, default=0),
+        Param("pupil_size", N_("Eye Emphasis"), lo=0, hi=100, default=0),
     ),
     apply=_head_pose))
 
@@ -1623,17 +1605,16 @@ def _double_exposure(img, p, ctx):
 
 
 register(Tool(
-    id="double_exposure", name="Double Exposure", group="Effects",
+    id="double_exposure", name=N_("Double Exposure"), group=N_("Effects"),
     kind="global", maskable=True,
-    description="Blend a second photograph over this one, in any of "
-                "fourteen blend modes.",
+    description=N_("Blend another photo into this one."),
     params=(
-        Param("image", "Image", kind=IMAGE, default=None),
-        Param("mode", "Blend Mode", kind=CHOICE, default="screen",
+        Param("image", N_("Image"), kind=IMAGE, default=None),
+        Param("mode", N_("Blend Mode"), kind=CHOICE, default="screen",
               choices=DOUBLE_MODES),
-        Param("opacity", "Opacity", lo=0, hi=100, default=50),
-        Param("mono", "Desaturate", kind=TOGGLE, default=False),
-        Param("flip", "Mirror", kind=TOGGLE, default=False),
+        Param("opacity", N_("Opacity"), lo=0, hi=100, default=50),
+        Param("mono", N_("Desaturate"), kind=TOGGLE, default=False),
+        Param("flip", N_("Mirror"), kind=TOGGLE, default=False),
     ),
     apply=_double_exposure))
 
@@ -1642,12 +1623,12 @@ register(Tool(
 # Text
 # ========================================================================
 TEXT_STYLES = {
-    "Plain": dict(weight="regular", bg=None, border=0, spacing=0.0),
-    "Bold": dict(weight="bold", bg=None, border=0, spacing=0.0),
-    "Banner": dict(weight="bold", bg=(0, 0, 0), border=0, spacing=0.06),
-    "Outline": dict(weight="bold", bg=None, border=3, spacing=0.0),
-    "Caption": dict(weight="regular", bg=(1, 1, 1), border=0, spacing=0.04),
-    "Spaced": dict(weight="regular", bg=None, border=0, spacing=0.22),
+    N_("Plain"): dict(weight="regular", bg=None, border=0, spacing=0.0),
+    N_("Bold"): dict(weight="bold", bg=None, border=0, spacing=0.0),
+    N_("Banner"): dict(weight="bold", bg=(0, 0, 0), border=0, spacing=0.06),
+    N_("Outline"): dict(weight="bold", bg=None, border=3, spacing=0.0),
+    N_("Caption"): dict(weight="regular", bg=(1, 1, 1), border=0, spacing=0.04),
+    N_("Spaced"): dict(weight="regular", bg=None, border=0, spacing=0.22),
 }
 
 
@@ -1743,17 +1724,16 @@ def _text(img, p, ctx):
 
 
 register(Tool(
-    id="text", name="Text", group="Overlay", kind="overlay", maskable=False,
-    description="Text overlay with six styles, sized as a fraction of the "
-                "frame so it scales with the export.",
+    id="text", name=N_("Text"), group=N_("Overlay"), kind="overlay", maskable=False,
+    description=N_("Add text to the photo."),
     params=(
-        Param("text", "Text", kind=TEXT, default=""),
-        Param("size", "Size", lo=1, hi=100, default=22),
-        Param("opacity", "Opacity", lo=0, hi=100, default=100),
-        Param("rotation", "Rotation", lo=-180, hi=180, default=0),
-        Param("color", "Color", kind=COLOR, default=[1.0, 1.0, 1.0]),
-        Param("position", "Position", kind=POINT, default=[0.5, 0.5]),
-        Param("style", "Style", kind=CHOICE, default="Plain",
+        Param("text", N_("Text"), kind=TEXT, default=""),
+        Param("size", N_("Size"), lo=1, hi=100, default=22),
+        Param("opacity", N_("Opacity"), lo=0, hi=100, default=100),
+        Param("rotation", N_("Rotation"), lo=-180, hi=180, default=0),
+        Param("color", N_("Color"), kind=COLOR, default=[1.0, 1.0, 1.0]),
+        Param("position", N_("Position"), kind=POINT, default=[0.5, 0.5]),
+        Param("style", N_("Style"), kind=CHOICE, default=N_("Plain"),
               choices=tuple(TEXT_STYLES)),
     ),
     apply=_text))
@@ -1763,16 +1743,16 @@ register(Tool(
 # Frames
 # ========================================================================
 FRAME_STYLES = {
-    "None": None,
-    "White": dict(color=(1.0, 1.0, 1.0), inner=0.0, rough=0.0),
-    "Black": dict(color=(0.0, 0.0, 0.0), inner=0.0, rough=0.0),
-    "Cream": dict(color=(0.96, 0.94, 0.88), inner=0.0, rough=0.0),
-    "Charcoal": dict(color=(0.12, 0.12, 0.13), inner=0.0, rough=0.0),
-    "Museum": dict(color=(1.0, 1.0, 1.0), inner=0.12, rough=0.0),
-    "Polaroid": dict(color=(0.98, 0.97, 0.93), inner=0.0, rough=0.0,
+    N_("None"): None,
+    N_("White"): dict(color=(1.0, 1.0, 1.0), inner=0.0, rough=0.0),
+    N_("Black"): dict(color=(0.0, 0.0, 0.0), inner=0.0, rough=0.0),
+    N_("Cream"): dict(color=(0.96, 0.94, 0.88), inner=0.0, rough=0.0),
+    N_("Charcoal"): dict(color=(0.12, 0.12, 0.13), inner=0.0, rough=0.0),
+    N_("Museum"): dict(color=(1.0, 1.0, 1.0), inner=0.12, rough=0.0),
+    N_("Polaroid"): dict(color=(0.98, 0.97, 0.93), inner=0.0, rough=0.0,
                      bottom_heavy=True),
-    "Film Edge": dict(color=(0.07, 0.07, 0.08), inner=0.0, rough=0.45),
-    "Torn": dict(color=(0.99, 0.98, 0.95), inner=0.0, rough=0.9),
+    N_("Film Edge"): dict(color=(0.07, 0.07, 0.08), inner=0.0, rough=0.45),
+    N_("Torn"): dict(color=(0.99, 0.98, 0.95), inner=0.0, rough=0.9),
 }
 
 
@@ -1826,12 +1806,11 @@ def _frames(img, p, ctx):
 
 
 register(Tool(
-    id="frames", name="Frames", group="Overlay", kind="overlay", maskable=False,
-    description="Nine border styles drawn inside the frame, so the output "
-                "dimensions do not change.",
+    id="frames", name=N_("Frames"), group=N_("Overlay"), kind="overlay", maskable=False,
+    description=N_("Add a border."),
     params=(
-        Param("width", "Width", lo=0, hi=100, default=35),
-        Param("style", "Style", kind=CHOICE, default="White",
+        Param("width", N_("Width"), lo=0, hi=100, default=35),
+        Param("style", N_("Style"), kind=CHOICE, default=N_("White"),
               choices=tuple(FRAME_STYLES)),
     ),
     apply=_frames))

@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 
 from .library_move import _rewrite_json
+from .i18n import _
 
 # Characters no file name may hold on Linux, plus the ones that break the
 # file on the filesystems people copy photos to (FAT/exFAT cards, NTFS disks).
@@ -36,15 +37,15 @@ def clean_name(name: str, suffix: str) -> str:
     if suffix and name.lower().endswith(suffix.lower()):
         name = name[: -len(suffix)].rstrip()
     if not name or name in (".", ".."):
-        raise RenameError("The name can't be empty.")
+        raise RenameError(_("The name can't be empty."))
     bad = sorted({c for c in name if c in _FORBIDDEN or ord(c) < 32})
     if bad:
         shown = " ".join("\\0" if c == "\0" else c for c in bad)
         raise RenameError(f"A file name can't contain {shown}")
     if name.startswith("."):
-        raise RenameError("A name starting with a dot would hide the photo.")
+        raise RenameError(_("A name starting with a dot would hide the photo."))
     if len((name + suffix).encode()) > 255:
-        raise RenameError("That name is too long.")
+        raise RenameError(_("That name is too long."))
     return name
 
 
@@ -63,7 +64,7 @@ def rename_photo(library, catalog, photo_id: int, new_name: str) -> Path:
     """
     row = catalog.photo(photo_id)
     if row is None:
-        raise RenameError("That photo is no longer in the library.")
+        raise RenameError(_("That photo is no longer in the library."))
     old = Path(row["path"])
     if not old.exists():
         raise RenameError(f"“{old.name}” is not on disk. Is its drive connected?")
@@ -96,8 +97,8 @@ def rename_photo(library, catalog, photo_id: int, new_name: str) -> Path:
                         (str(new), new.name, photo_id))
     except Exception:
         os.rename(new, old)
-        raise RenameError("The library couldn't be updated, so the file "
-                          "keeps its old name.")
+        raise RenameError(_("The library couldn't be updated, so the file "
+                          "keeps its old name."))
     catalog.reindex_text([photo_id])
 
     # The edit sidecar mirrors the photo's path: move it, and point it at
