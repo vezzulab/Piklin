@@ -27,7 +27,7 @@
 - **One package for everything.** Your library is a single `Piklin Library.piklin` package. Move it to another disk, copy it to a new computer and open it again.
 - **Years, Months, Days or All Photos.** Filters and search cover favourites, videos, screenshots, location and more.
 - **Albums, folders and smart albums.** Smart albums fill themselves from rules such as camera, date, rating, media type or video length.
-- **Import from cameras and cards.** Drag photos straight onto an album. Duplicates are recognised, and photos can be stored smaller without visible loss.
+- **Import from cameras, cards and USB drives.** Connect one and it appears in the sidebar, ready to browse. Drag photos or whole folders from your desktop or file manager straight onto an album. Duplicates are recognised, and photos can be stored smaller without visible loss.
 - **Useful views.** Recently Deleted keeps items for 30 days; Duplicates, Hidden and Imports are one click away.
 
 ### Editing without fear
@@ -55,16 +55,20 @@
 
 ### Back up to your own server
 
-Connect the backup destination you prefer once. From then on, new photos, videos and edits are copied there automatically, a minute after they change. Nothing runs when nothing changed, so it is easy on laptop batteries.
+Connect the place you want to back up to once. From then on, new photos, videos and edits are copied there automatically, a minute after they change. Nothing runs when nothing has changed, so it is easy on laptop batteries.
 
-- **Any folder your computer can see.** A NAS such as QNAP or Synology (over SMB or NFS), a USB drive, or a mounted cloud drive.
-- **WebDAV, built in.** Nextcloud, ownCloud, QNAP, Synology, pCloud, Box and any other WebDAV server, with nothing extra to install.
-- **Seventy-plus cloud services through [rclone](https://rclone.org).** S3, Backblaze B2, Google Drive, OneDrive, Dropbox, SFTP, Mega and more, using the rclone remotes you have already set up.
+**Where your backup can go**
 
-- **Previous versions.** When a file changes, its older copy stays on the destination for 7, 30 or 90 days.
+- **Any folder your computer can see.** A USB drive, a NAS such as QNAP or Synology (over SMB or NFS), or a folder kept in sync by a cloud app.
+- **A NAS or server over WebDAV, built in.** QNAP, Synology, Nextcloud, ownCloud, pCloud, Box and any other WebDAV server, with nothing extra to install. Choose the backup folder from a list of the folders on your server.
+- **Seventy-plus cloud services through [rclone](https://rclone.org).** Google Drive, OneDrive, Dropbox, Backblaze B2, S3, SFTP and more, using the rclone remotes you have already set up.
+
+**What it does for you**
+
+- **Only what changed.** A photo already backed up is never uploaded again unless it changes.
+- **Previous versions.** When a file changes, its older copy stays in the backup for 7, 30 or 90 days.
 - **Restore Missing Files.** Bring back only what is gone from your library, without replacing anything.
-
-Passwords are kept in your system keyring, never in a settings file. Backups go one way: they never delete your photos.
+- **Safe by design.** Passwords are kept in your system keyring, never in a settings file, and backups never delete your photos.
 
 ### Private by design
 
@@ -74,11 +78,13 @@ Passwords are kept in your system keyring, never in a settings file. Backups go 
 
 ## Install
 
-Download the latest `.deb` from **[Releases](https://github.com/vezzulab/Piklin/releases)**, then install it:
+Download the latest `.deb` from **[Releases](https://github.com/vezzulab/Piklin/releases/latest)**. Then, in the folder where you saved it, run:
 
 ```bash
-sudo apt install ./piklin_1.0.2_amd64.deb
+sudo apt install ./piklin_*_amd64.deb
 ```
+
+To update, download the new `.deb` and run the same command. Your library, albums, edits and backups stay as they are.
 
 Piklin brings everything it needs for photos, video and sound. It uses your system's GTK 4 and libadwaita.
 
