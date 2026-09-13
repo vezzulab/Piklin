@@ -2,6 +2,11 @@
 
 ## 1.0.1
 
+### Library
+
+- Albums sit at the bottom of the sidebar, under a dividing line, so a growing list of albums never pushes the other sections down
+- The sidebar scrolls when its contents are taller than the window
+
 ### Backup
 
 - **Restore Missing Files** copies back from a backup only what is gone from the library. Nothing in the library is replaced, and photos deleted on purpose stay deleted. Restoring into a new, empty library brings back albums, favourites and edits too

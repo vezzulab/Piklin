@@ -577,9 +577,11 @@ class MainWindow(Adw.ApplicationWindow):
             for dev in self._devices:
                 add(f"device:{dev.id}", dev.name, dev.icon)
 
-        # The sidebar order: the library and what you most often
-        # come back to first, then your albums, then media types and the
-        # utility views that gather photos by what happened to them.
+        # The sidebar order: the library and what you most often come back
+        # to first, then media types and the utility views that gather
+        # photos by what happened to them - all fixed in place. Albums come
+        # last, under a dividing line: however many there are, they grow
+        # downwards without pushing anything else out of view.
         # Library is where everything starts; it stays open.
         header("Library", collapsible=False)
         add("library", "All Photos", "image-x-generic-symbolic",
@@ -588,13 +590,6 @@ class MainWindow(Adw.ApplicationWindow):
             counts.get("favorites"))
         add("trash", "Recently Deleted", "user-trash-symbolic",
             counts.get("trash"))
-
-        add_menu = Gio.Menu()
-        add_menu.append("New Album…", "win.new-album")
-        add_menu.append("New Smart Album…", "win.new-smart-album")
-        add_menu.append("New Folder…", "win.new-folder")
-        header("Albums", add_menu)
-        self._add_tree_rows(self.catalog.tree(), add, depth=0)
 
         header("Media Types")
         add("videos", "Videos", "video-x-generic-symbolic",
@@ -610,6 +605,20 @@ class MainWindow(Adw.ApplicationWindow):
             counts.get("edited"))
         add("imports", "Imports", "document-save-symbolic",
             counts.get("imports"))
+
+        divider = Gtk.ListBoxRow(selectable=False, activatable=False,
+                                 focusable=False)
+        divider.add_css_class("pika-sidebar-divider")
+        divider._key = "divider:albums"
+        divider.set_child(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        self.sidebar_list.append(divider)
+
+        add_menu = Gio.Menu()
+        add_menu.append("New Album…", "win.new-album")
+        add_menu.append("New Smart Album…", "win.new-smart-album")
+        add_menu.append("New Folder…", "win.new-folder")
+        header("Albums", add_menu)
+        self._add_tree_rows(self.catalog.tree(), add, depth=0)
 
         for child in self.sidebar_list:
             if getattr(child, "_key", None) == selected_key:

@@ -1599,3 +1599,15 @@ window.piklin button.pika-support image {
   font-size: 0.9rem;
   font-weight: 700;
 }
+
+/* The line between the fixed sections and Albums, which grow below it */
+.pika-sidebar row.pika-sidebar-divider,
+.pika-sidebar row.pika-sidebar-divider:hover {
+    background: transparent;
+    min-height: 0;
+    padding: 10px 8px 6px 8px;
+}
+.pika-sidebar-divider separator {
+    background: alpha(#000000, 0.14);
+    min-height: 1px;
+}
