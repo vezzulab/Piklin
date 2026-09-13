@@ -173,6 +173,11 @@ def rebuild_index(library: Library) -> int:
     if library.db.exists():
         backup = library.db.with_suffix(".db.bak")
         library.db.replace(backup)
+        # its write-ahead log belongs to the old file, never the new one
+        for suffix in ("-wal", "-shm"):
+            side = Path(str(library.db) + suffix)
+            if side.exists():
+                side.replace(Path(str(backup) + suffix))
         print(f"  previous index moved to {backup.name}")
 
     catalog = Catalog(library.db)
@@ -302,8 +307,14 @@ def main(argv=None):
 
     library = Library(args.library).ensure()
 
-    if args.rebuild_index:
-        return rebuild_index(library)
+    # Set after files were restored into an empty library: the catalog is
+    # rebuilt from them before the window opens.
+    restored = library.root / ".cache" / "rebuild-after-restore"
+    if args.rebuild_index or restored.exists():
+        restored.unlink(missing_ok=True)
+        status = rebuild_index(library)
+        if args.rebuild_index:
+            return status
 
     app = PikaliciousApp(args.library)
     files = [Gio.File.new_for_path(p) for p in args.paths]

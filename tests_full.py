@@ -625,8 +625,23 @@ r = rem.Remote(id="t", name="T", kind="local", config={"path": dest})
 b = r.backend()
 check("local destination tests OK", b.test().ok)
 files = rem.library_files(lib.root)
-check("cache excluded from backup", not any(".cache" in str(f) for f in files))
-check("sidecars queued first", files and files[0].suffix == ".json")
+rels = [f[1] if isinstance(f, tuple) else f.relative_to(lib.root).as_posix()
+        for f in files]
+check("cache excluded from backup", not any(x.startswith(".cache") for x in rels))
+check("sidecars queued first", files and not isinstance(files[0], tuple)
+      and files[0].suffix == ".json")
+check("favourites and hidden state are backed up",
+      all(n in rels for n in ("photo-state.json", "catalog.db"))
+      or not (lib.root/"photo-state.json").exists(), rels[:8])
+import sqlite3 as _sq
+if not (lib.root/"catalog.db").exists():
+    _c = _sq.connect(lib.root/"catalog.db"); _c.execute("CREATE TABLE t(x)"); _c.commit(); _c.close()
+catalog_bytes = (lib.root/"catalog.db").read_bytes()
+snap1 = rem.snapshot_catalog(lib.root); m1 = snap1.stat().st_mtime if snap1 else 0
+time.sleep(1.1)
+snap2 = rem.snapshot_catalog(lib.root)
+check("unchanged catalog snapshot is not sent again",
+      snap2 is not None and snap2.stat().st_mtime == m1)
 p1 = b.push(lib.root, files)
 check("backup uploads files", p1.uploaded > 0 and p1.errors == 0, f"{p1.uploaded} files")
 p2 = b.push(lib.root, files)
@@ -646,6 +661,35 @@ class _DownBackend(type(b)):
         raise OSError("HTTP Error 401")
 p5 = _DownBackend(r).push(lib.root, files)
 check("failed sign-in stops the backup", p5.phase == "error" and p5.uploaded == 0, p5.phase)
+
+# Restore: only what is missing comes back
+b.push(lib.root, rem.library_files(lib.root))      # backup is current
+gone = lib.edits/"x.jpg.json"
+gone_rel = gone.relative_to(lib.root).as_posix()
+gone.unlink()
+mine = lib.edits/"mine.json"; mine.write_text("new local")
+mine_rel = mine.relative_to(lib.root).as_posix()
+(Path(dest)/mine_rel).write_text("old backup")
+deleted = lib.root/"Originals"/"deleted-on-purpose.jpg"
+(Path(dest)/"Originals").mkdir(exist_ok=True)
+(Path(dest)/"Originals"/"deleted-on-purpose.jpg").write_bytes(b"x" * 10)
+pr = b.restore(lib.root, skip_paths=[str(deleted)])
+check("restore brings back a lost file", gone.exists() and pr.restored == 1,
+      f"restored {pr.restored}, present {pr.present}")
+check("restore never replaces a file in the library", mine.read_text() == "new local")
+check("restore leaves out photos deleted on purpose",
+      not deleted.exists() and pr.skipped == 1)
+check("restore never touches the open catalog",
+      (lib.root/"catalog.db").read_bytes() == catalog_bytes
+      and not (lib.root/"catalog.db.part").exists())
+pp = b.push(lib.root, rem.library_files(lib.root))
+check("restored files are not uploaded again", pp.uploaded == 1,
+      f"{pp.uploaded} sent (only the newer local file should go)")
+wd = lambda url: rem.Remote(id="w", name="w", kind="webdav",
+                            config={"url": url}).backend().test().message
+check("http allowed on the local network", "local network" not in wd("http://127.0.0.1:9"),
+      wd("http://127.0.0.1:9"))
+check("http refused for internet servers", "local network" in wd("http://photos.example.com/dav"))
 check("missing folder reports clearly",
       not rem.Remote(id="x",name="x",kind="local",config={"path":"/nope"}).backend().test().ok)
 check("plain HTTP refused",

@@ -317,6 +317,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         for old in getattr(self, "_remote_rows", []):
             self.remote_group.remove(old)
         self._remote_rows = []
+        self._remote_widgets = {}
         remotes = self.settings.get("remotes", []) or []
         if not remotes:
             empty = Adw.ActionRow(
@@ -327,22 +328,38 @@ class SettingsDialog(Adw.PreferencesDialog):
             return
         for cfg in remotes:
             r = remote_mod.Remote.from_dict(cfg)
-            row = Adw.ActionRow(title=r.name,
-                                subtitle=self._describe(r))
-            test = Gtk.Button(label="Test", valign=Gtk.Align.CENTER)
-            test.connect("clicked", self._on_test_remote, r, row)
-            row.add_suffix(test)
+            row = Adw.ActionRow(title=r.name, subtitle=self._describe(r))
             push = Gtk.Button(label="Back Up Now", valign=Gtk.Align.CENTER)
             push.add_css_class("suggested-action")
-            push.connect("clicked", self._on_push_remote, r, row)
+            push.connect("clicked", self._on_push_remote, cfg, row)
             row.add_suffix(push)
-            drop = Gtk.Button(icon_name="user-trash-symbolic",
-                              valign=Gtk.Align.CENTER)
-            drop.add_css_class("flat")
-            drop.connect("clicked", self._on_remove_remote, r.id)
-            row.add_suffix(drop)
+
+            more = Gtk.MenuButton(icon_name="view-more-symbolic",
+                                  valign=Gtk.Align.CENTER,
+                                  tooltip_text="More Options")
+            more.add_css_class("flat")
+            popover = Gtk.Popover()
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2,
+                          margin_top=6, margin_bottom=6,
+                          margin_start=6, margin_end=6)
+            for label, handler in (
+                    ("Test Connection", self._on_test_remote),
+                    ("Restore Missing Files…", self._on_restore_remote),
+                    ("Edit…", self._on_edit_remote),
+                    ("Remove", self._on_remove_remote)):
+                item = Gtk.Button(label=label)
+                item.add_css_class("flat")
+                item.get_child().set_halign(Gtk.Align.START)
+                item.connect("clicked", self._on_remote_menu, popover,
+                             handler, cfg, row, push)
+                box.append(item)
+            popover.set_child(box)
+            more.set_popover(popover)
+            row.add_suffix(more)
+
             self.remote_group.add(row)
             self._remote_rows.append(row)
+            self._remote_widgets[cfg["id"]] = (row, push)
 
     @staticmethod
     def _describe(r):
@@ -352,39 +369,71 @@ class SettingsDialog(Adw.PreferencesDialog):
             return f"{r.config.get('url','')} · {r.config.get('username','')}"
         return f"rclone · {r.config.get('remote','')}:{r.config.get('path','')}"
 
+    @staticmethod
+    def _result_text(result):
+        text = result.message
+        if result.detail:
+            text += f" — {result.detail}"
+        if result.free_bytes:
+            text += f" · {_fmt(result.free_bytes)} free"
+        return text
+
+    def _on_remote_menu(self, _item, popover, handler, cfg, row, push):
+        popover.popdown()
+        handler(cfg, row, push)
+
     def _on_add_remote(self, _btn, kind):
         if kind == "local":
-            dialog = Gtk.FileDialog(title="Choose a backup folder")
-
-            def done(dlg, res):
-                try:
-                    folder = dlg.select_folder_finish(res)
-                except GLib.Error:
-                    return
-                if folder and folder.get_path():
-                    self._save_remote({
-                        "id": f"local-{abs(hash(folder.get_path()))%10**8}",
-                        "name": Path(folder.get_path()).name or "Backup",
-                        "kind": "local",
-                        "config": {"path": folder.get_path()}})
-            dialog.select_folder(self.get_root(), None, done)
+            self._choose_local_folder()
             return
         self._prompt_remote(kind)
 
-    def _prompt_remote(self, kind):
+    def _choose_local_folder(self, existing=None):
+        dialog = Gtk.FileDialog(title="Choose a backup folder")
+
+        def done(dlg, res):
+            try:
+                folder = dlg.select_folder_finish(res)
+            except GLib.Error:
+                return
+            if folder and folder.get_path():
+                path = folder.get_path()
+                self._save_remote({
+                    "id": (existing["id"] if existing
+                           else f"local-{abs(hash(path))%10**8}"),
+                    "name": ((existing or {}).get("name")
+                             or Path(path).name or "Backup"),
+                    "kind": "local",
+                    "config": {"path": path}})
+        dialog.select_folder(self.get_root(), None, done)
+
+    def _on_edit_remote(self, cfg, _row, _push):
+        if cfg.get("kind") == "local":
+            self._choose_local_folder(existing=cfg)
+        else:
+            self._prompt_remote(cfg.get("kind"), existing=cfg)
+
+    def _prompt_remote(self, kind, existing=None):
+        conf = (existing or {}).get("config", {})
+        webdav = kind == "webdav"
         dialog = Adw.AlertDialog(
-            heading="WebDAV server" if kind == "webdav" else "rclone remote",
-            body=("QNAP, Synology, Nextcloud, pCloud and Box all speak "
-                  "WebDAV. Use the https:// address from your server."
-                  if kind == "webdav" else
+            heading=("Edit Destination" if existing
+                     else "WebDAV Server" if webdav else "rclone Remote"),
+            body=("Enter your server's address: https://, or http:// for a "
+                  "server on your home network. On a QNAP it usually looks "
+                  "like https://192.168.1.10:8081 once WebDAV is turned on "
+                  "in Web Server."
+                  if webdav else
                   "Pick a remote you have already set up with "
                   "'rclone config'."))
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         entries = {}
-        if kind == "webdav":
-            fields = [("name", "Name"), ("url", "https://server/dav"),
-                      ("base", "Folder on the server (optional)"),
-                      ("username", "Username"), ("password", "Password")]
+        if webdav:
+            fields = [("name", "Name"), ("url", "https://192.168.1.10:8081"),
+                      ("base", "Folder on the server, e.g. /Multimedia/Piklin Backup"),
+                      ("username", "Username"),
+                      ("password", "Password (leave empty to keep it)"
+                       if existing else "Password")]
         else:
             configured = remote_mod.rclone_remotes()
             fields = [("name", "Name"),
@@ -395,11 +444,14 @@ class SettingsDialog(Adw.PreferencesDialog):
             e = Gtk.Entry(placeholder_text=placeholder)
             if key == "password":
                 e.set_visibility(False)
+            elif existing:
+                e.set_text(existing.get("name", "") if key == "name"
+                           else conf.get(key, ""))
             entries[key] = e
             box.append(e)
         dialog.set_extra_child(box)
         dialog.add_response("cancel", "Cancel")
-        dialog.add_response("add", "Add")
+        dialog.add_response("add", "Save" if existing else "Add")
         dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
         # First field (the destination's name) gets focus once the
         # dialog is mapped - same fix as the other entry dialogs, and
@@ -414,17 +466,20 @@ class SettingsDialog(Adw.PreferencesDialog):
             if response != "add":
                 return
             values = {k: e.get_text().strip() for k, e in entries.items()}
-            rid = f"{kind}-{abs(hash(str(values)))%10**8}"
             password = values.pop("password", "")
+            rid = (existing["id"] if existing
+                   else f"{kind}-{abs(hash(str(values)))%10**8}")
+            config = {k: v for k, v in values.items() if k != "name"}
+            # a trusted certificate stays trusted for the same server
+            if conf.get("cert_sha256") and conf.get("url") == config.get("url"):
+                config["cert_sha256"] = conf["cert_sha256"]
             cfg = {"id": rid, "name": values.get("name") or kind.title(),
-                   "kind": kind,
-                   "config": {k: v for k, v in values.items() if k != "name"}}
-            if password:
-                if not remote_mod.store_secret(rid, password):
-                    # Refuse to silently write a password into the library
-                    # folder, which the user has been told to back up.
-                    self._toast("No keyring available — password not saved. "
-                                "Use a mounted folder instead.")
+                   "kind": kind, "config": config}
+            if password and not remote_mod.store_secret(rid, password):
+                # Refuse to silently write a password into the library
+                # folder, which the user has been told to back up.
+                self._toast("Your keyring is locked, so the password was not "
+                            "saved. Unlock it and edit this destination again.")
             self._save_remote(cfg)
         dialog.connect("response", done)
         dialog.present(self.get_root())
@@ -436,14 +491,50 @@ class SettingsDialog(Adw.PreferencesDialog):
         self.settings.set("remotes", remotes)
         self._refresh_remotes()
 
-    def _on_remove_remote(self, _btn, rid):
+    def _on_remove_remote(self, cfg, _row, _push):
         remotes = [r for r in (self.settings.get("remotes") or [])
-                   if r.get("id") != rid]
+                   if r.get("id") != cfg["id"]]
         self.settings.set("remotes", remotes)
         self._refresh_remotes()
 
-    def _on_test_remote(self, btn, r, row):
-        btn.set_sensitive(False)
+    def _ask_trust(self, cfg, result, retry=None):
+        """Offer to trust a server's own certificate, by its fingerprint."""
+        url = GLib.markup_escape_text(cfg.get("config", {}).get("url", ""))
+        changed = "changed" in result.message.lower()
+        dlg = Adw.AlertDialog(
+            heading="Certificate Changed" if changed else "Trust This Server?")
+        dlg.set_body_use_markup(True)
+        intro = (f"The certificate of <b>{url}</b> is not the one you trusted "
+                 "before. If you did not replace it yourself, do not continue."
+                 if changed else
+                 f"<b>{url}</b> uses its own security certificate, which is "
+                 "normal for a server at home. Check that this fingerprint "
+                 "matches the one your server shows, then trust it.")
+        fp = GLib.markup_escape_text(
+            remote_mod.format_fingerprint(result.fingerprint))
+        dlg.set_body(f"{intro}\n\nSHA-256\n<tt>{fp}</tt>")
+        dlg.add_response("cancel", "Cancel")
+        dlg.add_response("trust", "Trust Certificate")
+        dlg.set_response_appearance(
+            "trust", Adw.ResponseAppearance.DESTRUCTIVE if changed
+            else Adw.ResponseAppearance.SUGGESTED)
+        dlg.set_default_response("cancel")
+
+        def done(_d, response):
+            if response != "trust":
+                return
+            new = dict(cfg)
+            new["config"] = dict(cfg.get("config", {}),
+                                 cert_sha256=result.fingerprint)
+            self._save_remote(new)
+            widgets = self._remote_widgets.get(new["id"])
+            if widgets:
+                (retry or self._on_test_remote)(new, *widgets)
+        dlg.connect("response", done)
+        dlg.present(self.get_root())
+
+    def _on_test_remote(self, cfg, row, _push):
+        r = remote_mod.Remote.from_dict(cfg)
         row.set_subtitle("Testing…")
 
         def work():
@@ -451,50 +542,143 @@ class SettingsDialog(Adw.PreferencesDialog):
             GLib.idle_add(finish, result)
 
         def finish(result):
-            btn.set_sensitive(True)
-            text = result.message
-            if result.detail:
-                text += f" — {result.detail}"
-            if result.free_bytes:
-                text += f" · {_fmt(result.free_bytes)} free"
-            row.set_subtitle(text)
+            row.set_subtitle(self._result_text(result))
+            if result.fingerprint:
+                self._ask_trust(cfg, result)
             return False
         threading.Thread(target=work, daemon=True).start()
 
-    def _on_push_remote(self, btn, r, row):
+    def _on_push_remote(self, btn, cfg, row):
         btn.set_sensitive(False)
         library = self.library
+        r = remote_mod.Remote.from_dict(cfg)
+        labels = {"listing": "Checking what is already backed up",
+                  "uploading": "Backing up"}
 
         def work():
             backend = r.backend()
             test = backend.test()
             if not test.ok:
-                GLib.idle_add(finish, f"{test.message} — {test.detail}")
+                GLib.idle_add(finish, self._result_text(test), test)
                 return
             files = remote_mod.library_files(library.root)
             progress = backend.push(
                 library.root, files,
                 on_progress=lambda p: GLib.idle_add(
                     row.set_subtitle,
-                    f"{p.phase} — {p.done_files}/{p.total_files}"
-                    f" ({_fmt(p.done_bytes)})"))
+                    f"{labels.get(p.phase, p.phase.title())} — "
+                    f"{p.done_files:,} of {p.total_files:,} ({_fmt(p.done_bytes)})"))
             if progress.phase == "done":
-                GLib.idle_add(
-                    finish,
-                    f"Backed up {progress.uploaded} file"
-                    + ("s" if progress.uploaded != 1 else "")
-                    + (f", {progress.skipped} already current"
-                       if progress.skipped else "")
-                    + (f", {progress.errors} failed" if progress.errors else ""))
+                text = (f"Backed up {progress.uploaded:,} file"
+                        + ("s" if progress.uploaded != 1 else "")
+                        + (f", {progress.skipped:,} already current"
+                           if progress.skipped else "")
+                        + (f", {progress.errors:,} failed" if progress.errors else ""))
             else:
-                GLib.idle_add(finish,
-                              progress.message or f"Stopped: {progress.phase}")
+                text = progress.message or f"Stopped: {progress.phase}"
+            GLib.idle_add(finish, text, None)
 
-        def finish(text):
+        def finish(text, test):
             btn.set_sensitive(True)
             row.set_subtitle(text)
+            if test is not None and test.fingerprint:
+                self._ask_trust(cfg, test, retry=lambda new, row_, push_:
+                                self._on_push_remote(push_, new, row_))
             return False
         threading.Thread(target=work, daemon=True).start()
+
+    def _on_restore_remote(self, cfg, row, push):
+        dlg = Adw.AlertDialog(
+            heading="Restore Missing Files?",
+            body=f"Piklin copies back from “{cfg.get('name', 'the backup')}” "
+                 "the photos, videos, edits and albums that are missing from "
+                 "your library.\n\nNothing in your library is replaced, and "
+                 "photos you deleted yourself stay deleted.")
+        dlg.add_response("cancel", "Cancel")
+        dlg.add_response("restore", "Restore")
+        dlg.set_response_appearance("restore", Adw.ResponseAppearance.SUGGESTED)
+
+        def done(_d, response):
+            if response == "restore":
+                self._run_restore(cfg, row, push)
+        dlg.connect("response", done)
+        dlg.present(self.get_root())
+
+    def _run_restore(self, cfg, row, push):
+        push.set_sensitive(False)
+        row.set_subtitle("Connecting…")
+        library = self.library
+        r = remote_mod.Remote.from_dict(cfg)
+        try:
+            removed = self.catalog.removed_paths()
+            empty = not self.catalog.scalar("SELECT COUNT(*) FROM photos", (), 0)
+        except Exception:
+            removed, empty = [], False
+
+        def progress_text(p):
+            if p.phase != "downloading":
+                return "Reading the backup…"
+            return (f"Restoring — {p.done_files:,} of {p.total_files:,} "
+                    f"({_fmt(p.done_bytes)})")
+
+        def work():
+            backend = r.backend()
+            test = backend.test()
+            if not test.ok:
+                GLib.idle_add(finish, self._result_text(test), test, None)
+                return
+            p = backend.restore(
+                library.root, skip_paths=removed, overwrite_state=empty,
+                on_progress=lambda p: GLib.idle_add(row.set_subtitle,
+                                                    progress_text(p)))
+            if p.phase == "done":
+                text = (f"Restored {p.restored:,} file"
+                        + ("s" if p.restored != 1 else "")
+                        + (f", {p.present:,} already in your library"
+                           if p.present else "")
+                        + (f", {p.skipped:,} you deleted left out"
+                           if p.skipped else "")
+                        + (f", {p.errors:,} failed" if p.errors else ""))
+            else:
+                text = p.message or f"Stopped: {p.phase}"
+            GLib.idle_add(finish, text, None, p)
+
+        def finish(text, test, p):
+            push.set_sensitive(True)
+            row.set_subtitle(text)
+            if test is not None and test.fingerprint:
+                self._ask_trust(cfg, test, retry=self._run_restore)
+            if p is not None and p.restored:
+                if empty:
+                    self._offer_rebuild(p)
+                else:
+                    self._toast(text)
+                    self._window._start_scan(None)
+            return False
+        threading.Thread(target=work, daemon=True).start()
+
+    def _offer_rebuild(self, p):
+        dlg = Adw.AlertDialog(
+            heading="Reopen Piklin to Finish",
+            body=f"{p.restored:,} files are back. Piklin reopens and rebuilds "
+                 "your library from them, with your albums, favourites and "
+                 "edits.")
+        dlg.add_response("later", "Later")
+        dlg.add_response("reopen", "Reopen Now")
+        dlg.set_response_appearance("reopen", Adw.ResponseAppearance.SUGGESTED)
+
+        def done(_d, response):
+            # the next start rebuilds, whether now or later
+            flag = self.library.root / ".cache" / "rebuild-after-restore"
+            flag.parent.mkdir(parents=True, exist_ok=True)
+            flag.touch()
+            if response == "reopen":
+                app = self._window.get_application()
+                app.relaunch_library = str(self.library.root)
+                self.close()
+                app.quit()
+        dlg.connect("response", done)
+        dlg.present(self.get_root())
 
     def _toast(self, text):
         try:

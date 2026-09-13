@@ -31,11 +31,16 @@ grid still works when the network is gone.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
+import http.client
+import ipaddress
 import json
 import os
 import shutil
+import ssl
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
@@ -149,6 +154,8 @@ class SyncProgress:
     uploaded: int = 0
     skipped: int = 0
     errors: int = 0
+    restored: int = 0
+    present: int = 0
     message: str = ""
 
     @property
@@ -164,6 +171,25 @@ class TestResult:
     message: str
     detail: str = ""
     free_bytes: int | None = None
+    # SHA-256 of a certificate the user may choose to trust
+    fingerprint: str = ""
+
+
+def _pairs(root: Path, files) -> Iterable[tuple[Path, str]]:
+    """(local file, path at the destination). A plain path keeps its place
+    in the library; a (file, path) pair sends a file under another name,
+    such as the catalog snapshot."""
+    for f in files:
+        if isinstance(f, tuple):
+            yield Path(f[0]), f[1]
+        else:
+            yield f, f.relative_to(root).as_posix()
+
+
+# Never copied back into an open library: Piklin is using them.
+NEVER_RESTORE = {"catalog.db", "settings.json"}
+# Replaced from the backup only when the library is empty.
+STATE_FILES = {"photo-state.json", "removed-photos.json", "watched-folders.json"}
 
 
 # ==========================================================================
@@ -250,12 +276,11 @@ class Backend:
         """Files to send: missing on the destination, or modified since
         they were sent. Returns (todo, skipped)."""
         todo, skipped = [], 0
-        for f in files:
+        for f, rel in _pairs(root, files):
             try:
                 st = f.stat()
             except OSError:
                 continue
-            rel = f.relative_to(root).as_posix()
             have = remote_index.get(rel)
             if have and have[0] == st.st_size:
                 sent = manifest.get(rel)
@@ -332,6 +357,109 @@ class Backend:
         return p
 
 
+    def restore(self, root: Path, skip_paths: Iterable[str] = (),
+                overwrite_state: bool = False,
+                on_progress: Callable[[SyncProgress], None] | None = None,
+                ) -> SyncProgress:
+        """Copy back what is missing from the library.
+
+        Only files that are gone come back: nothing in the library is ever
+        replaced. ``skip_paths`` are photos the user removed on purpose;
+        they stay out. ``overwrite_state`` is for an empty library, where
+        the favourites and album state from the backup should win.
+        """
+        root = Path(root)
+        p = SyncProgress(phase="listing")
+        if on_progress:
+            on_progress(p)
+        try:
+            index = self.listing()
+        except Exception as exc:
+            p.phase = "error"
+            p.message = f"could not read the backup: {exc}"
+            if on_progress:
+                on_progress(p)
+            return p
+
+        manifest = self._load_manifest(root)
+        skip = {os.path.normpath(s) for s in skip_paths}
+
+        def order(rel: str):
+            # edits, albums and state first: small and irreplaceable
+            return (0 if "/" not in rel or rel.startswith(("Edits/", "Albums/"))
+                    else 1, rel)
+
+        todo = []
+        for rel in sorted(index, key=order):
+            parts = rel.split("/")
+            if (not rel or ".." in parts or parts[0].startswith(".")
+                    or rel.endswith(".part") or rel in NEVER_RESTORE):
+                continue
+            local = root / rel
+            if local.exists() and not (overwrite_state and rel in STATE_FILES):
+                p.present += 1
+                continue
+            if os.path.normpath(str(local)) in skip:
+                p.skipped += 1
+                continue
+            todo.append((rel, index[rel][0]))
+
+        p.phase = "downloading"
+        p.total_files = len(todo)
+        p.total_bytes = sum(max(size, 0) for _rel, size in todo)
+        if on_progress:
+            on_progress(p)
+        if todo:
+            self._fetch_many(root, todo, p, manifest, on_progress)
+        self._save_manifest(root, manifest)
+
+        if p.phase != "cancelled":
+            if p.errors and not p.restored:
+                p.phase = "error"
+                p.message = p.message or f"none of the {p.errors} files could be restored"
+            else:
+                p.phase = "done"
+        if on_progress:
+            on_progress(p)
+        return p
+
+    def _fetch_many(self, root: Path, todo, p: SyncProgress, manifest: dict,
+                    on_progress) -> None:
+        for rel, size in todo:
+            if self.cancel.is_set():
+                p.phase = "cancelled"
+                break
+            local = root / rel
+            tmp = local.with_name(local.name + ".part")
+            p.current = rel
+            try:
+                local.parent.mkdir(parents=True, exist_ok=True)
+                ok = (self.get(rel, tmp) and tmp.is_file()
+                      and (size <= 0 or tmp.stat().st_size == size))
+            except Exception:
+                ok = False
+            if ok:
+                tmp.replace(local)
+                sent = manifest.get(rel)
+                if sent and sent[0] == size:
+                    # the photo's own time, not the moment it came back
+                    os.utime(local, (sent[1], sent[1]))
+                st = local.stat()
+                # recorded as backed up: the next backup won't send it again
+                manifest[rel] = [st.st_size, st.st_mtime]
+                p.restored += 1
+            else:
+                p.errors += 1
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+            p.done_files += 1
+            p.done_bytes += max(size, 0)
+            if on_progress:
+                on_progress(p)
+
+
 # ==========================================================================
 # local / mounted
 # ==========================================================================
@@ -403,6 +531,66 @@ class LocalBackend(Backend):
 # ==========================================================================
 # WebDAV
 # ==========================================================================
+class CertificateChanged(OSError):
+    """The server shows another certificate than the one the user trusted.
+    The argument is the new certificate's SHA-256."""
+
+
+def _is_local_host(host: str | None) -> bool:
+    """A server on the home network, where plain http:// is acceptable."""
+    if not host:
+        return False
+    h = host.lower().strip("[]")
+    if h == "localhost" or "." not in h or h.endswith((".local", ".lan", ".home.arpa")):
+        return True
+    try:
+        ip = ipaddress.ip_address(h)
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback or ip.is_link_local
+
+
+def certificate_fingerprint(url: str) -> str:
+    u = urllib.parse.urlparse(url)
+    pem = ssl.get_server_certificate((u.hostname, u.port or 443), timeout=15)
+    return hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
+
+
+def format_fingerprint(fp: str) -> str:
+    pairs = [fp[i:i + 2].upper() for i in range(0, len(fp), 2)]
+    return "\n".join(":".join(pairs[i:i + 16]) for i in range(0, len(pairs), 16))
+
+
+class _PinnedConnection(http.client.HTTPSConnection):
+    """HTTPS to a server with its own certificate: instead of a certificate
+    authority, the exact certificate the user trusted is required."""
+
+    def __init__(self, *args, pin: str = "", **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pin = pin
+
+    def connect(self):
+        super().connect()
+        seen = hashlib.sha256(self.sock.getpeercert(binary_form=True) or b"").hexdigest()
+        if seen != self._pin:
+            self.sock.close()
+            raise CertificateChanged(seen)
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, pin: str):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE      # checked against the pin instead
+        super().__init__(context=ctx)
+        self._pin = pin
+        self._pinned_context = ctx
+
+    def https_open(self, req):
+        return self.do_open(functools.partial(_PinnedConnection, pin=self._pin),
+                            req, context=self._pinned_context)
+
+
 class WebDavBackend(Backend):
     """Native WebDAV: QNAP, Synology, Nextcloud, ownCloud, pCloud, Box."""
 
@@ -411,33 +599,55 @@ class WebDavBackend(Backend):
     def __init__(self, remote: Remote):
         super().__init__(remote)
         self._folders: set[str] = set()
+        self._opener = None
+        self._pw: str | None = None
 
     @property
     def url(self) -> str:
-        return self.remote.config.get("url", "").rstrip("/")
+        return self.remote.config.get("url", "").strip().rstrip("/")
 
     @property
     def base_path(self) -> str:
-        return self.remote.config.get("base", "").strip("/")
+        return self.remote.config.get("base", "").strip().strip("/")
+
+    @property
+    def pin(self) -> str:
+        return self.remote.config.get("cert_sha256", "")
+
+    def _secure(self) -> bool:
+        u = urllib.parse.urlparse(self.url)
+        return u.scheme == "https" or (u.scheme == "http" and _is_local_host(u.hostname))
+
+    def _password(self) -> str:
+        if self._pw is None:
+            self._pw = (self.remote.config.get("password")
+                        or load_secret(self.remote.id) or "")
+        return self._pw
 
     def _auth_header(self) -> dict:
         user = self.remote.config.get("username", "")
-        if not user:
+        if not user or not self._secure():
             return {}
-        pw = self.remote.config.get("password") or load_secret(self.remote.id) or ""
-        token = b64encode(f"{user}:{pw}".encode()).decode()
+        token = b64encode(f"{user}:{self._password()}".encode()).decode()
         return {"Authorization": f"Basic {token}"}
 
     def _full(self, rel: str = "") -> str:
         return "/".join(p for p in (self.base_path, rel.strip("/")) if p)
 
+    def _open(self, req):
+        if self._opener is None:
+            handlers = ([_PinnedHTTPSHandler(self.pin)]
+                        if self.pin and self.url.startswith("https://") else [])
+            self._opener = urllib.request.build_opener(*handlers)
+        return self._opener.open(req, timeout=self.TIMEOUT)
+
     def _request_path(self, method: str, path: str, data=None,
                       extra: dict | None = None):
-        url = f"{self.url}/{urllib.parse.quote(path)}" if path else self.url
+        url = f"{self.url}/{urllib.parse.quote(path)}" if path else self.url + "/"
         req = urllib.request.Request(url, data=data, method=method)
         for k, v in {**self._auth_header(), **(extra or {})}.items():
             req.add_header(k, v)
-        return urllib.request.urlopen(req, timeout=self.TIMEOUT)
+        return self._open(req)
 
     def _request(self, method: str, rel: str = "", data=None,
                  extra: dict | None = None):
@@ -453,44 +663,88 @@ class WebDavBackend(Backend):
             try:
                 self._request_path("MKCOL", sub)
             except urllib.error.HTTPError as exc:
-                if exc.code in (401, 403):
+                if exc.code == 401:
                     raise
-                # 405 Method Not Allowed / 301: the folder already exists
+                if exc.code not in (301, 405) and i == len(parts):
+                    raise           # the folder itself could not be made
+                # 405 or 301: it already exists (or is a share we can't make)
             self._folders.add(sub)
 
     def test(self) -> TestResult:
         if not self.url:
-            return TestResult(False, "No server URL")
-        if not self.url.startswith("https://"):
-            # http would send the password in the clear
-            if not self.url.startswith("http://"):
-                return TestResult(False, "URL must start with https://")
-            return TestResult(False,
-                              "Refusing to send credentials over plain HTTP",
-                              "Use an https:// URL")
+            return TestResult(False, "No server address")
+        u = urllib.parse.urlparse(self.url)
+        if u.scheme not in ("http", "https") or not u.hostname:
+            return TestResult(False, "The address must start with https:// or http://")
+        if u.scheme == "http" and not _is_local_host(u.hostname):
+            return TestResult(False, "http:// only works on your local network",
+                              "Use https:// for a server on the internet, so "
+                              "your password stays private")
+        if self.remote.config.get("username") and not self._password():
+            return TestResult(False, "No password saved",
+                              "Edit this destination and enter the password again")
         try:
             try:
                 self._request("PROPFIND", extra={"Depth": "0"})
                 return TestResult(True, "Connected", self.url)
             except urllib.error.HTTPError as exc:
-                if exc.code == 404 and self.base_path:
-                    # The backup folder does not exist yet: create it.
-                    self._ensure_folder(self.base_path)
-                    self._request("PROPFIND", extra={"Depth": "0"})
-                    return TestResult(True, "Connected",
-                                      f"created the folder {self.base_path}")
-                raise
+                if exc.code != 404 or not self.base_path:
+                    raise
+            # The backup folder does not exist yet: create it.
+            try:
+                self._ensure_folder(self.base_path)
+                self._request("PROPFIND", extra={"Depth": "0"})
+            except urllib.error.HTTPError as exc:
+                if exc.code == 401:
+                    raise
+                return TestResult(False, f"Could not create the folder /{self.base_path}",
+                                  f"The server answered HTTP {exc.code}. The folder "
+                                  "must be inside a shared folder you can write to")
+            return TestResult(True, "Connected", f"created the folder /{self.base_path}")
         except urllib.error.HTTPError as exc:
-            if exc.code in (401, 403):
-                return TestResult(False, "Sign-in rejected", f"HTTP {exc.code}")
-            if exc.code == 405:
-                return TestResult(True, "Connected", "server allows uploads")
-            return TestResult(False, f"Server returned HTTP {exc.code}",
-                              str(exc.reason))
+            return self._http_problem(exc)
         except urllib.error.URLError as exc:
-            return TestResult(False, "Could not reach server", str(exc.reason))
+            return self._connection_problem(exc.reason)
         except Exception as exc:
-            return TestResult(False, "Connection failed", str(exc))
+            return self._connection_problem(exc)
+
+    def _http_problem(self, exc: urllib.error.HTTPError) -> TestResult:
+        code = exc.code
+        if code == 401:
+            return TestResult(False, "Sign-in rejected", "Check the username and password")
+        if code == 403:
+            return TestResult(False, "Access denied",
+                              "This account may not use WebDAV on that folder")
+        if code in (405, 501):
+            return TestResult(False, "This address does not answer WebDAV",
+                              "Turn on WebDAV on the server and use its address. "
+                              "On a QNAP: Control Panel › Applications › Web Server "
+                              "› WebDAV, then for example https://192.168.1.10:8081")
+        if code in (301, 302, 303, 307, 308):
+            loc = exc.headers.get("Location", "") if exc.headers else ""
+            return TestResult(False, "The server sends this address elsewhere",
+                              f"Try {loc}" if loc else f"HTTP {code}")
+        if code == 404:
+            return TestResult(False, "Not found on the server",
+                              "Check the address and the folder")
+        return TestResult(False, f"Server returned HTTP {code}", str(exc.reason))
+
+    def _connection_problem(self, reason) -> TestResult:
+        if isinstance(reason, CertificateChanged):
+            return TestResult(False, "The server's certificate has changed",
+                              "Trust the new one only if you replaced it yourself",
+                              fingerprint=str(reason))
+        if isinstance(reason, ssl.SSLCertVerificationError):
+            try:
+                fp = certificate_fingerprint(self.url)
+            except Exception:
+                fp = ""
+            return TestResult(False, "Certificate not trusted",
+                              "The server uses its own certificate", fingerprint=fp)
+        if isinstance(reason, ssl.SSLError):
+            return TestResult(False, "Secure connection failed", str(reason))
+        return TestResult(False, "Could not reach the server",
+                          str(getattr(reason, "strerror", None) or reason))
 
     def _entries(self, rel: str, depth: str) -> list[tuple[str, bool, int, float]]:
         """(path relative to the backup folder, is folder, size, mtime)."""
@@ -530,7 +784,7 @@ class WebDavBackend(Backend):
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
                 return {}                       # nothing backed up yet
-            if exc.code == 401:
+            if exc.code in (401, 403, 501):
                 raise
             entries = None                      # Depth: infinity refused
         # Servers that refuse or quietly ignore Depth: infinity (Nextcloud
@@ -553,7 +807,10 @@ class WebDavBackend(Backend):
 
     def put(self, local: Path, rel: str) -> bool:
         parent = "/".join(rel.split("/")[:-1])
-        self._ensure_folder(self._full(parent))
+        try:
+            self._ensure_folder(self._full(parent))
+        except Exception:
+            return False
         st = local.stat()
         # Streamed from the file: a 4 GB video is not read into memory.
         with open(local, "rb") as fh:
@@ -565,8 +822,6 @@ class WebDavBackend(Backend):
                     "X-OC-Mtime": str(int(st.st_mtime)),
                 })
                 return True
-            except urllib.error.HTTPError as exc:
-                return exc.code in (200, 201, 204)
             except Exception:
                 return False
 
@@ -674,8 +929,7 @@ class RcloneBackend(Backend):
         dest = f"{self.target}/{rel}".replace("//", "/")
         # rclone copyto takes a full destination path including filename
         try:
-            out = subprocess.run([exe, "copyto", str(local), dest,
-                                  "--ignore-times" if False else "--update"],
+            out = subprocess.run([exe, "copyto", str(local), dest],
                                  capture_output=True, text=True, timeout=1800)
             return out.returncode == 0
         except Exception:
@@ -694,6 +948,45 @@ class RcloneBackend(Backend):
         except Exception:
             return False
 
+    @staticmethod
+    def _file_list(rels: Iterable[str]) -> str:
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as lst:
+            lst.write("\n".join(rels) + "\n")
+            return lst.name
+
+    def _run_rclone(self, cmd: list[str], p: SyncProgress, on_progress) -> int | None:
+        """Run an rclone transfer, feeding its stats into ``p``.
+        The exit code, or None when cancelled."""
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)
+        last = ""
+        for line in proc.stdout or []:
+            if self.cancel.is_set():
+                proc.terminate()
+                proc.wait(timeout=30)
+                return None
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                last = line[:200]
+                continue
+            stats = entry.get("stats") or {}
+            if stats:
+                p.done_bytes = int(stats.get("bytes", 0))
+                p.done_files = int(stats.get("transfers", 0))
+                p.errors = int(stats.get("errors", 0))
+            elif entry.get("level") == "error":
+                last = str(entry.get("msg", ""))[:200]
+            if on_progress:
+                on_progress(p)
+        proc.wait(timeout=60)
+        if proc.returncode:
+            p.message = last or f"rclone exited {proc.returncode}"
+        return proc.returncode
+
     def push(self, root: Path, files, on_progress=None) -> SyncProgress:
         """Send what is missing or modified, in one rclone run.
 
@@ -701,7 +994,6 @@ class RcloneBackend(Backend):
         never sent again unless it changed - decides the list; rclone's
         own engine then does the parallel uploads and retries.
         """
-        import tempfile
         exe = rclone_path()
         if not exe:
             return SyncProgress(phase="error", message="rclone not installed")
@@ -709,7 +1001,6 @@ class RcloneBackend(Backend):
         p = SyncProgress(phase="listing")
         if on_progress:
             on_progress(p)
-        manifest = self._load_manifest(root)
         try:
             remote_index = self.listing()
         except Exception as exc:
@@ -718,71 +1009,112 @@ class RcloneBackend(Backend):
             if on_progress:
                 on_progress(p)
             return p
+        manifest = self._load_manifest(root)
         todo, p.skipped = self._plan(root, list(files), remote_index, manifest)
         p.total_files = len(todo)
         p.total_bytes = sum(t[2] for t in todo)
-        if not todo:
-            p.phase = "done"
-            if on_progress:
-                on_progress(p)
-            return p
-
-        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as lst:
-            lst.write("\n".join(rel for _f, rel, _s, _m in todo) + "\n")
-            list_path = lst.name
         p.phase = "uploading"
         if on_progress:
             on_progress(p)
-        cmd = [exe, "copy", str(root), self.target,
-               "--files-from-raw", list_path, "--no-check-dest", "--no-traverse",
-               "--transfers", "4", "--stats", "1s", "--use-json-log",
-               "--stats-log-level", "NOTICE"]
-        try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, text=True)
-            for line in proc.stdout or []:
-                if self.cancel.is_set():
-                    proc.terminate()
-                    p.phase = "cancelled"
-                    break
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    stats = (json.loads(line).get("stats") or {})
-                    if stats:
-                        p.done_bytes = int(stats.get("bytes", 0))
-                        p.done_files = int(stats.get("transfers", 0))
-                        p.errors = int(stats.get("errors", 0))
-                except ValueError:
-                    p.current = line[:120]
-                if on_progress:
-                    on_progress(p)
-            proc.wait(timeout=60)
-            if p.phase != "cancelled":
-                if proc.returncode == 0:
-                    p.phase = "done"
-                    p.uploaded = p.done_files = len(todo)
-                    p.done_bytes = p.total_bytes
-                    p.errors = 0
-                    for _f, rel, size, mtime in todo:
-                        manifest[rel] = [size, mtime]
-                    self._save_manifest(root, manifest)
-                else:
-                    p.phase = "error"
-                    p.errors = max(p.errors, 1)
-                    p.message = f"rclone exited {proc.returncode}"
-        except Exception as exc:
-            p.phase = "error"
-            p.message = str(exc)
-        finally:
+
+        plain = [t for t in todo if t[0] == root / t[1]]
+        renamed = [t for t in todo if t[0] != root / t[1]]
+        if plain:
+            lst = self._file_list(t[1] for t in plain)
             try:
-                os.unlink(list_path)
-            except OSError:
-                pass
+                code = self._run_rclone(
+                    [exe, "copy", str(root), self.target,
+                     "--files-from-raw", lst, "--no-check-dest", "--no-traverse",
+                     "--transfers", "4", "--stats", "1s", "--use-json-log",
+                     "--stats-log-level", "NOTICE"], p, on_progress)
+            except Exception as exc:
+                code, p.message = 1, str(exc)
+            finally:
+                try:
+                    os.unlink(lst)
+                except OSError:
+                    pass
+            if code is None:
+                p.phase = "cancelled"
+            elif code == 0:
+                p.errors = 0
+                p.uploaded += len(plain)
+                for _f, rel, size, mtime in plain:
+                    manifest[rel] = [size, mtime]
+            else:
+                p.errors = max(p.errors, 1)
+        for f, rel, size, mtime in renamed:
+            if p.phase == "cancelled":
+                break
+            if self.put(f, rel):
+                p.uploaded += 1
+                manifest[rel] = [size, mtime]
+            else:
+                p.errors += 1
+        self._save_manifest(root, manifest)
+
+        if p.phase != "cancelled":
+            p.done_files = len(todo)
+            if p.errors:
+                p.phase = "error"
+                p.message = p.message or f"{p.errors} files could not be uploaded"
+            else:
+                p.phase = "done"
+                p.done_bytes = p.total_bytes
         if on_progress:
             on_progress(p)
         return p
+
+    def _fetch_many(self, root: Path, todo, p: SyncProgress, manifest: dict,
+                    on_progress) -> None:
+        exe = rclone_path()
+        batch = [t for t in todo if not (root / t[0]).exists()]
+        replace = [t for t in todo if (root / t[0]).exists()]
+        if replace or not exe:
+            super()._fetch_many(root, replace if exe else todo, p, manifest, on_progress)
+        if not batch or not exe or p.phase == "cancelled":
+            return
+        base_files, base_bytes = p.done_files, p.done_bytes
+        q = SyncProgress()
+
+        def relay(q_):
+            p.done_files = base_files + q_.done_files
+            p.done_bytes = base_bytes + q_.done_bytes
+            if on_progress:
+                on_progress(p)
+
+        lst = self._file_list(rel for rel, _size in batch)
+        try:
+            code = self._run_rclone(
+                [exe, "copy", self.target, str(root), "--files-from-raw", lst,
+                 "--no-traverse", "--ignore-existing", "--transfers", "4",
+                 "--stats", "1s", "--use-json-log", "--stats-log-level", "NOTICE"],
+                q, relay)
+        except Exception as exc:
+            code, q.message = 1, str(exc)
+        finally:
+            try:
+                os.unlink(lst)
+            except OSError:
+                pass
+        if code is None:
+            p.phase = "cancelled"
+        for rel, size in batch:
+            local = root / rel
+            try:
+                st = local.stat()
+            except OSError:
+                p.errors += 1
+                continue
+            if size and st.st_size != size:        # stopped halfway through
+                local.unlink(missing_ok=True)
+                p.errors += 1
+                continue
+            p.restored += 1
+            manifest[rel] = [st.st_size, st.st_mtime]
+        p.done_files = base_files + len(batch)
+        if code and not p.message:
+            p.message = q.message
 
 
 BACKENDS = {"local": LocalBackend, "webdav": WebDavBackend,
@@ -794,8 +1126,58 @@ def make_backend(remote: Remote) -> Backend:
     return cls(remote)
 
 
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def snapshot_catalog(root: Path) -> Path | None:
+    """A consistent copy of catalog.db to back up.
+
+    The live file is open while Piklin runs, with recent changes still in
+    its write-ahead log; a byte copy of it can be a database that does not
+    open. SQLite's backup API takes a clean snapshot instead. When nothing
+    changed, the previous snapshot is kept as it is, so the next backup
+    does not send it again.
+    """
+    import sqlite3
+    src = Path(root) / "catalog.db"
+    if not src.is_file():
+        return None
+    dest = Path(root) / ".cache" / "backup" / "catalog.db"
+    tmp = dest.with_name("catalog.db.tmp")
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp.unlink(missing_ok=True)
+        source = sqlite3.connect(
+            f"file:{urllib.request.pathname2url(str(src))}?mode=ro",
+            uri=True, timeout=30)
+        try:
+            target = sqlite3.connect(str(tmp))
+            try:
+                source.backup(target)
+            finally:
+                target.close()
+        finally:
+            source.close()
+        if dest.is_file() and _sha256(dest) == _sha256(tmp):
+            tmp.unlink()
+        else:
+            tmp.replace(dest)
+        return dest
+    except (OSError, sqlite3.Error):
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return dest if dest.is_file() else None
+
+
 def library_files(root: Path, include_originals: bool = True,
-                  include_cache: bool = False) -> list[Path]:
+                  include_cache: bool = False) -> list:
     """Everything worth backing up, in a sensible order.
 
     Sidecars and the album definitions go first: they are tiny, and they
@@ -809,10 +1191,14 @@ def library_files(root: Path, include_originals: bool = True,
         d = root / sub
         if d.is_dir():
             ordered += sorted(p for p in d.rglob("*") if p.is_file())
-    for name in ("settings.json", "README.txt", "catalog.db"):
-        f = root / name
+    # photo-state.json (favourites, hidden), removed-photos.json,
+    # watched-folders.json and settings.json
+    for f in sorted(root.glob("*.json")) + [root / "README.txt"]:
         if f.is_file():
             ordered.append(f)
+    snapshot = snapshot_catalog(root)
+    if snapshot:
+        ordered.append((snapshot, "catalog.db"))
     if include_originals:
         d = root / "Originals"
         if d.is_dir():
