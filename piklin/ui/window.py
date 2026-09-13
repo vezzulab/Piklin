@@ -10,7 +10,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, Gdk, Gio, Graphene, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, GObject, Gdk, Gio, Graphene, Gtk  # noqa: E402
 
 from .. import devices as devicemod
 from .. import sidecars
@@ -395,6 +395,8 @@ class MainWindow(Adw.ApplicationWindow):
             transition_type=Gtk.StackTransitionType.CROSSFADE,
             transition_duration=120)
         self.content_stack.add_named(self.grid, "grid")
+        # Photos dragged in from the desktop or a file manager
+        self._install_file_drop(self.content_stack)
         self.content_stack.add_named(self.summary, "summary")
         toolbar.set_content(self.content_stack)
         toolbar.add_bottom_bar(self.action_bar)
@@ -937,6 +939,92 @@ class MainWindow(Adw.ApplicationWindow):
             GLib.idle_add(finish)
         threading.Thread(target=work, daemon=True).start()
 
+    # -- files dropped from outside ---------------------------------------
+    def _install_file_drop(self, widget):
+        """Dropping photos or folders on the photo area imports them - into
+        the album being viewed, or into the library."""
+        target = Gtk.DropTarget.new(Gdk.FileList.__gtype__, Gdk.DragAction.COPY)
+
+        def on_drop(_t, value, _x, _y):
+            paths = self._paths_from_filelist(value)
+            if not paths:
+                return False
+            album_id = self._album_id if self._scope == "album" else None
+            self._import_dropped(paths, album_id=album_id)
+            return True
+        target.connect("drop", on_drop)
+        widget.add_controller(target)
+
+    @staticmethod
+    def _paths_from_filelist(value):
+        try:
+            files = value.get_files()
+        except Exception:
+            return []
+        return [f.get_path() for f in files if f is not None and f.get_path()]
+
+    def _import_dropped(self, paths, album_id=None):
+        """Copy dropped photos and videos into the library, filed by date,
+        and into the album they were dropped on."""
+        library = self.library
+        album_name = None
+        if album_id is not None:
+            row = self.catalog.q1("SELECT name FROM albums WHERE id=?", (album_id,))
+            album_name = row["name"] if row else None
+        # Shown straight away: finding the photos in a big folder takes a moment.
+        self.scan_bar.set_visible(True)
+        self.scan_progress.set_fraction(0.0)
+        self.scan_progress.pulse()
+        self.scan_label.set_text("Getting the photos ready…")
+        profile = self.settings.get("storage_profile", "visually_lossless")
+        video_profile = self.settings.get("storage_video_profile", "original")
+
+        def work():
+            records = devicemod.files_from_paths(paths)
+            if not records:
+                def nothing():
+                    self.scan_bar.set_visible(False)
+                    self._show_toast("There are no photos or videos in what you dropped.")
+                    return False
+                GLib.idle_add(nothing)
+                return
+            total = len(records)
+            GLib.idle_add(self.scan_label.set_text,
+                          f"Copying {total} item" + ("s" if total != 1 else "")
+                          + (f" into \u201c{album_name}\u201d…" if album_name else "…"))
+
+            def progress(done, count):
+                GLib.idle_add(self.scan_progress.set_fraction, done / max(count, 1))
+                GLib.idle_add(self.scan_label.set_text, f"Copying {done} of {count}…")
+            result = devicemod.import_photos(library, records, progress,
+                                             profile=profile, video_profile=video_profile)
+            GLib.idle_add(self.scan_label.set_text, "Adding to your library…")
+            if result["placed"]:
+                self.indexer.scan([str(library.originals)], lambda p: None)
+
+            def finish():
+                ids = []
+                for path in result["placed"]:
+                    row = self.catalog.photo_by_path(str(Path(path).resolve()))
+                    if row is not None:
+                        ids.append(row["id"])
+                if album_id is not None and ids:
+                    self.catalog.album_add(album_id, ids)
+                    self._write_album_sidecar(album_id)
+                self.scan_bar.set_visible(False)
+                n = len(ids)
+                msg = f"Imported {n} item" + ("s" if n != 1 else "")
+                if album_name:
+                    msg += f" into \u201c{album_name}\u201d"
+                if result["failed"]:
+                    msg += f", {result['failed']} could not be copied"
+                self._show_toast(msg)
+                self._refresh()
+                self._backup_soon()
+                return False
+            GLib.idle_add(finish)
+        threading.Thread(target=work, daemon=True).start()
+
     def _new_device_records(self):
         already = getattr(self, "_device_imported", set()) or set()
         return [r for r in getattr(self, "_device_records", [])
@@ -986,10 +1074,21 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _make_drop_target(self, row, album_id, folder_id):
         """Accept photos dropped on an album, and albums dropped on a folder."""
-        target = Gtk.DropTarget.new(str, Gdk.DragAction.COPY
+        target = Gtk.DropTarget.new(GObject.TYPE_NONE, Gdk.DragAction.COPY
                                     | Gdk.DragAction.MOVE)
+        # Photos from Piklin's own grid arrive as text; files from the
+        # desktop or a file manager arrive as a file list.
+        target.set_gtypes([Gdk.FileList.__gtype__, GObject.TYPE_STRING])
 
         def on_drop(_t, value, _x, _y):
+            if isinstance(value, Gdk.FileList):
+                if album_id is None:
+                    return False        # a folder holds albums, not photos
+                paths = self._paths_from_filelist(value)
+                if not paths:
+                    return False
+                self._import_dropped(paths, album_id=album_id)
+                return True
             if not isinstance(value, str):
                 return False
             if value.startswith(PhotoGrid.DEVICE_DRAG_PREFIX):

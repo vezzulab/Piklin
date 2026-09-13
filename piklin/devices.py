@@ -62,6 +62,42 @@ def _looks_like_camera(root: Path) -> bool:
     return False
 
 
+def _is_external(mount, path: Path) -> bool:
+    """A USB stick or an external disk that the desktop mounted for the user.
+
+    Such a drive holds photos in folders of any name - "Golden_Hour_Upload",
+    "Trip 2024" - so it is offered whether or not it looks like a camera.
+    """
+    try:
+        drive = mount.get_drive()
+        if drive is not None and drive.is_removable():
+            return True
+    except Exception:
+        pass
+    return str(path).startswith(("/media/", "/run/media/"))
+
+
+# Folders on a drive that never hold the user's photos.
+_SKIP_DIRS = {"$RECYCLE.BIN", "System Volume Information", "lost+found"}
+
+
+def _skip_dir(name: str) -> bool:
+    return name.startswith(".") or name in _SKIP_DIRS or name.endswith(".piklin")
+
+
+def _quick_record(full: Path, st) -> dict:
+    """What is known about a file without opening it."""
+    return {
+        "path": str(full), "filename": full.name,
+        "ext": full.suffix.lower().lstrip("."),
+        "bytes": st.st_size, "mtime": st.st_mtime,
+        # The file's own date is the best guess available without opening
+        # it; the real EXIF date is read at import.
+        "taken_at": st.st_mtime, "date_source": "mtime",
+        "width": 0, "height": 0, "orientation": 1,
+    }
+
+
 def _classify(mount) -> tuple[str, str]:
     uri = ""
     try:
@@ -94,16 +130,22 @@ def list_devices() -> list[Device]:
         kind, icon = _classify(mount)
         path = Path(local) if local else None
 
-        # A plain filesystem mount only counts as a device if it
-        # actually carries pictures - otherwise every USB stick and
-        # backup disk would show up as a camera.
+        # A plain filesystem mount counts when it is a card with a picture
+        # folder, or a USB stick or external disk - never the system's own
+        # disks, which the desktop does not list as mounts for the user.
+        name = mount.get_name() or "Camera"
         if kind == "storage":
-            if path is None or not _looks_like_camera(path):
+            if path is None:
                 continue
+            if not _looks_like_camera(path):
+                if not _is_external(mount, path):
+                    continue
+                kind, icon = "drive", "drive-removable-media-symbolic"
+                name = mount.get_name() or "USB Drive"
 
         seen.add(uri)
         devices.append(Device(
-            id=uri, name=mount.get_name() or "Camera", path=path, uri=uri,
+            id=uri, name=name, path=path, uri=uri,
             icon=icon, kind=kind, mount=mount))
     return devices
 
@@ -134,7 +176,7 @@ def scan_device(device: Device, limit: int = 5000,
     records: list[dict] = []
     for base in photo_dirs(device):
         for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+            dirnames[:] = sorted(d for d in dirnames if not _skip_dir(d))
             for name in sorted(filenames):
                 if name.startswith("."):
                     continue
@@ -148,20 +190,51 @@ def scan_device(device: Device, limit: int = 5000,
                         st = full.stat()
                     except OSError:
                         continue
-                    rec = {
-                        "path": str(full), "filename": name,
-                        "ext": full.suffix.lower().lstrip("."),
-                        "bytes": st.st_size, "mtime": st.st_mtime,
-                        # The camera's own folder date is the best guess
-                        # available without opening the file; the real
-                        # EXIF date is read at import.
-                        "taken_at": st.st_mtime, "date_source": "mtime",
-                        "width": 0, "height": 0, "orientation": 1,
-                    }
+                    rec = _quick_record(full, st)
                 if rec:
                     records.append(rec)
                 if len(records) >= limit:
                     return records
+    return records
+
+
+def files_from_paths(paths, limit: int = 20000) -> list[dict]:
+    """The photos and videos among files and folders dropped on the window.
+
+    Folders are looked through, with their subfolders; anything that is not
+    a photo or a video is left out. Returns import records, like
+    ``scan_device``.
+    """
+    exts = iio.supported_extensions()
+    records: list[dict] = []
+    seen: set[str] = set()
+
+    def add(full: Path) -> None:
+        if full.name.startswith(".") or full.suffix.lower() not in exts:
+            return
+        key = str(full)
+        if key in seen:
+            return
+        try:
+            st = full.stat()
+        except OSError:
+            return
+        seen.add(key)
+        records.append(_quick_record(full, st))
+
+    for item in paths:
+        item = Path(item)
+        if item.is_dir():
+            for dirpath, dirnames, filenames in os.walk(item):
+                dirnames[:] = sorted(d for d in dirnames if not _skip_dir(d))
+                for name in sorted(filenames):
+                    add(Path(dirpath) / name)
+                    if len(records) >= limit:
+                        return records
+        elif item.is_file():
+            add(item)
+        if len(records) >= limit:
+            break
     return records
 
 

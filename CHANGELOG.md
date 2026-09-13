@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+Fixes for 1.0.1.
+
+- USB sticks and external drives now appear under Devices, even when their photos are not in a camera folder, so you can browse them and import what you choose
+- Photos and videos dragged from the desktop or a file manager onto an album, or onto the photo area, are now copied into the library, with progress shown while they copy. Folders can be dropped too
+
 ## 1.0.1
 
 ### Automatic backup

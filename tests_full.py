@@ -757,6 +757,35 @@ _pr = ar.backend().restore(alib)
 check("restore brings files back but never old versions",
       (alib/"Originals"/"a.jpg").exists() and not (alib/".piklin-versions").exists(), _pr)
 check("backup status reads naturally", ab.describe_last(time.time() - 300) == "5 minutes ago")
+
+# Photos dropped from the desktop, and USB drives
+from piklin import devices as _dv
+_drop = Path(TMP)/"drop"; (_drop/"Trip"/"Day 2").mkdir(parents=True); (_drop/".hidden").mkdir()
+from PIL import Image as _PI
+_PI.new("RGB", (8, 8)).save(_drop/"Trip"/"a.jpg")
+_PI.new("RGB", (8, 8)).save(_drop/"Trip"/"Day 2"/"b.png")
+(_drop/"Trip"/"notes.txt").write_text("not a photo")
+_PI.new("RGB", (8, 8)).save(_drop/".hidden"/"c.jpg")
+_single = _drop/"single.jpg"; _PI.new("RGB", (8, 8)).save(_single)
+_recs = _dv.files_from_paths([_drop/"Trip", _single, _drop/"Trip"/"a.jpg"])
+check("dropped folders are searched, non-photos and duplicates left out",
+      sorted(r["filename"] for r in _recs) == ["a.jpg", "b.png", "single.jpg"],
+      [r["filename"] for r in _recs])
+_lib2 = Library(os.path.join(TMP, "DropLib")).ensure()
+_res = _dv.import_photos(_lib2, _recs)
+check("dropped photos are copied into the library",
+      len(_res["copied"]) == 3 and all(Path(p).exists() for p in _res["copied"])
+      and _single.exists(), _res)
+class _Drive:
+    def __init__(self, removable): self.removable = removable
+    def is_removable(self): return self.removable
+class _Mount:
+    def __init__(self, drive): self.drive = drive
+    def get_drive(self): return self.drive
+check("a USB drive is offered even without a camera folder",
+      _dv._is_external(_Mount(_Drive(True)), Path("/somewhere"))
+      and _dv._is_external(_Mount(None), Path("/media/me/Untitled"))
+      and not _dv._is_external(_Mount(_Drive(False)), Path("/home/me")))
 from piklin import sidecars as _scw
 _mirror = alib/"mirror.json"
 _scw._write_json(_mirror, {"a": 1}); _m1 = _mirror.stat().st_mtime_ns
