@@ -66,6 +66,10 @@ DEFAULTS: dict[str, Any] = {
     # List of dicts; see remote.py for the shape.
     "remotes": [],
     "remote_autosync": False,
+    # Days a replaced file stays in .piklin-versions on the destination.
+    "backup_keep_versions_days": 30,
+    # The first-launch question about backups was answered.
+    "backup_onboarding_done": False,
 
     # -- privacy ---------------------------------------------------------
     "face_detection": True,            # local only; used by portrait tools

@@ -287,6 +287,28 @@ class SettingsDialog(Adw.PreferencesDialog):
         page.add(self.remote_group)
         self._refresh_remotes()
 
+        auto = Adw.PreferencesGroup(title="Automatic backup")
+        self.autosync_row = Adw.SwitchRow(
+            title="Back Up Automatically",
+            subtitle="New photos, videos and edits are copied a minute after "
+                     "they change. Nothing runs when nothing changed, and "
+                     "backups wait while battery saver is on.",
+            active=bool(self.settings.get("remote_autosync")))
+        self.autosync_row.connect("notify::active", self._on_autosync)
+        auto.add(self.autosync_row)
+        keep_days = [7, 30, 90]
+        keep = Adw.ComboRow(
+            title="Keep Replaced Versions",
+            subtitle="When a file changes, its older copy stays on the "
+                     "destination, in a .piklin-versions folder, for this long.",
+            model=Gtk.StringList.new(["7 days", "30 days", "90 days"]))
+        current = int(self.settings.get("backup_keep_versions_days", 30) or 30)
+        keep.set_selected(keep_days.index(current) if current in keep_days else 1)
+        keep.connect("notify::selected", lambda row, _p: self.settings.set(
+            "backup_keep_versions_days", keep_days[row.get_selected()]))
+        auto.add(keep)
+        page.add(auto)
+
         add_group = Adw.PreferencesGroup(title="Add a destination")
         for kind, label, help_text in remote_mod.describe_providers():
             row = Adw.ActionRow(title=label, subtitle=help_text)
@@ -602,18 +624,42 @@ class SettingsDialog(Adw.PreferencesDialog):
         use.connect("clicked", lambda _b: popover.popdown())
         return button
 
+    def _autobackup(self):
+        return getattr(self._window, "autobackup", None)
+
+    def _on_autosync(self, row, _pspec):
+        self.settings.set("remote_autosync", row.get_active())
+        if self._autobackup():
+            self._autobackup().settings_changed()
+
     def _save_remote(self, cfg):
         remotes = list(self.settings.get("remotes", []) or [])
-        remotes = [r for r in remotes if r.get("id") != cfg["id"]]
-        remotes.append(cfg)
+        is_new = not any(r.get("id") == cfg["id"] for r in remotes)
+        if is_new:
+            remotes.append(cfg)
+        else:
+            remotes = [cfg if r.get("id") == cfg["id"] else r for r in remotes]
+        first = is_new and len(remotes) == 1
         self.settings.set("remotes", remotes)
         self._refresh_remotes()
+        if first:
+            # connecting a destination is asking for backups
+            self.settings.set("remote_autosync", True)
+            if getattr(self, "autosync_row", None) is not None:
+                self.autosync_row.set_active(True)
+        aut = self._autobackup()
+        if aut is not None:
+            aut.settings_changed()
+            if is_new:
+                aut.mark_changed(delay=5)       # the first backup starts now
 
     def _on_remove_remote(self, cfg, _row, _push):
         remotes = [r for r in (self.settings.get("remotes") or [])
                    if r.get("id") != cfg["id"]]
         self.settings.set("remotes", remotes)
         self._refresh_remotes()
+        if self._autobackup() is not None:
+            self._autobackup().settings_changed()
 
     def _ask_trust(self, cfg, result, retry=None, on_trust=None):
         """Offer to trust a server's own certificate, by its fingerprint."""
@@ -685,10 +731,16 @@ class SettingsDialog(Adw.PreferencesDialog):
             files = remote_mod.library_files(library.root)
             progress = backend.push(
                 library.root, files,
+                keep_versions_days=int(
+                    self.settings.get("backup_keep_versions_days", 30) or 0),
                 on_progress=lambda p: GLib.idle_add(
                     row.set_subtitle,
                     f"{labels.get(p.phase, p.phase.title())} — "
                     f"{p.done_files:,} of {p.total_files:,} ({_fmt(p.done_bytes)})"))
+            if (progress.phase == "done" and not progress.errors
+                    and len(self.settings.get("remotes") or []) == 1
+                    and self._autobackup() is not None):
+                GLib.idle_add(self._autobackup().mark_clean)
             if progress.phase == "done":
                 text = (f"Backed up {progress.uploaded:,} file"
                         + ("s" if progress.uploaded != 1 else "")

@@ -2,6 +2,16 @@
 
 ## 1.0.1
 
+### Automatic backup
+
+- Connect a folder, a NAS, a WebDAV server or a cloud service once, and new photos, videos and edits are copied there automatically, a minute after they change
+- Nothing runs when nothing changed: no background checks and no network use, which is easy on laptop batteries. Backups also wait while battery saver is on
+- When the destination can't be reached, Piklin waits for the connection to come back and tries again
+- The sidebar shows the backup status, such as "Backed up 2 minutes ago"
+- Turn automatic backup on or off in Preferences › Backup
+- On first launch, Piklin asks where to keep a copy of your photos
+- When a file changes, its older copy stays on the destination in a `.piklin-versions` folder for 7, 30 or 90 days, so an earlier edit can still be recovered
+
 ### Library
 
 - Albums sit at the bottom of the sidebar, under a dividing line, so a growing list of albums never pushes the other sections down

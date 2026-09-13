@@ -31,12 +31,14 @@ grid still works when the network is gone.
 """
 from __future__ import annotations
 
+import datetime
 import functools
 import hashlib
 import http.client
 import ipaddress
 import json
 import os
+import re
 import shutil
 import ssl
 import subprocess
@@ -190,6 +192,10 @@ def _pairs(root: Path, files) -> Iterable[tuple[Path, str]]:
 NEVER_RESTORE = {"catalog.db", "settings.json"}
 # Replaced from the backup only when the library is empty.
 STATE_FILES = {"photo-state.json", "removed-photos.json", "watched-folders.json"}
+# Where a destination keeps the copies a backup replaced, by day.
+VERSIONS_DIR = ".piklin-versions"
+# Rebuilt from the rest on every backup: no point keeping old copies.
+NO_VERSIONS = {"catalog.db"}
 
 
 # ==========================================================================
@@ -254,6 +260,43 @@ class Backend:
     def problem(self, exc: Exception) -> TestResult:
         return TestResult(False, "Could not list folders", str(exc))
 
+    # -- previous versions ------------------------------------------------
+    # A changed file is not simply overwritten at the destination: the copy
+    # there first moves to .piklin-versions/<date>/, and is kept for some
+    # days, so an earlier edit can still be brought back from the NAS or
+    # the cloud. Old days are cleared while a backup runs, never on their own.
+    def _archive(self, rel: str, stamp: str) -> None:
+        pass
+
+    def _version_days(self) -> list[str]:
+        return []
+
+    def _drop_version(self, stamp: str) -> None:
+        pass
+
+    def _prune_versions(self, keep_days: int) -> None:
+        cutoff = (datetime.date.today() - datetime.timedelta(days=keep_days)).isoformat()
+        for stamp in self._version_days():
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", stamp) and stamp < cutoff:
+                self._drop_version(stamp)
+
+    def has_local_changes(self, root: Path, files) -> bool:
+        """Whether anything differs from what was last sent here.
+
+        Read from the local record alone - the destination is not contacted,
+        so checking costs no network and next to no power."""
+        root = Path(root)
+        manifest = self._load_manifest(root)
+        for f, rel in _pairs(root, files):
+            try:
+                st = f.stat()
+            except OSError:
+                continue
+            sent = manifest.get(rel)
+            if not sent or sent[0] != st.st_size or abs(sent[1] - st.st_mtime) >= 1:
+                return True
+        return False
+
     # -- shared sync logic ----------------------------------------------
     # What was sent to this destination: relative path -> [size, mtime] of
     # the local file when it was uploaded. Many servers stamp a file with
@@ -296,6 +339,7 @@ class Backend:
                 sent_unchanged = (bool(sent) and sent[0] == st.st_size
                                   and abs(sent[1] - st.st_mtime) < 1)
                 if same_time or sent_unchanged:
+                    manifest[rel] = [st.st_size, st.st_mtime]
                     skipped += 1
                     continue
             todo.append((f, rel, st.st_size, st.st_mtime))
@@ -303,6 +347,7 @@ class Backend:
 
     def push(self, root: Path, files: Iterable[Path],
              on_progress: Callable[[SyncProgress], None] | None = None,
+             keep_versions_days: int = 0,
              ) -> SyncProgress:
         """Upload what is missing on the destination or changed since.
 
@@ -326,6 +371,7 @@ class Backend:
 
         manifest = self._load_manifest(root)
         todo, p.skipped = self._plan(root, files, remote_index, manifest)
+        stamp = datetime.date.today().isoformat()
         p.phase = "uploading"
         p.total_files = len(todo)
         p.total_bytes = sum(t[2] for t in todo)
@@ -337,6 +383,11 @@ class Backend:
                 p.phase = "cancelled"
                 break
             p.current = rel
+            if keep_versions_days and rel in remote_index and rel not in NO_VERSIONS:
+                try:
+                    self._archive(rel, stamp)
+                except Exception:
+                    pass        # the backup goes on; only this old copy is lost
             try:
                 ok = self.put(f, rel)
             except Exception:
@@ -353,6 +404,11 @@ class Backend:
             if on_progress:
                 on_progress(p)
         self._save_manifest(root, manifest)
+        if keep_versions_days and p.phase != "cancelled" and not p.errors:
+            try:
+                self._prune_versions(keep_versions_days)
+            except Exception:
+                pass
 
         if p.phase != "cancelled":
             if p.errors and not p.uploaded:
@@ -526,6 +582,20 @@ class LocalBackend(Backend):
         shutil.copy2(local, tmp)
         tmp.replace(dest)
         return True
+
+    def _archive(self, rel: str, stamp: str) -> None:
+        src = self.base / rel
+        if src.is_file():
+            dest = self.base / VERSIONS_DIR / stamp / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(src, dest)
+
+    def _version_days(self) -> list[str]:
+        d = self.base / VERSIONS_DIR
+        return [x.name for x in d.iterdir() if x.is_dir()] if d.is_dir() else []
+
+    def _drop_version(self, stamp: str) -> None:
+        shutil.rmtree(self.base / VERSIONS_DIR / stamp, ignore_errors=True)
 
     def get(self, rel: str, local: Path) -> bool:
         src = self.base / rel
@@ -844,6 +914,24 @@ class WebDavBackend(Backend):
         return {r: (size, ts) for r, is_folder, size, ts in entries
                 if r and not is_folder}
 
+    def _archive(self, rel: str, stamp: str) -> None:
+        dest = f"{VERSIONS_DIR}/{stamp}/{rel}"
+        self._ensure_folder(self._full("/".join(dest.split("/")[:-1])))
+        self._request("MOVE", rel, extra={
+            "Destination": f"{self.url}/{urllib.parse.quote(self._full(dest))}",
+            "Overwrite": "T"})
+
+    def _version_days(self) -> list[str]:
+        try:
+            return self.list_folders(self._full(VERSIONS_DIR))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                return []
+            raise
+
+    def _drop_version(self, stamp: str) -> None:
+        self._request("DELETE", f"{VERSIONS_DIR}/{stamp}/")
+
     def put(self, local: Path, rel: str) -> bool:
         parent = "/".join(rel.split("/")[:-1])
         try:
@@ -1042,7 +1130,28 @@ class RcloneBackend(Backend):
             p.message = last or f"rclone exited {proc.returncode}"
         return proc.returncode
 
-    def push(self, root: Path, files, on_progress=None) -> SyncProgress:
+    def _sub(self, rel: str) -> str:
+        remote = self.remote.config.get("remote", "").strip().rstrip(":")
+        base = self.remote.config.get("path", "").strip().strip("/")
+        return f"{remote}:{base}/{rel}" if base else f"{remote}:{rel}"
+
+    def _version_days(self) -> list[str]:
+        base = self.remote.config.get("path", "").strip().strip("/")
+        try:
+            return self.list_folders(f"{base}/{VERSIONS_DIR}" if base else VERSIONS_DIR)
+        except RuntimeError as exc:
+            if "not found" in str(exc).lower():
+                return []
+            raise
+
+    def _drop_version(self, stamp: str) -> None:
+        exe = rclone_path()
+        if exe:
+            subprocess.run([exe, "purge", self._sub(f"{VERSIONS_DIR}/{stamp}")],
+                           capture_output=True, text=True, timeout=600)
+
+    def push(self, root: Path, files, on_progress=None,
+             keep_versions_days: int = 0) -> SyncProgress:
         """Send what is missing or modified, in one rclone run.
 
         The same rule as every destination - a file already backed up is
@@ -1066,6 +1175,7 @@ class RcloneBackend(Backend):
             return p
         manifest = self._load_manifest(root)
         todo, p.skipped = self._plan(root, list(files), remote_index, manifest)
+        stamp = datetime.date.today().isoformat()
         p.total_files = len(todo)
         p.total_bytes = sum(t[2] for t in todo)
         p.phase = "uploading"
@@ -1077,11 +1187,16 @@ class RcloneBackend(Backend):
         if plain:
             lst = self._file_list(t[1] for t in plain)
             try:
-                code = self._run_rclone(
-                    [exe, "copy", str(root), self.target,
-                     "--files-from-raw", lst, "--no-check-dest", "--no-traverse",
-                     "--transfers", "4", "--stats", "1s", "--use-json-log",
-                     "--stats-log-level", "NOTICE"], p, on_progress)
+                cmd = [exe, "copy", str(root), self.target,
+                       "--files-from-raw", lst, "--no-traverse",
+                       "--transfers", "4", "--stats", "1s", "--use-json-log",
+                       "--stats-log-level", "NOTICE"]
+                if keep_versions_days:
+                    # replaced files move here instead of being overwritten
+                    cmd += ["--backup-dir", self._sub(f"{VERSIONS_DIR}/{stamp}")]
+                else:
+                    cmd += ["--no-check-dest"]
+                code = self._run_rclone(cmd, p, on_progress)
             except Exception as exc:
                 code, p.message = 1, str(exc)
             finally:
@@ -1107,6 +1222,11 @@ class RcloneBackend(Backend):
             else:
                 p.errors += 1
         self._save_manifest(root, manifest)
+        if keep_versions_days and p.phase != "cancelled" and not p.errors:
+            try:
+                self._prune_versions(keep_versions_days)
+            except Exception:
+                pass
 
         if p.phase != "cancelled":
             p.done_files = len(todo)
@@ -1232,7 +1352,7 @@ def snapshot_catalog(root: Path) -> Path | None:
 
 
 def library_files(root: Path, include_originals: bool = True,
-                  include_cache: bool = False) -> list:
+                  include_cache: bool = False, include_catalog: bool = True) -> list:
     """Everything worth backing up, in a sensible order.
 
     Sidecars and the album definitions go first: they are tiny, and they
@@ -1251,7 +1371,7 @@ def library_files(root: Path, include_originals: bool = True,
     for f in sorted(root.glob("*.json")) + [root / "README.txt"]:
         if f.is_file():
             ordered.append(f)
-    snapshot = snapshot_catalog(root)
+    snapshot = snapshot_catalog(root) if include_catalog else None
     if snapshot:
         ordered.append((snapshot, "catalog.db"))
     if include_originals:
@@ -1276,7 +1396,7 @@ def describe_providers() -> list[tuple[str, str, str]]:
          "that pCloud Drive or Dropbox creates. No password needed."),
         ("webdav", "WebDAV server",
          "Works with QNAP, Synology, Nextcloud, ownCloud, pCloud and Box. "
-         "Needs the server URL and your sign-in. HTTPS only."),
+         "Needs the server URL and your sign-in. https://, or http:// on your home network."),
         ("rclone", "Cloud storage via rclone" +
          (f" ({len(configured)} configured)" if configured else ""),
          ("Brings S3, Backblaze B2, pCloud, Google Drive, OneDrive, "

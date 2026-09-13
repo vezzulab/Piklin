@@ -717,6 +717,53 @@ _names = _Browse(rem.Remote(id="b", name="b", kind="webdav",
                             config={"url": "https://nas:5001/dav"})).list_folders("/Users/")
 check("folder picker lists server folders, hiding system ones",
       _names == ["alex", "Browser Station"], _names)
+
+# Automatic backup and previous versions
+import datetime as _dt
+from piklin import autobackup as ab
+alib = Path(TMP)/"auto"/"Lib"; (alib/"Edits").mkdir(parents=True); (alib/"Originals").mkdir()
+(alib/"Edits"/"a.jpg.json").write_text('{"v": 1}')
+(alib/"Originals"/"a.jpg").write_bytes(b"x" * 100)
+adest = Path(TMP)/"auto"/"nas"; adest.mkdir()
+ar = rem.Remote(id="auto", name="NAS", kind="local", config={"path": str(adest)})
+o1 = ab.run_backup(alib, [ar], keep_days=30)
+check("automatic backup sends a new library", o1.ok and o1.uploaded == 2, o1)
+_calls = []
+_ot, _op = rem.LocalBackend.test, rem.LocalBackend.push
+rem.LocalBackend.test = lambda self: _calls.append("test") or _ot(self)
+rem.LocalBackend.push = lambda self, *a, **k: _calls.append("push") or _op(self, *a, **k)
+o2 = ab.run_backup(alib, [ar], keep_days=30)
+check("nothing changed: the destination is not contacted", o2.ok and _calls == [], _calls)
+time.sleep(1.1)
+(alib/"Edits"/"a.jpg.json").write_text('{"v": 2, "more": true}')
+o3 = ab.run_backup(alib, [ar], keep_days=30)
+rem.LocalBackend.test, rem.LocalBackend.push = _ot, _op
+_today = _dt.date.today().isoformat()
+_kept = adest/".piklin-versions"/_today/"Edits"/"a.jpg.json"
+check("only the changed file is uploaded",
+      o3.ok and o3.uploaded == 1
+      and json.loads((adest/"Edits"/"a.jpg.json").read_text())["v"] == 2, o3)
+check("the replaced copy is kept as a previous version",
+      _kept.exists() and json.loads(_kept.read_text())["v"] == 1)
+_old = adest/".piklin-versions"/"2000-01-01"; _old.mkdir(parents=True); (_old/"x.json").write_text("{}")
+_recent = adest/".piklin-versions"/(_dt.date.today() - _dt.timedelta(days=3)).isoformat()
+_recent.mkdir(parents=True)
+time.sleep(1.1)
+(alib/"Edits"/"a.jpg.json").write_text('{"v": 3, "more": true, "x": 1}')
+ab.run_backup(alib, [ar], keep_days=30)
+check("versions older than the limit are cleared", not _old.exists() and _recent.exists())
+(alib/"Originals"/"a.jpg").unlink()
+_pr = ar.backend().restore(alib)
+check("restore brings files back but never old versions",
+      (alib/"Originals"/"a.jpg").exists() and not (alib/".piklin-versions").exists(), _pr)
+check("backup status reads naturally", ab.describe_last(time.time() - 300) == "5 minutes ago")
+from piklin import sidecars as _scw
+_mirror = alib/"mirror.json"
+_scw._write_json(_mirror, {"a": 1}); _m1 = _mirror.stat().st_mtime_ns
+time.sleep(0.02)
+_scw._write_json(_mirror, {"a": 1})
+check("unchanged state files are not rewritten (no needless backups)",
+      _mirror.stat().st_mtime_ns == _m1)
 check("missing folder reports clearly",
       not rem.Remote(id="x",name="x",kind="local",config={"path":"/nope"}).backend().test().ok)
 check("plain HTTP refused",

@@ -25,11 +25,18 @@ VERSION = 1
 
 
 def _write_json(path: Path, payload: dict) -> None:
-    """Write atomically, so an interrupted save cannot truncate the file."""
+    """Write atomically, so an interrupted save cannot truncate the file.
+
+    A file whose content would not change is left alone: these mirrors are
+    rewritten after every change in the library, and a needless rewrite
+    would look like a change to the backup and send the file again."""
+    text = json.dumps(payload, indent=2, sort_keys=False)
     try:
+        if path.is_file() and path.read_text() == text:
+            return
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_text(json.dumps(payload, indent=2, sort_keys=False))
+        tmp.write_text(text)
         tmp.replace(path)
     except OSError:
         pass

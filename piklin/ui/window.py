@@ -111,6 +111,8 @@ class MainWindow(Adw.ApplicationWindow):
             self.catalog.forget_expired_trash(days=30)
         except Exception:
             pass
+        from ..autobackup import AutoBackup
+        self.autobackup = AutoBackup(library, self.settings, self._on_backup_status)
         GLib.idle_add(self._first_run)
 
     # ==================================================================
@@ -212,6 +214,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.footer.append(self.footer_counts)
         self.footer.append(self.footer_meter)
         self.footer.append(self.footer_space)
+        # "Backed up 2 minutes ago", "Backing up to NAS — 12 of 40"
+        self.footer_backup = Gtk.Label(xalign=0.0, ellipsize=3, visible=False)
+        self.footer_backup.add_css_class("pika-footer-space")
+        self.footer_backup.add_css_class("pika-footer-backup")
+        self.footer.append(self.footer_backup)
         # Supporting Piklin: one quiet button, never a pop-up or a nag.
         from ..paths import SUPPORT_URL
         if SUPPORT_URL:
@@ -425,6 +432,8 @@ class MainWindow(Adw.ApplicationWindow):
         else:
             self.footer_space.set_text(self._human_bytes(used))
             self.footer_meter.set_visible(False)
+        if getattr(self, "autobackup", None) is not None:
+            self.autobackup.refresh_status()
 
     def refresh_sidebar(self):
         counts = self.catalog.counts()
@@ -843,6 +852,7 @@ class MainWindow(Adw.ApplicationWindow):
                 self._select_sidebar_key("library")
                 self._on_selection_changed(self.grid)
                 self._show_toast(toast)
+                self._backup_soon()
                 if delete_after and result.get("sources"):
                     self._ask_delete_from_device(device, result["sources"])
                 return False
@@ -917,6 +927,7 @@ class MainWindow(Adw.ApplicationWindow):
                 if result["failed"]:
                     msg += f", {result['failed']} failed"
                 self._show_toast(msg)
+                self._backup_soon()
                 self.refresh_sidebar()
                 # Stay on the camera: what was just imported moves to
                 # "Already Imported".
@@ -1476,6 +1487,7 @@ class MainWindow(Adw.ApplicationWindow):
             sidecars.write_all(self.library, self.catalog)
         except Exception:
             pass
+        self._backup_soon()
 
     def _refresh(self):
         self.grid.refresh()
@@ -2212,7 +2224,12 @@ class MainWindow(Adw.ApplicationWindow):
                     continue
                 if data.get("uuid") == row["uuid"]:
                     existing.unlink(missing_ok=True)
-            target.write_text(json.dumps(payload, indent=2))
+            text = json.dumps(payload, indent=2)
+            # unchanged albums are not rewritten: a rewrite would look like
+            # a change and send the file to the backup again
+            if not target.is_file() or target.read_text() != text:
+                target.write_text(text)
+                self._backup_soon()
         except OSError:
             pass
 
@@ -2354,6 +2371,45 @@ class MainWindow(Adw.ApplicationWindow):
             self._show_welcome()
         else:
             self._start_scan(None)
+            GLib.timeout_add(800, self._maybe_offer_backup)
+        return False
+
+    def _backup_soon(self):
+        if getattr(self, "autobackup", None) is not None:
+            self.autobackup.mark_changed()
+
+    def _on_backup_status(self, text):
+        self.footer_backup.set_text(text)
+        self.footer_backup.set_tooltip_text(text or None)
+        self.footer_backup.set_visible(bool(text))
+
+    def _maybe_offer_backup(self):
+        """Once, at the start: where should a copy of the photos go?"""
+        if self.settings.get("backup_onboarding_done") or self.settings.get("remotes"):
+            return False
+        if self.get_visible_dialog() is not None:
+            return True                 # after the welcome is answered
+        dialog = Adw.AlertDialog(
+            heading="Keep a Copy of Your Photos",
+            body="Piklin can back up your photos and videos to a drive, a NAS "
+                 "or a cloud service. Once one is connected, new photos, "
+                 "videos and edits are copied there automatically.\n\n"
+                 "Nothing leaves your computer unless you choose where.")
+        # Stacked buttons read bottom-up, so "Not Now" is added first to end
+        # up last, under the three choices.
+        dialog.add_response("later", "Not Now")
+        dialog.add_response("rclone", "Cloud Service (rclone)")
+        dialog.add_response("webdav", "NAS or WebDAV Server")
+        dialog.add_response("local", "Folder or Drive")
+        dialog.set_close_response("later")
+
+        def done(_d, response):
+            self.settings.set("backup_onboarding_done", True)
+            if response in ("local", "webdav", "rclone"):
+                settings = self._open_settings("remotes")
+                settings._on_add_remote(None, response)
+        dialog.connect("response", done)
+        dialog.present(self)
         return False
 
     def _show_welcome(self):
@@ -2370,27 +2426,32 @@ class MainWindow(Adw.ApplicationWindow):
             dialog.set_response_appearance("pictures",
                                            Adw.ResponseAppearance.SUGGESTED)
         dialog.add_response("choose", "Choose Folder…")
+        dialog.set_close_response("later")      # Escape means "Later"
 
         def done(d, response):
             if response == "pictures":
                 self._start_scan([str(pictures)])
             elif response == "choose":
                 self._on_add_folder()
+            GLib.timeout_add(600, self._maybe_offer_backup)
         dialog.connect("response", done)
         dialog.present(self)
 
     def _open_settings(self, page="general"):
         from .settings_dialog import SettingsDialog
-        SettingsDialog(self, self.library, self.catalog, self.settings,
-                       self.thumbs, page).present(self)
+        dialog = SettingsDialog(self, self.library, self.catalog, self.settings,
+                                self.thumbs, page)
+        dialog.present(self)
+        return dialog
 
     def _on_about(self):
+        from ..app import VERSION
         from ..engine import tools as tools_mod
         from .. import imageio as iio_mod
         about = Adw.AboutDialog(
             application_name="Piklin",
             application_icon="piklin",
-            version="1.0.0",
+            version=VERSION,
             developer_name="Vezzu Studio",
             website="https://vezzu.studio",
             copyright="© 2026 Vezzu Studio. All rights reserved.",

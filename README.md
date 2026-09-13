@@ -55,11 +55,14 @@
 
 ### Back up to your own server
 
-Connect the backup destination you prefer and press **Back Up Now**.
+Connect the backup destination you prefer once. From then on, new photos, videos and edits are copied there automatically, a minute after they change. Nothing runs when nothing changed, so it is easy on laptop batteries.
 
 - **Any folder your computer can see.** A NAS such as QNAP or Synology (over SMB or NFS), a USB drive, or a mounted cloud drive.
 - **WebDAV, built in.** Nextcloud, ownCloud, QNAP, Synology, pCloud, Box and any other WebDAV server, with nothing extra to install.
 - **Seventy-plus cloud services through [rclone](https://rclone.org).** S3, Backblaze B2, Google Drive, OneDrive, Dropbox, SFTP, Mega and more, using the rclone remotes you have already set up.
+
+- **Previous versions.** When a file changes, its older copy stays on the destination for 7, 30 or 90 days.
+- **Restore Missing Files.** Bring back only what is gone from your library, without replacing anything.
 
 Passwords are kept in your system keyring, never in a settings file. Backups go one way: they never delete your photos.
 
