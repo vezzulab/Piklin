@@ -27,6 +27,11 @@ The first public release of Piklin.
 - Export as MP4 (H.264), WebM (VP9) or animated GIF, from 480p to 4K
 - Live photos: a still and its short clip appear as one item
 
+### Backup
+
+- Back up the library to the destination you prefer: any mounted folder (NAS, USB drive, cloud drive), a WebDAV server (Nextcloud, ownCloud, QNAP, Synology, pCloud, Box) or more than seventy services through rclone
+- Passwords are kept in the system keyring; backups never delete your photos
+
 ### Privacy
 
 - No accounts, analytics or telemetry; nothing leaves the computer unless you set up a backup
