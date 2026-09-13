@@ -18,7 +18,7 @@ STAGE="$HERE/deb-root"
 WHEELS="$HERE/wheel-cache"
 ARCH=amd64
 PKG=piklin
-VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$ROOT/pikalicious/app.py")"
+VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$ROOT/piklin/app.py")"
 MAINTAINER="${MAINTAINER:-Vezzu Studio <maintainer@example.com>}"
 # Ubuntu 24.04 / Mint 22: 3.12. Debian 13, Ubuntu 25.x: 3.13. Newer: 3.14.
 PYVERS="${PYVERS:-3.12 3.13 3.14}"
@@ -45,7 +45,7 @@ mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/bin" "$SHARE/data" "$LIB/common" "$DOC" \
 
 # ---------------------------------------------------------------- app code
 say "Copying application"
-cp -r "$ROOT/pikalicious" "$SHARE/"
+cp -r "$ROOT/piklin" "$SHARE/"
 find "$SHARE" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 for d in fonts icons models; do cp -r "$ROOT/data/$d" "$SHARE/data/"; done
 install -m 755 "$HERE/deb/piklin" "$STAGE/usr/bin/piklin"

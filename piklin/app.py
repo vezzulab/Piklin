@@ -15,7 +15,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from .paths import APP_ID, LIBRARY_EXT, Library, remember_library
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 
 def _load_bundled_fonts():
@@ -324,7 +324,7 @@ def main(argv=None):
     target = getattr(app, "relaunch_library", None)
     if target:
         os.execv(sys.executable, [sys.executable, "-s", "-m",
-                                  "pikalicious.app", "--library", target])
+                                  "piklin.app", "--library", target])
     return status
 
 

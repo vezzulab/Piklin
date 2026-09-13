@@ -2,10 +2,15 @@
 set -e
 
 if [ "$1" = "configure" ]; then
+    # Before 1.0.1 the code lived in /usr/share/piklin/pikalicious; only
+    # the bytecode compiled here is left of it after an upgrade.
+    if [ -d /usr/share/piklin/pikalicious ] && ! dpkg -S /usr/share/piklin/pikalicious >/dev/null 2>&1; then
+        rm -rf /usr/share/piklin/pikalicious
+    fi
     # Byte-compile now, as root, so the first launch is not slowed down
     # by Python compiling everything into a directory it cannot write to.
     pyver="$(python3 -c 'import sys; print("python%d.%d" % sys.version_info[:2])')"
-    for d in /usr/share/piklin/pikalicious \
+    for d in /usr/share/piklin/piklin \
              "/usr/lib/piklin/$pyver" /usr/lib/piklin/common; do
         [ -d "$d" ] && python3 -m compileall -q -j0 "$d" >/dev/null 2>&1 || true
     done

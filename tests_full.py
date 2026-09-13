@@ -27,7 +27,7 @@ TMP = tempfile.mkdtemp(prefix="pika-test-")
 
 # ===================================================================
 section("1. Image I/O and metadata")
-from pikalicious import imageio as iio
+from piklin import imageio as iio
 check("41+ formats supported", len(iio.supported_extensions()) >= 41,
       f"{len(iio.supported_extensions())}")
 check("no missing codecs", not iio.missing_codecs(), str(iio.missing_codecs()))
@@ -44,8 +44,8 @@ check("fingerprint differs per file", iio.fingerprint(SRC[0]) != iio.fingerprint
 
 # ===================================================================
 section("2. Edit engine: every tool")
-from pikalicious.engine import ops, tools, looks
-from pikalicious.engine.stack import EditStack, Renderer, render_full
+from piklin.engine import ops, tools, looks
+from piklin.engine.stack import EditStack, Renderer, render_full
 test = iio.load_rgb(SRC[1], max_side=1000)
 face = iio.load_rgb(FACE[0], max_side=800) if FACE else test
 ctx = tools.Ctx(scale=0.5, full_size=(2000, 1500))
@@ -127,11 +127,11 @@ check("sidecar is readable JSON", json.loads(open(p).read())["format"] == "pikal
 check("disabled layer is a no-op",
       (lambda s: (s.layers[0].__setattr__("enabled", False),
                   np.allclose(Renderer().render(test, s, scale=.5), test))[1])
-      (EditStack([__import__("pikalicious.engine.stack", fromlist=["Layer"]).Layer("noir", tools.REGISTRY["noir"].defaults())])))
+      (EditStack([__import__("piklin.engine.stack", fromlist=["Layer"]).Layer("noir", tools.REGISTRY["noir"].defaults())])))
 
 # ===================================================================
 section("3. Face detection")
-from pikalicious.engine import faces
+from piklin.engine import faces
 check("model bundled", faces.model_path() is not None)
 check("detector available", faces.available())
 if FACE:
@@ -147,7 +147,7 @@ check("no false positive on noise",
 
 # ===================================================================
 section("4. Catalog")
-from pikalicious.catalog import Catalog
+from piklin.catalog import Catalog
 db = os.path.join(TMP, "cat.db"); cat = Catalog(db)
 rid = cat.add_root(os.path.dirname(SRC[0]))
 cat.upsert_photos([iio.probe(s, rid) for s in SRC[:8]])
@@ -225,10 +225,10 @@ check("an unrecognised rule does not break the album",
       cat.smart_album_count(unknown) == len(cat.browse()))
 
 section("4d. Cameras and devices")
-from pikalicious import devices as devmod
-from pikalicious.paths import Library
-from pikalicious.indexer import Indexer
-from pikalicious.thumbs import ThumbCache
+from piklin import devices as devmod
+from piklin.paths import Library
+from piklin.indexer import Indexer
+from piklin.thumbs import ThumbCache
 card = os.path.join(TMP, "card")
 dcim = os.path.join(card, "DCIM", "100NIKON")
 os.makedirs(dcim, exist_ok=True)
@@ -317,7 +317,7 @@ cat.untrash([2])
 check("recovering puts it back", cat.photo(2)["trashed_at"] is None)
 
 section("5. Library layout and index rebuild")
-from pikalicious.paths import Library
+from piklin.paths import Library
 lib = Library(os.path.join(TMP, "Lib")).ensure()
 check("layout created", all(d.is_dir() for d in
       (lib.root, lib.edits, lib.albums, lib.originals, lib.exports, lib.trash, lib.thumbs)))
@@ -330,8 +330,8 @@ check("sidecar path mirrors the tree",
 
 # ===================================================================
 section("6. Indexer")
-from pikalicious.indexer import Indexer
-from pikalicious.thumbs import ThumbCache
+from piklin.indexer import Indexer
+from piklin.thumbs import ThumbCache
 photos = os.path.join(TMP, "photos"); os.makedirs(photos+"/a", exist_ok=True)
 for i, s in enumerate(SRC[:6]): shutil.copy2(s, f"{photos}/a/P{i}.jpg")
 os.makedirs(photos+"/node_modules", exist_ok=True); shutil.copy2(SRC[0], photos+"/node_modules/skip.jpg")
@@ -448,7 +448,7 @@ check("summary respects the Filter menu",
 # Adjust Date and Time / Adjust Location: kept across a rescan (which
 # would otherwise re-read EXIF) and restored from photo-state.json.
 import datetime as _dt
-from pikalicious import sidecars as sc
+from piklin import sidecars as sc
 class _LibD: pass
 fake = _LibD(); fake.root = Path(libroot); fake.albums = Path(libroot) / "Albums"
 fake.albums.mkdir(exist_ok=True)
@@ -480,7 +480,7 @@ with cat5.write() as cur:
     cur.execute("UPDATE photos SET trashed_at=? WHERE id=?", (time.time() - 31 * 86400, old_id))
 # Title, caption and keywords (Info panel): searchable, kept across
 # a rescan, and restored from photo-state.json after catalog.db is rebuilt.
-from pikalicious import sidecars as sc
+from piklin import sidecars as sc
 tid = cat5.q("SELECT id FROM photos WHERE filename='imported.jpg'")[0]["id"]
 cat5.set_text_fields([tid], title="Faro", caption="Atardecer en la costa",
                      keywords="mar, viaje")
@@ -524,7 +524,7 @@ check("Recently Deleted forgets items after 30 days (file kept)",
 
 # ===================================================================
 section("7. Compression")
-from pikalicious import compress as cz, quality as qual
+from piklin import compress as cz, quality as qual
 cam = os.path.join(TMP, "cam.jpg")
 from PIL import Image
 ex = Image.Exif(); ex[0x010F]="FUJIFILM"; ex[0x0110]="X-T5"
@@ -618,7 +618,7 @@ check("original file untouched by editing",
 
 # ===================================================================
 section("9. Backup destinations")
-from pikalicious import remote as rem
+from piklin import remote as rem
 dest = os.path.join(TMP, "nas"); os.makedirs(dest)
 (lib.edits/"x.jpg.json").write_text("{}")
 r = rem.Remote(id="t", name="T", kind="local", config={"path": dest})
@@ -701,7 +701,7 @@ check("rclone absence explained",
 
 # ===================================================================
 section("10. Settings")
-from pikalicious.settings import Settings
+from piklin.settings import Settings
 s1 = Settings(os.path.join(TMP,"s.json"))
 check("light theme is the default", s1["theme"] == "light", s1["theme"])
 s1["grid_size"] = 260; s1.set("remotes", [{"id":"a"}])
@@ -709,7 +709,7 @@ check("settings persist", Settings(os.path.join(TMP,"s.json"))["grid_size"] == 2
 check("unknown keys fall back to defaults", s1.get("nope", "dflt") == "dflt")
 
 # Every option a dialog saves survives a restart (load() keeps known keys only).
-from pikalicious.settings import Settings as _S
+from piklin.settings import Settings as _S
 _sp = os.path.join(TMP, "persist-settings.json")
 _s1 = _S(_sp)
 for _k, _v in (("grid_aspect", "original"), ("export_size", 2), ("export_naming", "title"),
@@ -727,10 +727,10 @@ check("location is left out of exports by default",
 section("Videos")
 # A short clip written with the OpenCV inside Piklin: no system tools needed.
 import cv2 as _cv2
-from pikalicious import video as _vid
-from pikalicious.paths import Library as _L
-from pikalicious.catalog import Catalog as _C
-from pikalicious.indexer import Indexer as _Ix
+from piklin import video as _vid
+from piklin.paths import Library as _L
+from piklin.catalog import Catalog as _C
+from piklin.indexer import Indexer as _Ix
 _vdir = os.path.join(TMP, "videos"); os.makedirs(_vdir)
 _clip = os.path.join(_vdir, "VID_20240501_101500.mp4")
 _vw = _cv2.VideoWriter(_clip, _cv2.VideoWriter_fourcc(*"mp4v"), 25, (320, 240))
@@ -808,7 +808,7 @@ check("importing the card again does not duplicate the smaller copy",
 
 section("Video editing and export")
 import av as _av
-from pikalicious import video_edit as ve
+from piklin import video_edit as ve
 _E = ve.VideoEdit(duration=10.0, start=1.0, end=9.0, cuts=[(3.0, 4.0), (6.0, 6.5)], speed=2.0)
 check("kept pieces skip the trimmed ends and the cuts",
       _E.segments() == [(1.0, 3.0), (4.0, 6.0), (6.5, 9.0)], str(_E.segments()))
@@ -875,11 +875,11 @@ except ve.Cancelled:
 check("cancelled export leaves nothing behind", _ok)
 
 section("Library package can be moved")
-from pikalicious.paths import Library as _L, LIBRARY_NAME
-from pikalicious.catalog import Catalog as _C
-from pikalicious.settings import Settings as _St
-from pikalicious.indexer import Indexer as _Ix
-from pikalicious import library_move as lm, sidecars as _sc
+from piklin.paths import Library as _L, LIBRARY_NAME
+from piklin.catalog import Catalog as _C
+from piklin.settings import Settings as _St
+from piklin.indexer import Indexer as _Ix
+from piklin import library_move as lm, sidecars as _sc
 
 def _library_with_photo(root):
     lib_ = _L(root).ensure()
@@ -929,9 +929,9 @@ check("imported photo inside a watched folder is not flagged missing",
 
 # ===================================================================
 section("Renaming a photo renames the file")
-from pikalicious import photo_rename as pr_
-from pikalicious.engine.stack import EditStack as _ES
-from pikalicious.engine.stack import Layer as _Layer
+from piklin import photo_rename as pr_
+from piklin.engine.stack import EditStack as _ES
+from piklin.engine.stack import Layer as _Layer
 libR, cR, pidR, aidR = _library_with_photo(os.path.join(TMP, "Rename Library.piklin"))
 oldR = Path(cR.photo(pidR)["path"])
 _ES([_Layer("noir", tools.REGISTRY["noir"].defaults())]).save(libR.edit_sidecar(oldR), source=str(oldR))

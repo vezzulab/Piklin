@@ -35,6 +35,6 @@ sys.path[:0] = paths
 os.environ["PYTHONPATH"] = os.pathsep.join(
     paths + ([os.environ["PYTHONPATH"]] if os.environ.get("PYTHONPATH") else []))
 
-from pikalicious.app import main  # noqa: E402
+from piklin.app import main  # noqa: E402
 
 sys.exit(main())

@@ -28,7 +28,7 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app, library: Library):
         super().__init__(application=app, title="Piklin",
                          default_width=1400, default_height=900)
-        self.add_css_class("pikalicious")
+        self.add_css_class("piklin")
         self.library = library
         self.settings = Settings(library.settings)
         self.catalog = Catalog(library.db)

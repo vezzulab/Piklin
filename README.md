@@ -74,7 +74,7 @@ Passwords are kept in your system keyring, never in a settings file. Backups go 
 Download the latest `.deb` from **[Releases](https://github.com/vezzulab/Piklin/releases)**, then install it:
 
 ```bash
-sudo apt install ./piklin_1.0.0_amd64.deb
+sudo apt install ./piklin_1.0.1_amd64.deb
 ```
 
 Piklin brings everything it needs for photos, video and sound. It uses your system's GTK 4 and libadwaita.

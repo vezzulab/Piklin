@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.1
+
+### Backup
+
+- **Restore Missing Files** copies back from a backup only what is gone from the library. Nothing in the library is replaced, and photos deleted on purpose stay deleted. Restoring into a new, empty library brings back albums, favourites and edits too
+- Connect to a WebDAV server on your home network with `http://`; servers on the internet still require `https://`
+- Trust a server's own security certificate, as most home NAS devices use, after checking its fingerprint. Piklin warns if the certificate ever changes
+- A file already backed up is never uploaded again unless it was modified, including on servers that stamp files with their upload time
+- The backup folder is created on the server when it does not exist yet
+- Backups stop with a clear message when the password is wrong, the server cannot be reached or the address does not answer WebDAV
+- Favourites, hidden photos and removed photos are now included in backups, with a consistent copy of the library index
+- Large videos are uploaded without loading them into memory
+- Backup destinations can be edited, including their password
+
 ## 1.0.0
 
 The first public release of Piklin.

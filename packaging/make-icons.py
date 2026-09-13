@@ -2,7 +2,7 @@
 """Draw the Piklin app icon at every size the .deb installs.
 
 The camera is the same drawing as the animated mark in the sidebar
-(pikalicious/ui/brand.py), caught as the flash fires, above the name in
+(piklin/ui/brand.py), caught as the flash fires, above the name in
 Inter. Below 64 px the name cannot be read, so the small sizes show the
 camera alone, larger. The icon is also what a library package
 ("Piklin Library.piklin") shows in the file manager.
@@ -23,8 +23,8 @@ gi.require_version("Pango", "1.0")
 gi.require_version("PangoCairo", "1.0")
 from gi.repository import Pango, PangoCairo  # noqa: E402
 
-from pikalicious.app import _load_bundled_fonts  # noqa: E402
-from pikalicious.ui.brand import _rounded, draw_camera  # noqa: E402
+from piklin.app import _load_bundled_fonts  # noqa: E402
+from piklin.ui.brand import _rounded, draw_camera  # noqa: E402
 
 SIZES = (16, 24, 32, 48, 64, 128, 256, 512)
 OUT = ROOT / "data" / "icons"

@@ -63,8 +63,8 @@ infobar.info, infobar.question, infobar.warning, infobar.error {
 calendar > header > button:active { color: @pika_accent; }
 textview:drop(active) { caret-color: @pika_accent; }
 
-window.pikalicious,
-window.pikalicious entry, window.pikalicious button, window.pikalicious label,
+window.piklin,
+window.piklin entry, window.piklin button, window.piklin label,
 popover, dialog, alertdialog, tooltip {
   font-family: Inter, "Noto Sans", "Cantarell",
                sans-serif;
@@ -110,8 +110,8 @@ popover, dialog, alertdialog, tooltip {
 @define-color warning_color        #000000;
 @define-color warning_bg_color     #f2f2f4;
 
-window.pikalicious,
-window.pikalicious .pika-content {
+window.piklin,
+window.piklin .pika-content {
   background: @pika_wall;
   color: @pika_text;
 }
@@ -461,10 +461,10 @@ headerbar, .pika-header { background: #ffffff; }
  * labels are, so both are pinned here.  The exceptions below are the
  * places where white is the correct colour: a selected sidebar row, and
  * the badges that sit on top of a photograph. */
-window.pikalicious label,
-window.pikalicious image,
-window.pikalicious button image,
-window.pikalicious button label,
+window.piklin label,
+window.piklin image,
+window.piklin button image,
+window.piklin button label,
 popover label, popover image, popover modelbutton,
 dialog label, dialog image,
 .pika-tool-panel label, .pika-tool-panel image,
@@ -918,8 +918,8 @@ statuspage description { color: @pika_text_dim; }
  * ==================================================================== */
 
 /* Window corners, generous rather than square. */
-window.pikalicious { border-radius: 12px; }
-window.pikalicious.csd { border-radius: 12px; }
+window.piklin { border-radius: 12px; }
+window.piklin.csd { border-radius: 12px; }
 
 
 
@@ -1001,16 +1001,16 @@ dialog-host > dialog sheet, dialog-host > alertdialog sheet { border-radius: 14p
 /* -- contrast and chrome, final word ------------------------------------
  * These come last and are deliberately specific.
  *
- * Text on dark buttons. "window.pikalicious button label" (one class,
+ * Text on dark buttons. "window.piklin button label" (one class,
  * three elements) paints every button label black, and it outranked the
  * white-text exception for filled buttons (one class, two elements) - so
  * with a black accent, Export / Edit / Import were black text on a black
  * button, and Delete black on red. Dialogs live inside the window, so they
  * were hit too. Scoping the exception the same way makes it win. */
-window.pikalicious button.suggested-action,
-window.pikalicious button.suggested-action label,
-window.pikalicious button.suggested-action image,
-window.pikalicious .pika-toolbar button.suggested-action label {
+window.piklin button.suggested-action,
+window.piklin button.suggested-action label,
+window.piklin button.suggested-action image,
+window.piklin .pika-toolbar button.suggested-action label {
   color: #ffffff;
 }
 
@@ -1018,20 +1018,20 @@ window.pikalicious .pika-toolbar button.suggested-action label {
  * either: the owner wants nothing orange, and the usual red read as
  * orange. They look like any other button - the words say what they do,
  * and every one of them asks for confirmation first. */
-window.pikalicious button.destructive-action,
-window.pikalicious .pika-toolbar button.destructive-action {
+window.piklin button.destructive-action,
+window.piklin .pika-toolbar button.destructive-action {
   background: #f2f2f4;
   border: 1px solid @pika_hairline;
 }
-window.pikalicious button.destructive-action:hover,
-window.pikalicious .pika-toolbar button.destructive-action:hover {
+window.piklin button.destructive-action:hover,
+window.piklin .pika-toolbar button.destructive-action:hover {
   background: #e6e6ea;
 }
-window.pikalicious button.destructive-action label,
-window.pikalicious button.destructive-action image,
-window.pikalicious .pika-toolbar button.destructive-action label,
-window.pikalicious .response-area button.destructive,
-window.pikalicious .response-area button.destructive label {
+window.piklin button.destructive-action label,
+window.piklin button.destructive-action image,
+window.piklin .pika-toolbar button.destructive-action label,
+window.piklin .response-area button.destructive,
+window.piklin .response-area button.destructive label {
   color: #000000;
 }
 
@@ -1321,7 +1321,7 @@ levelbar.pika-footer-meter trough block.empty { background: transparent; }
  * never reached it. */
 menubutton.pika-sidebar-add,
 menubutton.pika-sidebar-add > button,
-window.pikalicious menubutton.pika-sidebar-add > button {
+window.piklin menubutton.pika-sidebar-add > button {
   min-width: 22px;
   min-height: 22px;
   padding: 0;
@@ -1362,12 +1362,12 @@ menubutton.pika-sidebar-add > button:checked image { color: #000000; }
 /* The frame is an outline on the tile's container: outlines are painted
    after the children, so it sits on top of the photo. An inset box-shadow
    is painted underneath the widget's content and the photo covered it. */
-window.pikalicious .pika-tile-button.selected,
+window.piklin .pika-tile-button.selected,
 .pika-grid .pika-tile-button.selected {
   outline: 4px solid #1d1d1f;
   outline-offset: -4px;
 }
-window.pikalicious .pika-tile-button.selected .pika-tile,
+window.piklin .pika-tile-button.selected .pika-tile,
 .pika-grid .pika-tile-button.selected .pika-tile {
   outline: 2px solid #ffffff;
   outline-offset: -6px;
@@ -1379,7 +1379,7 @@ window.pikalicious .pika-tile-button.selected .pika-tile,
  * reached it too, leaving a black check on a black disc. And a day's band
  * never shows a focus rectangle - clicking a photo focuses the list row
  * behind it, which drew a grey box around the whole day. */
-window.pikalicious .pika-grid image.pika-select-check,
+window.piklin .pika-grid image.pika-select-check,
 .pika-grid .pika-tile-button image.pika-select-check,
 image.pika-select-check {
   color: #ffffff;
@@ -1397,13 +1397,13 @@ image.pika-select-check {
  * tool panel stay white. Full screen is the photo alone on black. */
 .pika-stage, .pika-stage viewport, .pika-stage > overlay,
 scrolledwindow.pika-stage, scrolledwindow.pika-stage > viewport,
-window.pikalicious .pika-stage {
+window.piklin .pika-stage {
   background-color: #1c1c1e;
 }
 .pika-stage picture { background: transparent; }
 .pika-fullscreen, .pika-fullscreen .pika-stage,
 .pika-fullscreen scrolledwindow, .pika-fullscreen viewport,
-window.pikalicious .pika-fullscreen .pika-stage {
+window.piklin .pika-fullscreen .pika-stage {
   background-color: #000000;
 }
 
@@ -1421,7 +1421,7 @@ scrolledwindow.pika-stage picture { margin: 18px 20px 30px 20px; }
  * over the sidebar. Black, like everything else in the chrome. */
 .pika-brand { margin: 0; }
 .pika-header .pika-brand label.pika-app-title,
-window.pikalicious .pika-brand label.pika-app-title {
+window.piklin .pika-brand label.pika-app-title {
   font-size: 1.45rem;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -1468,8 +1468,8 @@ popover.pika-context-menu separator {
   padding: 6px 12px;
   box-shadow: 0 8px 28px alpha(#000000, 0.38);
 }
-window.pikalicious .pika-player-controls button,
-window.pikalicious .pika-player-controls menubutton > button {
+window.piklin .pika-player-controls button,
+window.piklin .pika-player-controls menubutton > button {
   background: transparent;
   border: none;
   box-shadow: none;
@@ -1478,26 +1478,26 @@ window.pikalicious .pika-player-controls menubutton > button {
   padding: 0 6px;
   border-radius: 8px;
 }
-window.pikalicious .pika-player-controls button:hover,
-window.pikalicious .pika-player-controls menubutton > button:hover {
+window.piklin .pika-player-controls button:hover,
+window.piklin .pika-player-controls menubutton > button:hover {
   background: alpha(#ffffff, 0.12);
 }
-window.pikalicious .pika-player-controls button:checked {
+window.piklin .pika-player-controls button:checked {
   background: alpha(#ffffff, 0.22);
 }
-window.pikalicious .pika-player-controls label,
-window.pikalicious .pika-player-controls image,
-window.pikalicious .pika-player-controls button label,
-window.pikalicious .pika-player-controls button image,
-window.pikalicious .pika-player-controls menubutton > button label,
-window.pikalicious .pika-player-controls menubutton > button arrow {
+window.piklin .pika-player-controls label,
+window.piklin .pika-player-controls image,
+window.piklin .pika-player-controls button label,
+window.piklin .pika-player-controls button image,
+window.piklin .pika-player-controls menubutton > button label,
+window.piklin .pika-player-controls menubutton > button arrow {
   color: #ffffff;
 }
 .pika-player-time {
   font-feature-settings: "tnum";
   font-size: 0.85rem;
 }
-window.pikalicious .pika-player-rate > button label { font-weight: 600; }
+window.piklin .pika-player-rate > button label { font-weight: 600; }
 .pika-player-scrubber trough {
   background: alpha(#ffffff, 0.24);
   min-height: 4px;
@@ -1515,7 +1515,7 @@ window.pikalicious .pika-player-rate > button label { font-weight: 600; }
   border: none;
   box-shadow: 0 1px 4px alpha(#000000, 0.4);
 }
-window.pikalicious button.pika-player-big {
+window.piklin button.pika-player-big {
   min-width: 76px;
   min-height: 76px;
   border-radius: 50%;
@@ -1524,19 +1524,19 @@ window.pikalicious button.pika-player-big {
   border: none;
   box-shadow: 0 8px 28px alpha(#000000, 0.35);
 }
-window.pikalicious button.pika-player-big image {
+window.piklin button.pika-player-big image {
   color: #ffffff;
   -gtk-icon-size: 30px;
 }
-window.pikalicious button.pika-player-big:hover { background: #1c1c1e; }
+window.piklin button.pika-player-big:hover { background: #1c1c1e; }
 .pika-player-note {
   background: alpha(#1c1c1e, 0.86);
   color: #ffffff;
   border-radius: 10px;
   padding: 8px 14px;
 }
-window.pikalicious .pika-video-badge label,
-window.pikalicious .pika-video-badge image {
+window.piklin .pika-video-badge label,
+window.piklin .pika-video-badge image {
   color: #ffffff;
   font-feature-settings: "tnum";
 }
@@ -1549,7 +1549,7 @@ window.pikalicious .pika-video-badge image {
   padding: 8px 0 10px 0;
   border-top: 1px solid alpha(#ffffff, 0.06);
 }
-window.pikalicious .pika-timeline-label {
+window.piklin .pika-timeline-label {
   color: alpha(#ffffff, 0.72);
   font-size: 0.8rem;
   font-feature-settings: "tnum";
@@ -1558,14 +1558,14 @@ window.pikalicious .pika-timeline-label {
 /* -- live photos -----------------------------------------------------------------
  * LIVE on a tile, and the button that plays it in the viewer: white letters
  * on a dark pill, like every other badge here. */
-window.pikalicious .pika-live-badge {
+window.piklin .pika-live-badge {
   color: #ffffff;
   font-weight: 700;
   letter-spacing: 0.05em;
 }
 /* A white pill with black letters: it reads over the dark stage and over
  * a bright photo alike (dark on dark vanished beside the picture). */
-window.pikalicious button.pika-live-button {
+window.piklin button.pika-live-button {
   background: alpha(#ffffff, 0.92);
   border: none;
   border-radius: 999px;
@@ -1573,8 +1573,8 @@ window.pikalicious button.pika-live-button {
   min-height: 26px;
   box-shadow: 0 2px 10px alpha(#000000, 0.35);
 }
-window.pikalicious button.pika-live-button:hover { background: #ffffff; }
-window.pikalicious button.pika-live-button label {
+window.piklin button.pika-live-button:hover { background: #ffffff; }
+window.piklin button.pika-live-button label {
   color: #000000;
   font-weight: 700;
   font-size: 0.78rem;
@@ -1584,7 +1584,7 @@ window.pikalicious button.pika-live-button label {
 /* -- Buy Me a Coffee -------------------------------------------------------------
  * Under the storage line: a small white pill with a hairline edge and black
  * words, as quiet as the footer around it. */
-window.pikalicious button.pika-support {
+window.piklin button.pika-support {
   background: #ffffff;
   border: 1px solid alpha(#000000, 0.12);
   border-radius: 999px;
@@ -1592,9 +1592,9 @@ window.pikalicious button.pika-support {
   padding: 0 14px;
   box-shadow: 0 1px 3px alpha(#000000, 0.06);
 }
-window.pikalicious button.pika-support:hover { background: #f2f2f4; }
-window.pikalicious button.pika-support label,
-window.pikalicious button.pika-support image {
+window.piklin button.pika-support:hover { background: #f2f2f4; }
+window.piklin button.pika-support label,
+window.piklin button.pika-support image {
   color: #000000;
   font-size: 0.9rem;
   font-weight: 700;
