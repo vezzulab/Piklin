@@ -821,17 +821,9 @@ progressbar progress { background: @pika_accent; }
 .pika-section-title { margin: 22px 20px 0 20px; }
 .pika-section-sub   { margin: 2px 20px 12px 20px; }
 
-/* A hairline that stops short of the edges reads as a divider between
-   days rather than as a border drawn around a panel. */
-.pika-grid > row:not(:first-child) .pika-section {
-  border-top: 1px solid @pika_hairline_soft;
-  margin-top: 4px;
-}
-
-.pika-tile-button {
-  transition: transform 110ms ease-out;
-}
-.pika-tile-button:hover { transform: scale(1.015); }
+/* Days are separated by white space and their date only (see the end of
+   this file); a hairline between them read as a break in the photos, and a
+   tile growing under the pointer drew a seam over its neighbours. */
 .pika-tile-button.selected .pika-tile {
   outline: 3px solid @pika_accent;
   outline-offset: -3px;
@@ -1665,17 +1657,14 @@ toast button:hover {
 .pika-copy-bar trough { background-color: #ebebee; min-height: 6px; border-radius: 3px; }
 .pika-copy-bar progress { background-color: #0b0b0b; min-height: 6px; border-radius: 3px; }
 
-/* Space and the hairline go between days or folders only. A row that just
- * continues the same day (big days are split for speed) sits flush. */
-.pika-section { padding-bottom: 0; }
-.pika-grid > row:not(:first-child) .pika-section {
-  margin-top: 24px;
-}
-.pika-grid > row .pika-section.pika-section-continued {
-  border-top: none;
-  margin-top: 0;
-  padding-top: 0;
-}
+/* Days are told apart by white space and their date, never by a line or a
+ * grey band: the space is the section's own white padding, not a margin
+ * that would show the list behind it. A row that just continues the same
+ * day (big days are split for speed) sits flush. */
+.pika-grid, .pika-grid > row { background: #ffffff; }
+.pika-section { border: none; padding-bottom: 0; }
+.pika-grid > row:not(:first-child) .pika-section { padding-top: 20px; }
+.pika-grid > row .pika-section.pika-section-continued { padding-top: 0; }
 .pika-grid { padding-bottom: 24px; }
 
 /* A folder's card without a cover photo yet */
@@ -1683,4 +1672,15 @@ toast button:hover {
   background-color: #f1f1f2;
   color: #86868b;
   border-radius: 12px;
+}
+
+/* The mark on an edited photo in the grid: green on a white disc, so the
+ * photos that were changed stand out at a glance. Prefixed with the window
+ * so the rules that keep badges white on black do not win over it. */
+window.piklin .pika-badge.pika-edited-badge {
+  background: #ffffff;
+  color: #1f9d55;
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: 0 1px 3px alpha(#000000, 0.30);
 }

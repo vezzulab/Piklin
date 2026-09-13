@@ -996,6 +996,95 @@ ES = {
     "Keep Copying": "Seguir copiando",
     "Stop and Close": "Detener y cerrar",
 
+    # -- help ----------------------------------------------------------------------------------
+    "Help": "Ayuda",
+    "How to Use Piklin": "Cómo usar Piklin",
+    "What each button does, in a few words. Open this guide at any time from Help in the menu, or press F1.":
+        "Lo que hace cada botón, en pocas palabras. Abre esta guía cuando quieras desde Ayuda en el menú, o pulsa F1.",
+    "Getting Started": "Primeros pasos",
+    "Add your photos": "Añade tus fotos",
+    "Open the menu ⋮ at the top of the sidebar and choose Add Folder… Your photos stay where they are: Piklin only shows them.":
+        "Abre el menú ⋮ arriba de la barra lateral y elige Añadir carpeta… Tus fotos se quedan donde están: Piklin solo las muestra.",
+    "Bring in photos from a camera or USB drive": "Trae fotos de una cámara o una unidad USB",
+    "Connect it and it appears under Devices in the sidebar. Choose the photos you want and press Import.":
+        "Conéctala y aparece en Dispositivos, en la barra lateral. Elige las fotos que quieras y pulsa Importar.",
+    "Drag and drop": "Arrastrar y soltar",
+    "Drag photos from your files onto Piklin to add them, or onto an album in the sidebar to put them straight into that album.":
+        "Arrastra fotos desde tus archivos a Piklin para añadirlas, o a un álbum de la barra lateral para ponerlas directamente en ese álbum.",
+    "Moving Around": "Cómo moverte",
+    "Years, Months, Days, All Photos": "Años, Meses, Días, Todas las fotos",
+    "The buttons at the top change how your photos are grouped.": "Los botones de arriba cambian cómo se agrupan tus fotos.",
+    "Move the slider at the top left to make the photos bigger or smaller.":
+        "Mueve el control deslizante de arriba a la izquierda para ver las fotos más grandes o más pequeñas.",
+    "Whole photos or squares": "Fotos completas o cuadradas",
+    "The button next to the slider shows each photo whole instead of cut to a square.":
+        "El botón junto al control deslizante muestra cada foto completa en vez de recortada en cuadrado.",
+    "Search": "Buscar",
+    "Type in the search box to find photos by name, date, month, camera or keywords. Ctrl+F":
+        "Escribe en la caja de búsqueda para encontrar fotos por nombre, fecha, mes, cámara o palabras clave. Ctrl+F",
+    "Show only favourites, videos, edited photos, photos with a location and more. Show All brings everything back.":
+        "Muestra solo favoritos, videos, fotos editadas, fotos con ubicación y más. Mostrar todo vuelve a enseñarlo todo.",
+    "Choosing Photos": "Elegir fotos",
+    "Choose a photo": "Elegir una foto",
+    "Click a photo once. A green check shows it is chosen. Click it again to let it go.":
+        "Haz clic una vez en una foto. Una marca verde indica que está elegida. Vuelve a hacer clic para soltarla.",
+    "Choose several": "Elegir varias",
+    "Hold Ctrl and click each photo, or hold Shift to choose everything between two photos. Ctrl+A chooses them all.":
+        "Mantén Ctrl y haz clic en cada foto, o mantén Mayús para elegir todo lo que hay entre dos fotos. Ctrl+A las elige todas.",
+    "Open a photo": "Abrir una foto",
+    "Double-click a photo to see it big. Press Esc to go back.": "Haz doble clic en una foto para verla en grande. Pulsa Esc para volver.",
+    "More options": "Más opciones",
+    "Right-click a photo to see everything you can do with it.": "Haz clic derecho en una foto para ver todo lo que puedes hacer con ella.",
+    "The Bar for Chosen Photos": "La barra de las fotos elegidas",
+    "Marks the chosen photos as favourites, so they appear in Favourites. Key: F":
+        "Marca las fotos elegidas como favoritas, para que aparezcan en Favoritos. Tecla: F",
+    "The photos wait there for 30 days, so you can still get them back. Key: Delete":
+        "Las fotos esperan ahí 30 días, así que todavía puedes recuperarlas. Tecla: Supr",
+    "Saves copies of the chosen photos in a folder you pick, to share or print them. Ctrl+E":
+        "Guarda copias de las fotos elegidas en la carpeta que elijas, para compartirlas o imprimirlas. Ctrl+E",
+    "Puts the chosen photos into an album.": "Pone las fotos elegidas en un álbum.",
+    "Turns the chosen photos right or left. Ctrl+R turns right, Ctrl+Shift+R turns left.":
+        "Gira las fotos elegidas a la derecha o a la izquierda. Ctrl+R gira a la derecha, Ctrl+Mayús+R a la izquierda.",
+    "Looking at One Photo": "Viendo una foto",
+    "Returns to your photos. Key: Esc": "Vuelve a tus fotos. Tecla: Esc",
+    "Previous and Next": "Anterior y siguiente",
+    "Moves to the photo before or after this one.": "Pasa a la foto anterior o a la siguiente.",
+    "Turns the photo. You can turn it back at any time.": "Gira la foto. Puedes volver a girarla cuando quieras.",
+    "Marks this photo as a favourite. Key: F": "Marca esta foto como favorita. Tecla: F",
+    "Full Screen": "Pantalla completa",
+    "Shows the photo on the whole screen. Key: F11": "Muestra la foto en toda la pantalla. Tecla: F11",
+    "Info": "Información",
+    "Shows the date, camera, size and place, and lets you add a title or keywords. Ctrl+I":
+        "Muestra la fecha, la cámara, el tamaño y el lugar, y te deja añadir un título o palabras clave. Ctrl+I",
+    "Opens the editing tools. Key: Enter": "Abre las herramientas de edición. Tecla: Intro",
+    "Editing": "Editar",
+    "Your original is always safe": "Tu original siempre está a salvo",
+    "Edits are kept separately. Remove All Edits brings the photo back exactly as it was.":
+        "Los cambios se guardan aparte. Quitar todos los cambios deja la foto exactamente como estaba.",
+    "Undo and redo": "Deshacer y rehacer",
+    "Ctrl+Z undoes the last change and Ctrl+Shift+Z brings it back.":
+        "Ctrl+Z deshace el último cambio y Ctrl+Mayús+Z lo vuelve a poner.",
+    "Compare with the original": "Comparar con el original",
+    "Hold the M key to see the photo without your edits.": "Mantén pulsada la tecla M para ver la foto sin tus cambios.",
+    "Albums and the Sidebar": "Álbumes y barra lateral",
+    "New album or folder": "Nuevo álbum o carpeta",
+    "Press + next to Albums. A folder keeps several albums together.":
+        "Pulsa + junto a Álbumes. Una carpeta reúne varios álbumes.",
+    "Open a folder": "Abrir una carpeta",
+    "Click a folder to see its albums as cards, then click one to open it.":
+        "Haz clic en una carpeta para ver sus álbumes como tarjetas, y luego haz clic en uno para abrirlo.",
+    "Photos you hide with Ctrl+L leave your library and wait here.":
+        "Las fotos que ocultas con Ctrl+L salen de tu biblioteca y esperan aquí.",
+    "Finds photos that are exact copies, so you can keep just one.":
+        "Encuentra las fotos que son copias exactas, para que te quedes solo con una.",
+    "Get deleted photos back within 30 days.": "Recupera las fotos eliminadas durante 30 días.",
+    "Keeping Your Photos Safe": "Proteger tus fotos",
+    "Backups": "Copias de seguridad",
+    "Open the menu ⋮ and choose Backups… to keep a copy on a drive, a NAS or a cloud service. New photos are copied there automatically.":
+        "Abre el menú ⋮ y elige Copias de seguridad… para guardar una copia en una unidad, un NAS o un servicio en la nube. Las fotos nuevas se copian allí automáticamente.",
+    "Change the language, the look, and how photos are brought in. Ctrl+,":
+        "Cambia el idioma, el aspecto y cómo entran las fotos. Ctrl+,",
+
     # -- video export ----------------------------------------------------------------------------
     "MP4 (H.264)": "MP4 (H.264)",
     "WebM (VP9)": "WebM (VP9)",

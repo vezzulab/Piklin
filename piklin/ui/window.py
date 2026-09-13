@@ -170,8 +170,11 @@ class MainWindow(Adw.ApplicationWindow):
         menu.append_section(None, section)
         end = Gio.Menu()
         end.append(_("Preferences"), "win.preferences")
-        end.append(_("Check for Updates…"), "win.check-updates")
-        end.append(_("About Piklin"), "win.about")
+        help_menu = Gio.Menu()
+        help_menu.append(_("How to Use Piklin"), "win.help")
+        help_menu.append(_("Check for Updates…"), "win.check-updates")
+        help_menu.append(_("About Piklin"), "win.about")
+        end.append_submenu(_("Help"), help_menu)
         menu.append_section(None, end)
         # An icon-only button has no name a screen reader can announce;
         # the tooltip text doubles as its accessible label.
@@ -349,7 +352,12 @@ class MainWindow(Adw.ApplicationWindow):
                 ("export", "document-save-symbolic", _("Export…"),
                  self._on_bulk_export),
                 ("album", "list-add-symbolic", _("Add to Album…"),
-                 self._on_bulk_album)):
+                 self._on_bulk_album),
+                # Turns every selected photo at once.
+                ("rotate-ccw", "object-rotate-left-symbolic",
+                 _("Rotate Left (Ctrl+Shift+R)"), lambda *_a: self._on_rotate(-1)),
+                ("rotate-cw", "object-rotate-right-symbolic",
+                 _("Rotate Right (Ctrl+R)"), lambda *_a: self._on_rotate(1))):
             b = Gtk.Button(icon_name=icon, tooltip_text=tip)
             b.connect("clicked", cb)
             self.action_bar.pack_start(b)
@@ -1384,6 +1392,7 @@ class MainWindow(Adw.ApplicationWindow):
             "storage": lambda *_: self._open_settings("storage"),
             "remotes": lambda *_: self._open_settings("remotes"),
             "about": lambda *_: self._on_about(),
+            "help": lambda *_: self._on_help(),
             "select-all": lambda *_: self.grid.select_all(),
             "escape": lambda *_: self._on_escape(),
             "favorite": lambda *_: self._on_bulk_favorite(None),
@@ -1437,6 +1446,7 @@ class MainWindow(Adw.ApplicationWindow):
                               # Rotating is everyday; looking for new photos
                               # is rare, and F5 is where people expect it.
                               ("F5", "win.rescan"),
+                              ("F1", "win.help"),
                               ("<Ctrl>r", "win.rotate-cw"),
                               ("<Ctrl><Shift>r", "win.rotate-ccw"),
                               # One key for each view.
@@ -1857,16 +1867,44 @@ class MainWindow(Adw.ApplicationWindow):
         if not items:
             self._show_toast(_("Select the photos to rotate."))
             return
-        for it in items:
-            try:
-                quick_edit.rotate(self.library, self.catalog, it.id, it.path, turns,
-                                  is_video=bool(getattr(it, "is_video", False)),
-                                  duration=float(getattr(it, "duration", 0) or 0))
-            except Exception:
-                pass
-        if page == "viewer":
-            self.viewer.show_photo(self.viewer.item)
-        self._refresh()
+        # Each photo's tile turns the moment its edit is saved, from the
+        # thumbnail it already had; the exact render follows in the
+        # background. A lock keeps quick repeated presses in order.
+        thumbs, grid = self.thumbs, self.grid
+        if not hasattr(self, "_rotate_lock"):
+            self._rotate_lock = threading.Lock()
+
+        def work():
+            turned = []
+            with self._rotate_lock:
+                for it in items:
+                    before = thumbs.existing(it.path)
+                    try:
+                        quick_edit.rotate(self.library, self.catalog, it.id, it.path, turns,
+                                          is_video=bool(getattr(it, "is_video", False)),
+                                          duration=float(getattr(it, "duration", 0) or 0))
+                    except Exception:
+                        continue
+                    rough = thumbs.turn_cached(it.path, before, turns)
+                    turned.append((it, rough))
+                    GLib.idle_add(grid.repaint_items, [it.id])
+                GLib.idle_add(finished, [it for it, _rough in turned])
+                for it, rough in turned:
+                    for size in rough:
+                        thumbs.generate(it.path, size, force=True)
+                    if rough:
+                        GLib.idle_add(grid.repaint_items, [it.id])
+
+        def finished(done):
+            for it in done:
+                row = self.catalog.photo(it.id)
+                if row is not None:
+                    it.edited = bool(row["edit_version"])
+            if page == "viewer" and self.viewer.item is not None:
+                self.viewer.show_photo(self.viewer.item)
+            self.refresh_sidebar()
+            return False
+        threading.Thread(target=work, daemon=True).start()
 
     def _on_editor_closed(self, _editor):
         if self.viewer.item is not None:
@@ -1901,7 +1939,7 @@ class MainWindow(Adw.ApplicationWindow):
                 (_("Import All New Items ({count})").format(count=n_new) if n_new
                  else _("All Items Imported")))
             self._import_btn.set_sensitive(bool(n or n_new))
-        for key in ("favorite", "trash", "album"):
+        for key in ("favorite", "trash", "album", "rotate-ccw", "rotate-cw"):
             self._bar_buttons[key].set_visible(not on_device)
         if on_device:
             self.action_bar.set_revealed(True)
@@ -1923,7 +1961,7 @@ class MainWindow(Adw.ApplicationWindow):
             (_("Recover All") if not self.grid.selected_ids() else _("Recover")) if in_trash
             else (_("Remove from this album") if self._scope == "album"
                   else _("Move to Recently Deleted")))
-        for key in ("favorite", "album"):
+        for key in ("favorite", "album", "rotate-ccw", "rotate-cw"):
             self._bar_buttons[key].set_sensitive(not in_trash)
 
     def _on_merge_duplicates(self, _btn):
@@ -2822,6 +2860,10 @@ class MainWindow(Adw.ApplicationWindow):
                                 self.thumbs, page)
         dialog.present(self)
         return dialog
+
+    def _on_help(self):
+        from .help_dialog import HelpDialog
+        HelpDialog().present(self)
 
     def _on_about(self):
         from ..app import VERSION

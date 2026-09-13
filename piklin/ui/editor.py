@@ -228,7 +228,7 @@ class EditorView(Gtk.Box):
             "head_pose": "face-smile-symbolic",
         }
         for group, tool_list in tools.groups().items():
-            header = Gtk.Label(label=group, xalign=0.0)
+            header = Gtk.Label(label=_(group), xalign=0.0)
             header.add_css_class("pika-tool-group")
             box.append(header)
             flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE,

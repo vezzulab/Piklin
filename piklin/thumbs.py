@@ -121,9 +121,52 @@ class ThumbCache:
         out = Renderer(max_cached=1).render(img, stack, scale=scale, full_size=full)
         return iio.to_pil(out)
 
+    def existing(self, src: Path | str) -> dict[int, Path]:
+        """The thumbnails already made for src as it is now, by size."""
+        return {s: p for s in SIZES if (p := self.get_path(src, s)) is not None}
+
+    def turn_cached(self, src: Path | str, before: dict[int, Path],
+                    turns: int) -> list[int]:
+        """Right after a quarter turn, give the photo's new state a thumbnail
+        at once by turning the one it had (``before``, from ``existing``).
+
+        Turning a small JPEG takes milliseconds; rendering the edits again
+        from the original takes seconds. Returns the sizes written this
+        way, which ``generate(force=True)`` should still render exactly.
+        """
+        quarter = turns % 4
+        if not quarter or not before:
+            return []
+        src = Path(src)
+        try:
+            mt = src.stat().st_mtime
+        except OSError:
+            return []
+        method = {1: Image.Transpose.ROTATE_270, 2: Image.Transpose.ROTATE_180,
+                  3: Image.Transpose.ROTATE_90}[quarter]
+        written = []
+        for size, old in before.items():
+            out = self.path_for(self._key(src, mt, size)[0])
+            if out.is_file():
+                continue                # turned back to a state already made
+            try:
+                with Image.open(old) as im:
+                    turned = im.transpose(method)
+                out.parent.mkdir(parents=True, exist_ok=True)
+                tmp = out.with_suffix(".turn")
+                turned.save(tmp, "JPEG", quality=88)
+                tmp.replace(out)
+            except (OSError, ValueError):
+                continue
+            written.append(size)
+        return written
+
     def generate(self, src: Path | str, size: int = GRID_SIZE,
-                 mtime: float | None = None) -> Path | None:
-        """Create the thumbnail synchronously. Safe to call concurrently."""
+                 mtime: float | None = None, force: bool = False) -> Path | None:
+        """Create the thumbnail synchronously. Safe to call concurrently.
+
+        ``force`` renders it again even if one exists (replacing a quick
+        turned copy with the exact one)."""
         src = Path(src)
         try:
             mt = mtime if mtime is not None else src.stat().st_mtime
@@ -131,7 +174,7 @@ class ThumbCache:
             return None
         key, sidecar = self._key(src, mt, size)
         out = self.path_for(key)
-        if out.is_file():
+        if out.is_file() and not force:
             return out
 
         # Collapse duplicate requests for the same tile: the grid asks for

@@ -861,6 +861,20 @@ check("turning back to upright removes the edit",
 _t2 = _tc.generate(_wide, 256)
 check("the thumbnail follows the edit back", _t2 is not None and _t2 != _t1
       and _PI.open(_t2).size[0] > _PI.open(_t2).size[1], _PI.open(_t2).size if _t2 else None)
+# Turning shows at once: the old thumbnail is turned instead of rendered again.
+_before = {256: _t2}
+_qe.rotate(_rlib, None, None, _wide, 1)
+_t0 = time.perf_counter()
+_rough = _tc.turn_cached(_wide, _before, 1)
+_elapsed = time.perf_counter() - _t0
+_t3 = _tc.get_path(_wide, 256)
+check("a turned photo has its new thumbnail straight away",
+      _rough == [256] and _t3 is not None and _PI.open(_t3).size[1] > _PI.open(_t3).size[0]
+      and _elapsed < 0.2, (_rough, _elapsed))
+_t4 = _tc.generate(_wide, 256, force=True)
+check("the exact thumbnail replaces the quick one", _t4 == _t3
+      and _PI.open(_t4).size[1] > _PI.open(_t4).size[0])
+_qe.rotate(_rlib, None, None, _wide, -1)
 _tc.shutdown()
 from piklin import updates as _up
 check("newer versions are recognised",

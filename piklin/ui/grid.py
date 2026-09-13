@@ -324,6 +324,7 @@ class PhotoGrid(Gtk.Box):
         if item.edited:
             b = Gtk.Image(icon_name="document-edit-symbolic", pixel_size=12)
             b.add_css_class("pika-badge")
+            b.add_css_class("pika-edited-badge")
             badges.append(b)
         if item.favorite:
             b = Gtk.Image(icon_name="starred-symbolic", pixel_size=12)
@@ -424,6 +425,19 @@ class PhotoGrid(Gtk.Box):
             threading.Thread(target=engine.unload, daemon=True).start()
             if item.texture is not None:
                 picture.set_paintable(item.texture)
+
+    def repaint_items(self, ids) -> None:
+        """Show these photos' current thumbnails in place, without reloading
+        the grid (a reload blanks every tile while they decode again)."""
+        for pid in ids:
+            item = self._by_id.get(pid)
+            if item is None:
+                continue
+            pictures = self._tile_widgets.get(pid, [])
+            if pictures:
+                self._request_thumb(item, pictures[0])
+            else:
+                item.texture = None     # not on screen: fetched when it is
 
     def _request_thumb(self, item, picture):
         def done(path):
