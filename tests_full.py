@@ -782,6 +782,68 @@ class _Drive:
 class _Mount:
     def __init__(self, drive): self.drive = drive
     def get_drive(self): return self.drive
+# Copying many files: in parallel, stoppable, same names kept apart
+import threading as _th
+_many = Path(TMP)/"many"; (_many/"a").mkdir(parents=True); (_many/"b").mkdir()
+for _i in range(6):
+    _PI.new("RGB", (16, 16), (_i * 30, 0, 0)).save(_many/"a"/f"img{_i}.jpg")
+_PI.new("RGB", (16, 16), (0, 200, 0)).save(_many/"b"/"img0.jpg")     # same name, other photo
+_lib3 = Library(os.path.join(TMP, "ManyLib")).ensure()
+_arrived = []
+_r3 = _dv.import_photos(_lib3, _dv.files_from_paths([_many]), on_placed=_arrived.append, workers=4)
+_names = sorted(p.name for p in _lib3.originals.rglob("*.jpg"))
+check("files are copied in parallel without overwriting same-named photos",
+      len(_r3["copied"]) == 7 and "img0.jpg" in _names and "img0-2.jpg" in _names, _names)
+check("each file is reported as it arrives", len(_arrived) == 7 and not _r3["cancelled"])
+check("no half-copied temporary files are left",
+      not any(p.name.endswith(".part") for p in _lib3.originals.rglob("*")))
+_stop = _th.Event(); _stop.set()
+_lib4 = Library(os.path.join(TMP, "StopLib")).ensure()
+_r4 = _dv.import_photos(_lib4, _dv.files_from_paths([_many]), cancel=_stop)
+check("Stop copying keeps nothing half done", _r4["cancelled"] and not _r4["copied"], _r4)
+from piklin.catalog import Catalog as _Cat3
+from piklin.indexer import Indexer as _Ix3
+_cat3 = _Cat3(_lib3.db)
+_ix3 = _Ix3(_cat3, None, library_root=_lib3.root)
+_added = _ix3.add_files(_r3["placed"][:3])
+check("photos can be shown while the rest are still copying",
+      _added == 3 and int(_cat3.scalar("SELECT COUNT(*) FROM photos", (), 0)) == 3)
+_gone = str(Path(_r3["placed"][3]).resolve())
+with _cat3.write() as _cur:
+    _cur.execute("INSERT OR REPLACE INTO removed(path, removed_at) VALUES(?, ?)", (_gone, time.time()))
+_ix3.add_files([_gone])
+check("a removed photo imported again on purpose comes back",
+      _gone not in set(_cat3.removed_paths())
+      and _cat3.photo_by_path(_gone) is not None)
+# One-click rotate, thumbnails that follow edits, update checks
+from piklin import quick_edit as _qe
+from piklin.engine.stack import EditStack as _ES2
+from piklin.thumbs import ThumbCache as _TC
+_rlib = Library(os.path.join(TMP, "RotLib")).ensure()
+_wide = _rlib.originals / "wide.jpg"
+_PI.new("RGB", (400, 200), (10, 120, 200)).save(_wide)
+_q = _qe.rotate(_rlib, None, None, _wide, 1)
+_st = _ES2.load(_rlib.edit_sidecar(_wide))
+check("rotating adds a quarter turn as an ordinary edit",
+      _q == 1 and len(_st) == 1 and _st.layers[0].params["quarter_turns"] == 1)
+_q = _qe.rotate(_rlib, None, None, _wide, 2)
+check("rotating again adds up instead of stacking layers",
+      _q == 3 and len(_ES2.load(_rlib.edit_sidecar(_wide))) == 1)
+_tc = _TC(_rlib.thumbs, workers=1, edits=_rlib.edit_sidecar)
+_t1 = _tc.generate(_wide, 256)
+check("the thumbnail shows the photo turned", _t1 is not None
+      and _PI.open(_t1).size[1] > _PI.open(_t1).size[0], _PI.open(_t1).size if _t1 else None)
+_qe.rotate(_rlib, None, None, _wide, 1)
+check("turning back to upright removes the edit",
+      not _rlib.edit_sidecar(_wide).exists())
+_t2 = _tc.generate(_wide, 256)
+check("the thumbnail follows the edit back", _t2 is not None and _t2 != _t1
+      and _PI.open(_t2).size[0] > _PI.open(_t2).size[1], _PI.open(_t2).size if _t2 else None)
+_tc.shutdown()
+from piklin import updates as _up
+check("newer versions are recognised",
+      _up.is_newer("1.0.3", "1.0.2") and _up.is_newer("v1.1.0", "1.0.9")
+      and not _up.is_newer("1.0.2", "1.0.2") and not _up.is_newer("1.0.1", "1.0.2"))
 check("a USB drive is offered even without a camera folder",
       _dv._is_external(_Mount(_Drive(True)), Path("/somewhere"))
       and _dv._is_external(_Mount(None), Path("/media/me/Untitled"))

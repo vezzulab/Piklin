@@ -1638,3 +1638,29 @@ toast button image {
 toast button:hover {
     background-color: alpha(#000000, 0.07);
 }
+
+/* Photos being copied in: a card at the bottom right with Stop */
+.pika-copy-card {
+    background-color: #ffffff;
+    color: #000000;
+    border-radius: 16px;
+    border: 1px solid alpha(#000000, 0.10);
+    box-shadow: 0 8px 28px alpha(#000000, 0.16), 0 1px 3px alpha(#000000, 0.10);
+    padding: 12px 14px 14px 16px;
+    min-width: 320px;
+}
+.pika-copy-label { color: #000000; font-weight: 600; }
+.pika-copy-percent { color: #000000; font-weight: 700; font-feature-settings: "tnum"; }
+.pika-copy-stop {
+    background: #0b0b0b;
+    color: #ffffff;
+    border-radius: 999px;
+    padding: 2px 14px;
+    min-height: 28px;
+    font-weight: 600;
+}
+.pika-copy-stop label { color: #ffffff; }
+.pika-copy-stop:hover { background: #2a2a2c; }
+.pika-copy-stop:disabled { background: alpha(#000000, 0.25); }
+.pika-copy-bar trough { background-color: #ebebee; min-height: 6px; border-radius: 3px; }
+.pika-copy-bar progress { background-color: #0b0b0b; min-height: 6px; border-radius: 3px; }

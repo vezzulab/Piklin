@@ -15,6 +15,8 @@ into several sections; no single row is ever unbounded.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import threading
 from datetime import datetime
 
@@ -547,14 +549,16 @@ class PhotoGrid(Gtk.Box):
     # ==================================================================
     # querying
     # ==================================================================
-    def load_records(self, records, subtitle="", already=None) -> None:
-        """Show photos that are not in the catalog - a camera's card.
+    def load_records(self, records, subtitle="", already=None, root=None) -> None:
+        """Show photos that are not in the catalog - a camera, a card or a
+        USB drive.
 
         Device photos deliberately never enter the database: they are
         somewhere you are looking, not part of the library, until they
-        are imported.
+        are imported. They are grouped by the folder they are in, and a big
+        folder is split into several rows, so only what is on screen is
+        built - a drive with thousands of photos opens at once.
         """
-        from .models import DeviceItem
         self._generation += 1
         self._scope = "device"
         self._album_id = None
@@ -568,27 +572,63 @@ class PhotoGrid(Gtk.Box):
         self._tile_widgets = {}
         self._tile_containers = {}
         self.sections.remove_all()
+        self._device_root = Path(root) if root else None
+        self._device_name = subtitle
+        # The import screen: what is new first, then what is already in the
+        # library - still visible, so nothing seems to have vanished from
+        # the card, but kept apart and out of "Import All New Items".
+        self._device_already = set(already or ())
+        self._device_old = []
+        self.append_records(records, 0)
+        old = self._device_old
+        for i in range(0, len(old), MAX_PER_SECTION):
+            chunk = old[i:i + MAX_PER_SECTION]
+            self.sections.append(DaySection(
+                "Already Imported" if i == 0 else "",
+                (f"{len(old)} item" + ("s" if len(old) != 1 else "")
+                 + " already in your library") if i == 0 else "", chunk))
+        self._items.extend(old)
 
-        items = [DeviceItem(i, rec) for i, rec in enumerate(records)]
-        # The import screen: what is new first, then what is already
-        # in the library - still visible, so nothing seems to have vanished
-        # from the card, but kept apart and out of "Import All New Items".
-        already = set(already or ())
-        new = [it for it in items if it.record.get("fingerprint") not in already]
-        old = [it for it in items if it.record.get("fingerprint") in already]
-        self._items = new + old
-        self._by_id = {it.id: it for it in items}
-        if new:
-            self.sections.append(DaySection(
-                subtitle or "New Items",
-                f"{len(new)} new item" + ("s" if len(new) != 1 else ""), new))
-        if old:
-            self.sections.append(DaySection(
-                "Already Imported",
-                f"{len(old)} item" + ("s" if len(old) != 1 else "")
-                + " already in your library", old))
-        self.status.set_visible(not items)
-        self.scroller.set_visible(bool(items))
+    def append_records(self, records, start) -> None:
+        """More photos found on a device while it is still being read."""
+        from .models import DeviceItem
+        prev_tail = self._tail
+        grew_tail = False
+        for i, rec in enumerate(records, start):
+            item = DeviceItem(i, rec)
+            self._by_id[item.id] = item
+            fp = rec.get("fingerprint")
+            if fp and fp in self._device_already:
+                self._device_old.append(item)
+                continue
+            self._items.append(item)
+            folder = Path(rec.get("path", "")).parent
+            try:
+                rel = folder.relative_to(self._device_root) if self._device_root else folder
+                key = str(rel)
+            except ValueError:
+                key = str(folder)
+            title = (self._device_name or "New Items") if key in ("", ".") else key
+            tail = self._tail
+            if (tail is not None and tail[0] == key
+                    and len(tail[1].items) < MAX_PER_SECTION):
+                tail[1].items.append(item)
+                if tail is prev_tail:
+                    grew_tail = True
+                continue
+            # a folder's first row carries its name; the rows after it don't
+            section = DaySection(title if tail is None or tail[0] != key else "", "",
+                                 [item])
+            self._tail = (key, section)
+            self.sections.append(section)
+        if grew_tail and prev_tail is not None:
+            # the row already on screen gained photos: have it redrawn
+            found, pos = self.sections.find(prev_tail[1])
+            if found:
+                self.sections.items_changed(pos, 1, 1)
+        has_items = bool(self._items or self._device_old)
+        self.status.set_visible(not has_items)
+        self.scroller.set_visible(has_items)
 
     # What an empty view says depends on where you are standing: an empty
     # album is not an empty library, and "add a folder" was the wrong

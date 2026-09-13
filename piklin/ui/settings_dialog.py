@@ -104,9 +104,8 @@ class SettingsDialog(Adw.PreferencesDialog):
 
         privacy = Adw.PreferencesGroup(
             title="Privacy",
-            description="Piklin has no accounts and no telemetry. "
-                        "Nothing leaves this machine unless you set up a "
-                        "backup destination yourself.")
+            description="Piklin has no accounts and no telemetry. Your photos "
+                        "never leave this computer unless you set up a backup.")
         faces = Adw.SwitchRow(
             title="Detect faces for the portrait tools",
             subtitle="Runs locally. No image or face data is ever uploaded.",
@@ -115,6 +114,15 @@ class SettingsDialog(Adw.PreferencesDialog):
                       lambda r, _p: self.settings.set("face_detection",
                                                       r.get_active()))
         privacy.add(faces)
+        from .. import updates
+        check = Adw.SwitchRow(
+            title="Check for updates",
+            subtitle="Once a day, Piklin asks GitHub whether a new version is "
+                     "out. Nothing about you or your photos is sent.",
+            active=updates.enabled())
+        check.connect("notify::active",
+                      lambda r, _p: updates.save_state(enabled=r.get_active()))
+        privacy.add(check)
         page.add(privacy)
         return page
 

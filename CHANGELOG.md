@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.3
+
+### Importing
+- Photos copy several at a time, and appear in the library - and in the album you dropped them on - as they arrive, instead of all at the end
+- A card at the bottom right shows what is copying, how far along it is, and a Stop button; stopping keeps everything already copied, in its album
+- Photos dragged in from the desktop, a folder or a USB drive are copied as they are, which is much faster; cameras and memory cards still follow the "Make imported photos smaller" setting
+- Closing Piklin while photos are copying asks first
+- USB drives open straight away and show their photos grouped by folder, loading more as they are found
+
+### Editing
+- Rotate a photo or video in one click: Rotate Left and Rotate Right in the photo's toolbar and in the right-click menu, or Ctrl+R and Ctrl+Shift+R. Works on several selected photos at once
+- Thumbnails show your edits: a rotated, cropped or adjusted photo looks the same in the grid as in the viewer
+- Look for New Photos moved to F5
+
+### Updates
+- Piklin tells you when a new version is available, with a link to download it. Check any time with Check for Updates… in the menu, or turn the daily check off in Preferences
+
 ## 1.0.2
 
 Fixes for 1.0.1.

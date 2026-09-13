@@ -38,6 +38,7 @@ class ViewerView(Gtk.Box):
         "edit-requested": (GObject.SignalFlags.RUN_FIRST, None, ()),
         "changed": (GObject.SignalFlags.RUN_FIRST, None, ()),
         "navigate": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
+        "rotate": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
     }
 
     def __init__(self, library, catalog, thumbs, settings):
@@ -120,6 +121,14 @@ class ViewerView(Gtk.Box):
         self.name_label = Gtk.Label(xalign=0.5, hexpand=True)
         self.name_label.add_css_class("heading")
         bar.append(self.name_label)
+
+        # One click to turn a photo, as in any photo app - no trip to the editor.
+        for icon, tip, turns in (
+                ("object-rotate-left-symbolic", "Rotate Left (Ctrl+Shift+R)", -1),
+                ("object-rotate-right-symbolic", "Rotate Right (Ctrl+R)", 1)):
+            rot = Gtk.Button(icon_name=icon, tooltip_text=tip)
+            rot.connect("clicked", lambda _b, t=turns: self.emit("rotate", t))
+            bar.append(rot)
 
         self.fav_btn = Gtk.ToggleButton(icon_name="starred-symbolic",
                                         tooltip_text="Favourite (F)")

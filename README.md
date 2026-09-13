@@ -34,6 +34,7 @@
 
 - **28 professional tools and Looks.** Tune, curves, selective adjustments, healing, portrait tools and more.
 - **Non-destructive.** Your original file is never changed, and every edit can be undone.
+- **Quick fixes.** Rotate photos and videos in one click, and see your edits right in the thumbnails.
 - **Export your way.** JPEG, WebP, AVIF or PNG, at the size you choose, with or without location and metadata.
 
 <p align="center">
@@ -74,7 +75,7 @@ Connect the place you want to back up to once. From then on, new photos, videos 
 
 - No accounts, no ads, no analytics, no telemetry.
 - Photos, videos, edits and face detection stay on your computer.
-- Piklin connects to the internet only when you set up a backup destination yourself.
+- Piklin only goes online to back up to a destination you set up, and once a day to check whether a new version is out. You can turn that check off in Preferences.
 
 ## Install
 
@@ -101,6 +102,8 @@ Your library is created in your Pictures folder the first time you open Piklin.
 | Edit | <kbd>Return</kbd> |
 | Favourite | <kbd>.</kbd> |
 | Rename | <kbd>F2</kbd> |
+| Rotate right / left | <kbd>Ctrl</kbd> + <kbd>R</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> |
+| Look for new photos | <kbd>F5</kbd> |
 | Hide | <kbd>Ctrl</kbd> + <kbd>L</kbd> |
 | Export | <kbd>Ctrl</kbd> + <kbd>E</kbd> |
 | Search | <kbd>Ctrl</kbd> + <kbd>F</kbd> |

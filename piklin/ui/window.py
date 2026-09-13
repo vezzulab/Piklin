@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -37,7 +38,8 @@ class MainWindow(Adw.ApplicationWindow):
         from ..library_move import relocate
         relocate(library, self.catalog, self.settings)
         self.thumbs = ThumbCache(library.thumbs,
-                                 workers=self.settings.get("thumb_workers", 0))
+                                 workers=self.settings.get("thumb_workers", 0),
+                                 edits=library.edit_sidecar)
         self.indexer = Indexer(
             self.catalog, self.thumbs,
             follow_symlinks=bool(self.settings.get("scan_follow_symlinks")),
@@ -76,6 +78,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.viewer.connect("edit-requested", self._on_edit_requested)
         self.viewer.connect("changed", lambda *_: self._refresh())
         self.viewer.connect("navigate", self._on_navigate)
+        self.viewer.connect("rotate", lambda _v, turns: self._on_rotate(turns))
 
         self.editor = EditorView(library, self.catalog, self.settings,
                                  self.thumbs)
@@ -94,7 +97,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.stack.add_named(self.editor, "editor")
         self.stack.add_named(self.video_editor, "video-editor")
         self.toasts = Adw.ToastOverlay()
-        self.toasts.set_child(self.stack)
+        # The copy progress card floats over the bottom right of the window.
+        overlay = Gtk.Overlay()
+        overlay.set_child(self.stack)
+        overlay.add_overlay(self._build_copy_card())
+        self.toasts.set_child(overlay)
         self.set_content(self.toasts)
 
         self._install_shortcuts()
@@ -162,6 +169,7 @@ class MainWindow(Adw.ApplicationWindow):
         menu.append_section(None, section)
         end = Gio.Menu()
         end.append("Preferences", "win.preferences")
+        end.append("Check for Updates…", "win.check-updates")
         end.append("About Piklin", "win.about")
         menu.append_section(None, end)
         # An icon-only button has no name a screen reader can announce;
@@ -771,27 +779,201 @@ class MainWindow(Adw.ApplicationWindow):
         self.scan_bar.set_visible(True)
         self.scan_progress.set_fraction(0.0)
 
+        self._device_records = []
+        self._device_imported = set()
+        started = [False]
+
+        def still_here():
+            return self._device is not None and self._device.id == device.id
+
         def work():
-            records = devicemod.scan_device(device)
+            def on_batch(batch):
+                def apply():
+                    if not still_here():
+                        return False
+                    start = len(self._device_records)
+                    self._device_records.extend(batch)
+                    if not started[0]:
+                        started[0] = True
+                        self._fill_import_albums()
+                        self.grid.load_records(batch, subtitle=device.name,
+                                               root=device.path)
+                    else:
+                        self.grid.append_records(batch, start)
+                    self.scan_label.set_text(
+                        f"Reading {device.name}… {len(self._device_records):,} found")
+                    self._on_selection_changed(self.grid)
+                    return False
+                GLib.idle_add(apply)
+
+            records = devicemod.scan_device(device, on_batch=on_batch)
             already = devicemod.already_imported(self.catalog, records)
 
-            def apply():
+            def finish():
                 self.scan_bar.set_visible(False)
-                if self._device is None or self._device.id != device.id:
+                if not still_here():
                     return False
-                self._device_records = records
-                self._device_imported = already
-                self._fill_import_albums()
-                self.grid.load_records(records, subtitle=device.name,
-                                       already=already)
+                if not started[0]:
+                    self.grid.load_records([], subtitle=device.name, root=device.path)
+                elif already:
+                    self._device_imported = already
+                    self.grid.load_records(self._device_records, subtitle=device.name,
+                                           already=already, root=device.path)
                 self._on_selection_changed(self.grid)
                 return False
-            GLib.idle_add(apply)
+            GLib.idle_add(finish)
         threading.Thread(target=work, daemon=True).start()
+
+    # -- copying photos in ---------------------------------------------------
+    def _build_copy_card(self):
+        """Progress for photos being copied in: what, how far, and Stop."""
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
+                       halign=Gtk.Align.END, valign=Gtk.Align.END,
+                       margin_end=20, margin_bottom=20, visible=False)
+        card.add_css_class("pika-copy-card")
+        top = Gtk.Box(spacing=10)
+        self.copy_label = Gtk.Label(xalign=0.0, hexpand=True, ellipsize=3,
+                                    max_width_chars=30)
+        self.copy_label.add_css_class("pika-copy-label")
+        self.copy_percent = Gtk.Label(xalign=1.0)
+        self.copy_percent.add_css_class("pika-copy-percent")
+        stop = Gtk.Button(label="Stop", valign=Gtk.Align.CENTER,
+                          tooltip_text="Stop copying (what is already copied stays)")
+        stop.add_css_class("pika-copy-stop")
+        stop.connect("clicked", self._on_stop_copy)
+        self.copy_stop = stop
+        top.append(self.copy_label)
+        top.append(self.copy_percent)
+        top.append(stop)
+        self.copy_bar = Gtk.ProgressBar()
+        self.copy_bar.add_css_class("pika-copy-bar")
+        card.append(top)
+        card.append(self.copy_bar)
+        self.copy_card = card
+        self._copy_cancel = None
+        return card
+
+    def _copy_progress(self, text, done, total):
+        self.copy_card.set_visible(True)
+        self.copy_label.set_text(text)
+        if total:
+            fraction = min(1.0, done / total)
+            self.copy_bar.set_fraction(fraction)
+            self.copy_percent.set_text(f"{int(fraction * 100)}%")
+        else:
+            self.copy_bar.pulse()
+            self.copy_percent.set_text("")
+        return False
+
+    def _copy_finished(self):
+        self.copy_card.set_visible(False)
+        self.copy_stop.set_sensitive(True)
+        self._copy_cancel = None
+
+    def _on_stop_copy(self, _btn):
+        if self._copy_cancel is not None:
+            self._copy_cancel.set()
+            self.copy_stop.set_sensitive(False)
+            self.copy_label.set_text("Stopping…")
+
+    def _copy_busy(self):
+        if self._copy_cancel is None:
+            return False
+        self._show_toast("Photos are already being copied. Wait until they finish, "
+                         "or stop that copy first.")
+        return True
+
+    def _import_profiles(self, device=None):
+        """Cameras and memory cards are stored smaller when that is chosen in
+        Preferences; photos from a USB drive or dragged in are copied as
+        they are, which is also much faster."""
+        if device is not None and getattr(device, "kind", "") in ("storage", "camera", "phone"):
+            return {"profile": self.settings.get("storage_profile", "visually_lossless"),
+                    "video_profile": self.settings.get("storage_video_profile", "original")}
+        return {"profile": "original", "video_profile": "original"}
+
+    def _run_import(self, records, *, heading, done_cb, album_id=None,
+                    profile="original", video_profile="original", cancel=None):
+        """Copy records into the library in the background.
+
+        Progress and a Stop button show at the bottom right, and the photos
+        appear in the library - and in the album - as they arrive.
+        """
+        cancel = cancel or threading.Event()
+        self._copy_cancel = cancel
+        library = self.library
+        total = len(records)
+        self._copy_progress(f"{heading} — 0 of {total}", 0, total)
+        self._show_toast(f"Copying {total} item" + ("s" if total != 1 else "")
+                         + ". You can keep using Piklin while they copy.")
+        pending = []
+        last_flush = [time.monotonic()]
+
+        def flush():
+            batch = pending[:]
+            pending.clear()
+            last_flush[0] = time.monotonic()
+            if batch:
+                self.indexer.add_files(batch)
+                GLib.idle_add(self._show_arrivals, album_id, batch)
+
+        def work():
+            def on_placed(dest):
+                pending.append(dest)
+                if len(pending) >= 30 or time.monotonic() - last_flush[0] > 2.0:
+                    flush()
+
+            def progress(done, count):
+                GLib.idle_add(self._copy_progress,
+                              f"{heading} — {done} of {count}", done, count)
+            try:
+                result = devicemod.import_photos(
+                    library, records, progress, profile=profile,
+                    video_profile=video_profile, on_placed=on_placed, cancel=cancel)
+            except Exception:
+                result = {"copied": [], "skipped": 0, "failed": total, "sources": [],
+                          "placed": [], "cancelled": cancel.is_set()}
+            flush()
+
+            def finish():
+                self._copy_finished()
+                if album_id is not None:
+                    self._write_album_sidecar(album_id)
+                done_cb(result)
+                self._backup_soon()
+                return False
+            GLib.idle_add(finish)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_arrivals(self, album_id, paths):
+        """Photos that just arrived: into their album, and on screen."""
+        if album_id is not None:
+            ids = []
+            for path in paths:
+                row = self.catalog.photo_by_path(str(Path(path).resolve()))
+                if row is not None:
+                    ids.append(row["id"])
+            if ids:
+                self.catalog.album_add(album_id, ids)
+        self.grid.refresh()
+        self.refresh_sidebar()
+        return False
+
+    @staticmethod
+    def _import_summary(result, extra=0, album_name=None):
+        n = len(result["placed"]) + extra
+        text = f"Imported {n} item" + ("s" if n != 1 else "")
+        if album_name:
+            text += f" into “{album_name}”"
+        if result["failed"]:
+            text += f", {result['failed']} could not be copied"
+        if result.get("cancelled"):
+            text = "Stopped. " + text
+        return text
 
     def _on_import_device(self, _btn):
         """Copy the selected photos off the camera into the library."""
-        if self._device is None:
+        if self._device is None or self._copy_busy():
             return
         selected = self.grid.selected_items()
         records = [it.record for it in selected if hasattr(it, "record")]
@@ -802,64 +984,31 @@ class MainWindow(Adw.ApplicationWindow):
         album_id = self._import_album_ids[self._import_album.get_selected()] \
             if self._import_album.get_selected() < len(self._import_album_ids) else None
         delete_after = self._import_delete.get_active()
-
         device = self._device
-        library = self.library
-        self.scan_bar.set_visible(True)
-        self.scan_label.set_text(f"Importing from {device.name}…")
 
-        def work():
-            def progress(done, total):
-                GLib.idle_add(self.scan_progress.set_fraction,
-                              done / max(total, 1))
-                GLib.idle_add(self.scan_label.set_text,
-                              f"Importing {done} of {total}…")
-            result = devicemod.import_photos(
-                library, records, progress,
-                profile=self.settings.get("storage_profile", "visually_lossless"),
-                video_profile=self.settings.get("storage_video_profile", "original"))
+        def done(result):
+            # Leaving the device view has to reset everything that
+            # belonged to it: the selection, the action bar built
+            # around "Import", and the sidebar row still highlighting
+            # the camera. Without this the library opened with the
+            # camera still marked as the current place and an
+            # "Import 3 Selected" button acting on photos that had
+            # just been imported.
+            self._scope, self._album_id = "library", None
+            self._device = None
+            self._device_records = []
+            self.grid.unselect_all()
+            self.grid.load("library")
+            self.refresh_sidebar()
+            self._select_sidebar_key("library")
+            self._on_selection_changed(self.grid)
+            self._show_toast(self._import_summary(result))
+            if delete_after and result.get("sources") and not result.get("cancelled"):
+                self._ask_delete_from_device(device, result["sources"])
 
-            def finish():
-                self.scan_label.set_text("Adding to your library…")
-                # Only the folder the photos landed in needs indexing,
-                # not the whole library again.
-                self.indexer.scan([str(library.originals)],
-                                  lambda p: None)
-                self.scan_bar.set_visible(False)
-                if album_id is not None:
-                    ids = [r["id"] for r in (self.catalog.photo_by_path(str(p))
-                                             for p in result["copied"]) if r]
-                    if ids:
-                        self.catalog.album_add(album_id, ids)
-                        self._write_album_sidecar(album_id)
-                n = len(result["copied"])
-                toast = (f"Imported {n} photo" + ("s" if n != 1 else ""))
-                if result["skipped"]:
-                    toast += f", {result['skipped']} already in your library"
-                if result["failed"]:
-                    toast += f", {result['failed']} failed"
-                # Leaving the device view has to reset everything that
-                # belonged to it: the selection, the action bar built
-                # around "Import", and the sidebar row still highlighting
-                # the camera. Without this the library opened with the
-                # camera still marked as the current place and an
-                # "Import 3 Selected" button acting on photos that had
-                # just been imported.
-                self._scope, self._album_id = "library", None
-                self._device = None
-                self._device_records = []
-                self.grid.unselect_all()
-                self.grid.load("library")
-                self.refresh_sidebar()
-                self._select_sidebar_key("library")
-                self._on_selection_changed(self.grid)
-                self._show_toast(toast)
-                self._backup_soon()
-                if delete_after and result.get("sources"):
-                    self._ask_delete_from_device(device, result["sources"])
-                return False
-            GLib.idle_add(finish)
-        threading.Thread(target=work, daemon=True).start()
+        self._run_import(records, heading=f"Importing from {device.name}",
+                         album_id=album_id, done_cb=done,
+                         **self._import_profiles(device))
 
     def _import_device_records(self, records, album_id=None):
         """Import photos from the camera into the library and, when an album
@@ -869,9 +1018,8 @@ class MainWindow(Adw.ApplicationWindow):
         the copy you already have is what goes into the album.
         """
         device = self._device
-        if device is None:
+        if device is None or self._copy_busy():
             return
-        library = self.library
         album_name = None
         if album_id is not None:
             row = self.catalog.q1("SELECT name FROM albums WHERE id=?", (album_id,))
@@ -888,56 +1036,28 @@ class MainWindow(Adw.ApplicationWindow):
                     existing_ids.append(hit["id"])
                     continue
             to_copy.append(r)
+        if album_id is not None and existing_ids:
+            self.catalog.album_add(album_id, existing_ids)
 
-        self.scan_bar.set_visible(True)
-        self.scan_progress.set_fraction(0.0)
-        self.scan_label.set_text(
-            f"Importing to \u201c{album_name}\u201d…" if album_name
-            else f"Importing from {device.name}…")
+        def done(result):
+            self._show_toast(self._import_summary(result, extra=len(existing_ids),
+                                                  album_name=album_name))
+            self.refresh_sidebar()
+            # Stay on the camera: what was just imported moves to
+            # "Already Imported".
+            if self._device is not None and self._scope == "device":
+                self._open_device(self._device.id)
 
-        def work():
-            def progress(done, total):
-                GLib.idle_add(self.scan_progress.set_fraction, done / max(total, 1))
-                GLib.idle_add(self.scan_label.set_text, f"Importing {done} of {total}…")
-            result = (devicemod.import_photos(
-                          library, to_copy, progress,
-                          profile=self.settings.get("storage_profile",
-                                                    "visually_lossless"),
-                          video_profile=self.settings.get("storage_video_profile",
-                                                          "original"))
-                      if to_copy
-                      else {"copied": [], "skipped": 0, "failed": 0,
-                            "sources": [], "placed": []})
-
-            def finish():
-                self.scan_label.set_text("Adding to your library…")
-                if result["placed"]:
-                    self.indexer.scan([str(library.originals)], lambda p: None)
-                ids = list(existing_ids)
-                for path in result["placed"]:
-                    row = self.catalog.photo_by_path(str(Path(path).resolve()))
-                    if row is not None:
-                        ids.append(row["id"])
-                if album_id is not None and ids:
-                    self.catalog.album_add(album_id, ids)
-                    self._write_album_sidecar(album_id)
-                self.scan_bar.set_visible(False)
-                n = len(ids)
-                msg = f"Imported {n} photo" + ("s" if n != 1 else "")
-                if album_name:
-                    msg += f" into \u201c{album_name}\u201d"
-                if result["failed"]:
-                    msg += f", {result['failed']} failed"
-                self._show_toast(msg)
-                self._backup_soon()
-                self.refresh_sidebar()
-                # Stay on the camera: what was just imported moves to
-                # "Already Imported".
-                if self._device is not None and self._scope == "device":
-                    self._open_device(self._device.id)
-                return False
-            GLib.idle_add(finish)
-        threading.Thread(target=work, daemon=True).start()
+        if not to_copy:
+            if album_id is not None:
+                self._write_album_sidecar(album_id)
+            done({"placed": [], "copied": [], "skipped": 0, "failed": 0,
+                  "sources": [], "cancelled": False})
+            return
+        heading = (f"Importing into “{album_name}”" if album_name
+                   else f"Importing from {device.name}")
+        self._run_import(to_copy, heading=heading, album_id=album_id, done_cb=done,
+                         **self._import_profiles(device))
 
     # -- files dropped from outside ---------------------------------------
     def _install_file_drop(self, widget):
@@ -966,64 +1086,40 @@ class MainWindow(Adw.ApplicationWindow):
     def _import_dropped(self, paths, album_id=None):
         """Copy dropped photos and videos into the library, filed by date,
         and into the album they were dropped on."""
-        library = self.library
+        if self._copy_busy():
+            return
         album_name = None
         if album_id is not None:
             row = self.catalog.q1("SELECT name FROM albums WHERE id=?", (album_id,))
             album_name = row["name"] if row else None
+        cancel = threading.Event()
+        self._copy_cancel = cancel
         # Shown straight away: finding the photos in a big folder takes a moment.
-        self.scan_bar.set_visible(True)
-        self.scan_progress.set_fraction(0.0)
-        self.scan_progress.pulse()
-        self.scan_label.set_text("Getting the photos ready…")
-        profile = self.settings.get("storage_profile", "visually_lossless")
-        video_profile = self.settings.get("storage_video_profile", "original")
+        self._copy_progress("Getting the photos ready…", 0, 0)
 
-        def work():
+        def collect():
             records = devicemod.files_from_paths(paths)
-            if not records:
-                def nothing():
-                    self.scan_bar.set_visible(False)
+
+            def start():
+                if cancel.is_set():
+                    self._copy_finished()
+                    self._show_toast("Stopped. Nothing was copied.")
+                    return False
+                if not records:
+                    self._copy_finished()
                     self._show_toast("There are no photos or videos in what you dropped.")
                     return False
-                GLib.idle_add(nothing)
-                return
-            total = len(records)
-            GLib.idle_add(self.scan_label.set_text,
-                          f"Copying {total} item" + ("s" if total != 1 else "")
-                          + (f" into \u201c{album_name}\u201d…" if album_name else "…"))
 
-            def progress(done, count):
-                GLib.idle_add(self.scan_progress.set_fraction, done / max(count, 1))
-                GLib.idle_add(self.scan_label.set_text, f"Copying {done} of {count}…")
-            result = devicemod.import_photos(library, records, progress,
-                                             profile=profile, video_profile=video_profile)
-            GLib.idle_add(self.scan_label.set_text, "Adding to your library…")
-            if result["placed"]:
-                self.indexer.scan([str(library.originals)], lambda p: None)
-
-            def finish():
-                ids = []
-                for path in result["placed"]:
-                    row = self.catalog.photo_by_path(str(Path(path).resolve()))
-                    if row is not None:
-                        ids.append(row["id"])
-                if album_id is not None and ids:
-                    self.catalog.album_add(album_id, ids)
-                    self._write_album_sidecar(album_id)
-                self.scan_bar.set_visible(False)
-                n = len(ids)
-                msg = f"Imported {n} item" + ("s" if n != 1 else "")
-                if album_name:
-                    msg += f" into \u201c{album_name}\u201d"
-                if result["failed"]:
-                    msg += f", {result['failed']} could not be copied"
-                self._show_toast(msg)
-                self._refresh()
-                self._backup_soon()
+                def done(result):
+                    self._show_toast(self._import_summary(result, album_name=album_name))
+                    self._refresh()
+                heading = (f"Copying into “{album_name}”" if album_name
+                           else "Copying")
+                self._run_import(records, heading=heading, album_id=album_id,
+                                 done_cb=done, cancel=cancel, **self._import_profiles())
                 return False
-            GLib.idle_add(finish)
-        threading.Thread(target=work, daemon=True).start()
+            GLib.idle_add(start)
+        threading.Thread(target=collect, daemon=True).start()
 
     def _new_device_records(self):
         already = getattr(self, "_device_imported", set()) or set()
@@ -1248,6 +1344,9 @@ class MainWindow(Adw.ApplicationWindow):
             "info": lambda *_: self.viewer.toggle_info(),
             "zoom-in": lambda *_: self._step_zoom(+1),
             "zoom-out": lambda *_: self._step_zoom(-1),
+            "check-updates": lambda *_: self._check_updates(quiet=False),
+            "rotate-cw": lambda *_: self._on_rotate(1),
+            "rotate-ccw": lambda *_: self._on_rotate(-1),
         })
         for name, cb in actions.items():
             act = Gio.SimpleAction.new(name, None)
@@ -1274,7 +1373,11 @@ class MainWindow(Adw.ApplicationWindow):
                               ("<Ctrl>e", "win.export"),
                               ("<Ctrl>comma", "win.preferences"),
                               ("<Ctrl>o", "win.add-folder"),
-                              ("<Ctrl>r", "win.rescan"),
+                              # Rotating is everyday; looking for new photos
+                              # is rare, and F5 is where people expect it.
+                              ("F5", "win.rescan"),
+                              ("<Ctrl>r", "win.rotate-cw"),
+                              ("<Ctrl><Shift>r", "win.rotate-ccw"),
                               # One key for each view.
                               ("<Ctrl>1", "win.view-year"),
                               ("<Ctrl>2", "win.view-month"),
@@ -1632,6 +1735,74 @@ class MainWindow(Adw.ApplicationWindow):
         self._start_scan([str(Path(path).parent)])
         self.toasts.add_toast(Adw.Toast(title="Frame saved to your library",
                                         timeout=3))
+
+    # -- updates ------------------------------------------------------------
+    def _check_updates(self, quiet=True):
+        """Ask whether a newer Piklin is out. Quiet: once a day, silent unless
+        there is one. Otherwise (Check for Updates…): always say the result."""
+        from .. import updates
+        from ..app import VERSION
+        if quiet and not updates.due():
+            return
+
+        def work():
+            try:
+                release = updates.latest_release(VERSION)
+                error = None
+            except Exception as exc:
+                release, error = None, exc
+            updates.save_state(last_check=time.time())
+            GLib.idle_add(show, release, error)
+
+        def show(release, error):
+            if release is not None and updates.is_newer(release.version, VERSION):
+                if quiet and updates.load_state().get("dismissed") == release.version:
+                    return False
+                toast = Adw.Toast(
+                    title=f"Piklin {release.version} is available",
+                    button_label="Download", timeout=0)
+                toast.connect("button-clicked", lambda *_: Gtk.UriLauncher.new(
+                    release.url).launch(self, None, None, None))
+                toast.connect("dismissed", lambda *_: updates.save_state(
+                    dismissed=release.version))
+                self.toasts.add_toast(toast)
+            elif not quiet:
+                if error is not None:
+                    self._show_toast("Couldn't check for updates. Check your "
+                                     "internet connection and try again.")
+                else:
+                    self._show_toast(f"Piklin is up to date ({VERSION}).")
+            return False
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_rotate(self, turns, ids=None):
+        """A quarter turn without opening the editor. Nothing is lost: it is
+        an ordinary edit, undone by turning back or by Revert."""
+        from .. import quick_edit
+        page = self.stack.get_visible_child_name()
+        if page == "viewer" and self.viewer.item is not None and ids is None:
+            items = [self.viewer.item]
+        elif page == "grid" and self._scope not in ("device", "trash"):
+            by_id = getattr(self.grid, "_by_id", {})
+            items = ([by_id[i] for i in ids if i in by_id] if ids
+                     else self.grid.selected_items())
+        else:
+            return
+        items = [it for it in items if getattr(it, "id", -1) is not None
+                 and getattr(it, "id", -1) >= 0]
+        if not items:
+            self._show_toast("Select the photos to rotate.")
+            return
+        for it in items:
+            try:
+                quick_edit.rotate(self.library, self.catalog, it.id, it.path, turns,
+                                  is_video=bool(getattr(it, "is_video", False)),
+                                  duration=float(getattr(it, "duration", 0) or 0))
+            except Exception:
+                pass
+        if page == "viewer":
+            self.viewer.show_photo(self.viewer.item)
+        self._refresh()
 
     def _on_editor_closed(self, _editor):
         if self.viewer.item is not None:
@@ -2389,6 +2560,10 @@ class MainWindow(Adw.ApplicationWindow):
               "period", lambda: self._on_bulk_favorite(None)),
              ("hide", ("Unhide" if self._scope == "hidden" else "Hide") + count,
               "<Ctrl>l", lambda: self._on_bulk_hide())],
+            [("rotate-ccw", "Rotate Left", "<Ctrl><Shift>r",
+              lambda: self._on_rotate(-1, ids)),
+             ("rotate-cw", "Rotate Right", "<Ctrl>r",
+              lambda: self._on_rotate(1, ids))],
             [("export", f"Export{count}…", "<Ctrl>e",
               lambda: self._on_bulk_export(None))],
             [("delete", f"Delete{count}", "Delete",
@@ -2465,6 +2640,8 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _first_run(self):
         self.refresh_sidebar()
+        # A few seconds in, so opening Piklin is never slowed by the network.
+        GLib.timeout_add_seconds(8, lambda: (self._check_updates(quiet=True), False)[1])
         self.grid.load("library")
         if not self.catalog.roots():
             self._show_welcome()
@@ -2582,6 +2759,37 @@ class MainWindow(Adw.ApplicationWindow):
         about.present(self)
 
     def do_close_request(self):
+        if (getattr(self, "_copy_cancel", None) is not None
+                and not getattr(self, "_closing_after_copy", False)):
+            dialog = Adw.AlertDialog(
+                heading="Photos Are Still Being Copied",
+                body="If you close Piklin now, the copy stops. The photos "
+                     "already copied stay in your library.")
+            dialog.add_response("keep", "Keep Copying")
+            dialog.add_response("close", "Stop and Close")
+            dialog.set_response_appearance("close", Adw.ResponseAppearance.DESTRUCTIVE)
+            dialog.set_default_response("keep")
+            dialog.set_close_response("keep")
+
+            def done(_d, response):
+                if response != "close":
+                    return
+                self._closing_after_copy = True
+                if self._copy_cancel is not None:
+                    self._copy_cancel.set()
+                ticks = [0]
+
+                def wait():
+                    # let the files being copied right now finish
+                    ticks[0] += 1
+                    if self._copy_cancel is None or ticks[0] > 40:
+                        self.close()
+                        return False
+                    return True
+                GLib.timeout_add(250, wait)
+            dialog.connect("response", done)
+            dialog.present(self)
+            return True
         self.indexer.stop(timeout=2.0)
         self.thumbs.shutdown()
         self.editor.shutdown()

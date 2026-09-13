@@ -336,6 +336,42 @@ class Indexer:
             p.missing = len(missing)
 
     # -- thumbnails ------------------------------------------------------
+    def add_files(self, paths: Iterable[Path | str]) -> int:
+        """Index files that were just copied into the library's Originals.
+
+        Used while an import is still running, so photos appear as they
+        arrive: only these files are read, not the whole library.
+        """
+        if self.library_root is None:
+            return 0
+        originals = self.library_root / "Originals"
+        root_id = self.catalog.add_root(originals, in_library=True)
+        removed = set(self.catalog.removed_paths())
+        records = []
+        back = []
+        for path in paths:
+            path = Path(path).resolve()
+            if str(path) in removed:
+                # Imported again on purpose: a photo removed earlier comes
+                # back, instead of being copied and then silently hidden.
+                back.append(str(path))
+            try:
+                rec = iio.probe(path, root_id)
+            except Exception:
+                rec = None
+            if rec:
+                records.append(rec)
+        if back:
+            with self.catalog.write() as cur:
+                cur.executemany("DELETE FROM removed WHERE path=?", [(p,) for p in back])
+        if records:
+            self.catalog.upsert_photos(records)
+            try:
+                self.catalog.pair_live_photos()
+            except Exception:
+                pass
+        return len(records)
+
     def build_thumbnails(self, limit: int = 100_000,
                          on_progress: Callable[[Progress], None] | None = None
                          ) -> Progress:
