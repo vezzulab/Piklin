@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+# The .pyc files were created by postinst, so dpkg does not know about
+# them; remove them or the directories are left behind on uninstall.
+for d in /usr/share/piklin /usr/lib/piklin; do
+    [ -d "$d" ] && find "$d" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+done
+
+exit 0

@@ -1,0 +1,1601 @@
+/* Pikalicious
+ *
+ * A photo library should read as a white gallery wall.  The chrome is
+ * quiet and near-neutral, separated by hairlines rather than blocks of
+ * colour, so nothing competes with the photographs.
+ *
+ * GTK's CSS is a subset of the web's: no :root, no var(), no grid.
+ * Custom colours are declared with @define-color and used as @name.
+ */
+
+/* -- palette ----------------------------------------------------------
+ * libadwaita's own named colours are redefined here, not just our own.
+ * A user's GTK theme (this machine ships a dark one called "Cipher")
+ * supplies these names too, and a theme loaded at THEME priority would
+ * otherwise repaint every headerbar, sidebar and dialog dark underneath
+ * us.  Redefining them at APPLICATION priority is the only way to
+ * guarantee the app looks the same on every desktop. */
+/* Inter (SIL OFL) is bundled and registered with fontconfig at process
+ * start (see app.py's _load_bundled_fonts) precisely so this name
+ * resolves without needing the font installed on the host. It reads as
+ * a clean, modern UI typeface without depending on a system-specific
+ * font the host may not have. */
+/* Cancel desktop-theme focus decoration before anything else. A theme
+   like Cipher (in ~/.config/gtk-4.0/gtk.css) gives *every* focused widget
+   a magenta 1px ring and glow - `*:focus { box-shadow: 0 0 0 1px ... }` -
+   which showed as a magenta line across dialogs and around lists. It is
+   placed first so this file's own, more specific box-shadows below
+   (the focused field ring, cards, sliders) still apply. */
+*:focus { box-shadow: none; outline-color: transparent; }
+
+/* The rest of what that theme paints magenta, restated in our palette.
+   Only properties this file might not set elsewhere are named here;
+   every specific rule further down still overrides these. */
+headerbar, .titlebar {
+  border-bottom: none;
+  box-shadow: none;
+}
+*:selected { background-color: alpha(@pika_accent, 0.14); color: inherit; }
+*:link, *:link label, *:visited, *:visited label { color: @pika_accent; }
+:not(decoration):not(window):drop(active),
+:not(decoration):not(window):drop(active):focus {
+  border-color: @pika_accent;
+  box-shadow: inset 0 0 0 1px @pika_accent;
+  caret-color: @pika_accent;
+}
+button:drop(active) { color: @pika_accent; }
+checkbutton check:checked, checkbutton radio:checked,
+radiobutton radio:checked, switch:checked, switch:checked > slider {
+  box-shadow: none;
+}
+scrollbar slider:hover:active { background-color: alpha(#000000, 0.50); }
+scale > trough > slider:active { background-color: #ffffff; border-color: @pika_hairline; }
+levelbar > trough > block:not(.empty),
+levelbar > trough > block.high {
+  border-color: @pika_accent;
+  background-color: @pika_accent;
+}
+.navigation-sidebar > row:selected { background-color: alpha(#000000, 0.08); color: #000000; }
+infobar.info, infobar.question, infobar.warning, infobar.error {
+  background-color: #f4f4f6;
+  color: #000000;
+}
+calendar > header > button:active { color: @pika_accent; }
+textview:drop(active) { caret-color: @pika_accent; }
+
+window.pikalicious,
+window.pikalicious entry, window.pikalicious button, window.pikalicious label,
+popover, dialog, alertdialog, tooltip {
+  font-family: Inter, "Noto Sans", "Cantarell",
+               sans-serif;
+}
+
+@define-color pika_accent        #1d1d1f;
+@define-color pika_wall          #ffffff;
+@define-color pika_sidebar       #ffffff;
+@define-color pika_hairline      #dcdce0;
+@define-color pika_hairline_soft #ebebee;
+@define-color pika_text          #000000;
+@define-color pika_text_dim      #86868b;
+
+@define-color window_bg_color      #ffffff;
+@define-color window_fg_color      #000000;
+@define-color view_bg_color        #ffffff;
+@define-color view_fg_color        #000000;
+@define-color headerbar_bg_color   #ffffff;
+@define-color headerbar_fg_color   #000000;
+@define-color headerbar_border_color #dcdce0;
+@define-color headerbar_backdrop_color #fafafa;
+@define-color sidebar_bg_color     #ffffff;
+@define-color sidebar_fg_color     #000000;
+@define-color sidebar_backdrop_color #ffffff;
+@define-color sidebar_border_color #dcdce0;
+@define-color secondary_sidebar_bg_color #ffffff;
+@define-color card_bg_color        #ffffff;
+@define-color card_fg_color        #000000;
+@define-color dialog_bg_color      #ffffff;
+@define-color dialog_fg_color      #000000;
+@define-color popover_bg_color     #ffffff;
+@define-color popover_fg_color     #000000;
+@define-color accent_bg_color      #1d1d1f;
+@define-color accent_fg_color      #ffffff;
+@define-color accent_color         #1d1d1f;
+@define-color borders              #dcdce0;
+@define-color destructive_bg_color #f2f2f4;
+@define-color destructive_fg_color #000000;
+@define-color destructive_color    #000000;
+@define-color error_color          #000000;
+@define-color error_bg_color       #f2f2f4;
+@define-color error_fg_color       #000000;
+@define-color warning_color        #000000;
+@define-color warning_bg_color     #f2f2f4;
+
+window.pikalicious,
+window.pikalicious .pika-content {
+  background: @pika_wall;
+  color: @pika_text;
+}
+
+/* -- one uniform top bar ----------------------------------------------
+ * Both header bars share a background and a single hairline, so the top
+ * of the window reads as one continuous strip across its whole width
+ * rather than two panels that happen to sit side by side. */
+.pika-header {
+  background: @pika_wall;
+  border-bottom: 1px solid @pika_hairline;
+  box-shadow: none;
+  min-height: 46px;
+}
+.pika-sidebar-pane .pika-header {
+  background: @pika_wall;
+  border-bottom: 1px solid @pika_hairline;
+}
+/* The vertical divider starts below the bar, so it never interrupts it. */
+.pika-sidebar-pane {
+  background: @pika_sidebar;
+  border-right: 1px solid @pika_hairline;
+}
+.pika-toolbar,
+.pika-toolbar revealer, .pika-toolbar box {
+  background: @pika_wall;
+}
+.pika-toolbar {
+  border-top: 1px solid @pika_hairline;
+  /* Compact: this bar only ever holds a row of icon buttons plus a
+     "Clear selection" label, not a full toolbar's worth of controls. */
+  min-height: 0;
+  padding: 4px 10px;
+}
+.pika-toolbar button {
+  min-height: 26px;
+  min-width: 26px;
+  padding: 2px;
+}
+.pika-toolbar label { font-size: 0.85rem; }
+
+/* Gtk.ActionBar and Adw.ViewSwitcherBar both default to a dark "osd"
+   style background on their inner revealer/box nodes - those nodes
+   carry no distinguishing CSS class, so they have to be reached by
+   position (descendant of the bar) rather than by class. Confirmed by
+   inspecting the live widget tree: actionbar > revealer > box, with the
+   box itself unstyled beyond that dark default. */
+actionbar, actionbar revealer, actionbar box,
+viewswitcherbar, viewswitcherbar revealer, viewswitcherbar box {
+  background: @pika_wall;
+}
+actionbar button, actionbar label, actionbar image,
+viewswitcherbar button, viewswitcherbar label, viewswitcherbar image {
+  color: #000000;
+}
+
+/* -- search ------------------------------------------------------------ */
+.pika-search {
+  border-radius: 999px;
+  background: #f2f2f4;
+  border: 1px solid transparent;
+  min-height: 30px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.pika-search:focus-within {
+  background: @pika_wall;
+  border-color: @pika_accent;
+}
+entry.pika-search > text { color: @pika_text; }
+
+/* -- sidebar ----------------------------------------------------------- */
+.pika-sidebar { background: transparent; }
+.pika-sidebar row {
+  border-radius: 7px;
+  margin: 1px 8px;
+  min-height: 30px;
+  color: @pika_text;
+}
+.pika-sidebar row:selected {
+  background: @pika_accent;
+  color: #ffffff;
+}
+.pika-sidebar row:selected label,
+.pika-sidebar row:selected image { color: #ffffff; }
+.pika-sidebar row:hover:not(:selected) { background: alpha(#000000, 0.05); }
+.pika-sidebar-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: @pika_text_dim;
+  margin: 16px 14px 4px 14px;
+}
+.pika-count {
+  color: @pika_text_dim;
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+}
+.pika-sidebar row:selected .pika-count { color: alpha(#ffffff, 0.85); }
+
+/* -- grid -------------------------------------------------------------- */
+.pika-grid { background: @pika_wall; }
+.pika-grid > row,
+.pika-grid > row:selected { padding: 0; background: transparent; }
+
+/* Each day is its own band, separated by a hairline so the eye finds the
+   breaks without the headings having to shout. */
+.pika-section {
+  border-bottom: 1px solid @pika_hairline_soft;
+  padding: 4px 18px 20px 18px;
+}
+.pika-section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: @pika_text;
+  margin: 16px 2px 1px 2px;
+}
+.pika-section-sub {
+  font-size: 0.8rem;
+  color: @pika_text_dim;
+  margin: 0 2px 10px 2px;
+}
+
+.pika-tile { background: #f0f0f2; border-radius: 5px; }
+.pika-tile-button {
+  padding: 0; margin: 0; border-radius: 5px;
+  background: transparent; border: none; box-shadow: none;
+  min-height: 0; min-width: 0;
+}
+.pika-tile-button.selected .pika-tile {
+  outline: 3px solid @pika_accent;
+  outline-offset: -3px;
+}
+.pika-tile-missing { background: alpha(#d04040, 0.16); }
+.pika-badge {
+  background: alpha(#000000, 0.5);
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 1px 4px;
+  margin: 3px;
+  font-size: 0.7rem;
+}
+
+/* -- viewer ------------------------------------------------------------ */
+.pika-viewer { background: #ffffff; }
+
+/* -- editor ------------------------------------------------------------ */
+.pika-editor-canvas { background: #ffffff; }
+.pika-editor-canvas label { color: #000000; }
+.pika-tool-panel {
+  background: @pika_sidebar;
+  border-left: 1px solid @pika_hairline;
+}
+.pika-tool-tile { border-radius: 9px; padding: 9px 4px; }
+.pika-tool-tile:hover { background: alpha(#000000, 0.06); }
+.pika-tool-name { font-size: 0.8rem; margin-top: 4px; }
+.pika-tool-group {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: @pika_text_dim;
+  margin: 14px 4px 2px 4px;
+  border-top: 1px solid @pika_hairline;
+  padding-top: 10px;
+}
+.pika-slider-row { padding: 3px 4px; }
+.pika-slider-label { font-size: 0.88rem; }
+.pika-slider-value {
+  font-variant-numeric: tabular-nums;
+  color: @pika_text_dim;
+  font-size: 0.85rem;
+  min-width: 42px;
+}
+.pika-layer-row { border-radius: 8px; }
+.pika-look-tile { border-radius: 8px; }
+.pika-look-name { font-size: 0.78rem; }
+
+/* -- misc -------------------------------------------------------------- */
+.pika-dim { color: @pika_text_dim; }
+.pika-savings {
+  color: #1e9e63;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -- readability over an unknown system theme --------------------------
+ * Label colour is inherited from the theme unless it is set explicitly,
+ * and a dark theme's dim foreground on our light sidebar was nearly
+ * invisible.  These rules pin the text colours the palette above
+ * assumes. */
+.pika-sidebar row label { color: @pika_text; }
+.pika-sidebar row image { color: #55555a; }
+.pika-sidebar row:selected label,
+.pika-sidebar row:selected image { color: #ffffff; }
+.pika-sidebar row .pika-count { color: @pika_text_dim; }
+.pika-sidebar-header { color: @pika_text_dim; }
+
+.pika-header label { color: @pika_text; }
+.pika-header button { color: @pika_text; }
+.pika-header windowcontrols button { color: @pika_text; }
+
+.pika-section-title { color: @pika_text; }
+.pika-section-sub, .pika-dim { color: @pika_text_dim; }
+
+/* -- text: black, explicitly ------------------------------------------
+ * Entry text and placeholders take their colour from the system theme's
+ * foreground, which on a dark desktop theme is near-white and vanished
+ * against these light fields. */
+entry.pika-search text,
+entry.pika-search > text,
+.pika-search text { color: #000000; }
+entry.pika-search text placeholder,
+.pika-search placeholder { color: @pika_text_dim; }
+
+.pika-content label, .pika-grid label { color: #000000; }
+.pika-sidebar row label { color: #000000; }
+.pika-section-title { color: #000000; }
+popover label, dialog label, .pika-tool-panel label { color: #000000; }
+.pika-dim, .pika-section-sub, .pika-count,
+.pika-sidebar-header, .pika-tool-group, .pika-slider-value {
+  color: @pika_text_dim;
+}
+
+/* -- popovers, menus and dialogs --------------------------------------
+ * These are separate toplevel surfaces: they do not inherit the window's
+ * colours, so a dark system theme still painted every menu, dropdown and
+ * dialog dark while the window behind them was light.  They need the
+ * palette applied explicitly. */
+popover > contents,
+popover.menu > contents,
+popover.background > contents {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid @pika_hairline;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px alpha(#000000, 0.14);
+}
+popover > arrow {
+  background: #ffffff;
+  border: 1px solid @pika_hairline;
+}
+popover label, popover > contents label { color: #000000; }
+popover modelbutton { color: #000000; border-radius: 6px; min-height: 30px; }
+popover modelbutton:hover { background: alpha(#000000, 0.07); }
+popover separator { background: @pika_hairline_soft; }
+
+dropdown popover > contents,
+dropdown > button { color: #000000; }
+
+/* Adwaita dialogs (about, alerts, preferences)
+ *
+ * An AdwDialog node is not the card: it is a layer over the whole window
+ * holding the dimming and, inside it, the `sheet` that is the visible
+ * card. Painting `dialog` itself white blanked the entire window behind
+ * every alert and rename box - the photos vanished under a flat grey
+ * wall. Only the sheet is white; the layer stays clear, so the window
+ * shows through, softly dimmed, the way a sheet appears over the
+ * library. */
+dialog-host > dialog, dialog-host > alertdialog,
+dialog-host > dialog.background, dialog-host > alertdialog.background {
+  background: none;
+}
+dialog-host > dialog sheet, dialog-host > alertdialog sheet,
+.dialog-content, window.dialog, .pika-dialog {
+  background: #ffffff;
+  color: #000000;
+}
+floating-sheet > dimming, bottom-sheet > dimming {
+  background-color: alpha(#000000, 0.22);
+}
+dialog label, alertdialog label { color: #000000; }
+preferencespage, preferencesgroup, .preferences {
+  background: transparent;
+  color: #000000;
+}
+row.activatable:hover { background: alpha(#000000, 0.05); }
+listview, listbox { background: transparent; color: #000000; }
+listbox > row { color: #000000; }
+.boxed-list > row {
+  background: #ffffff;
+  border-color: @pika_hairline;
+}
+
+/* headerbar controls, so they are visible on white */
+.pika-header windowcontrols button image { color: #3a3a3f; }
+.pika-header button.flat { color: #000000; }
+scale trough { background: alpha(#000000, 0.12); }
+scale highlight { background: @pika_accent; }
+scale slider {
+  background: #ffffff;
+  border: 1px solid @pika_hairline;
+  box-shadow: 0 1px 2px alpha(#000000, 0.18);
+}
+
+/* Focus rings and selection otherwise come from the desktop theme: a
+   theme like Cipher paints focused fields with a magenta inset
+   box-shadow and selected text on magenta, and colouring only
+   outline-color left every focusable container (the window handle, the
+   header) drawing its own ring after a key press - nested rectangles
+   around the top bar. No rings on containers; controls get one soft
+   ring, and only when focus came from the keyboard. */
+*:focus-visible { outline: none; }
+button:focus-visible, row:focus-visible {
+  outline: 2px solid alpha(@pika_accent, 0.55);
+  outline-offset: -2px;
+}
+entry, spinbutton, entry:focus-within, spinbutton:focus-within {
+  background-color: #ffffff;
+  color: #000000;
+}
+entry:focus-within, spinbutton:focus-within {
+  border-color: @pika_accent;
+  box-shadow: 0 0 0 3px alpha(@pika_accent, 0.22);
+  outline: none;
+}
+selection, text > selection, entry > text > selection,
+label > selection, textview > text > selection,
+entry selection:focus, spinbutton text selection {
+  background-color: alpha(@pika_accent, 0.25);
+  color: #000000;
+}
+@define-color focus_border_color #1d1d1f;
+@define-color selected_bg_color #1d1d1f;
+@define-color selected_fg_color #ffffff;
+@define-color theme_selected_bg_color #1d1d1f;
+@define-color theme_selected_fg_color #ffffff;
+
+/* Bipolar sliders read better filled from the centre than from the left:
+   a value of zero should not look like a half-full bar. */
+scale.pika-bipolar highlight { background: alpha(@pika_accent, 0.0); }
+
+/* One white surface throughout: panels, scrollers, list rows and views
+   all share the window's background, and every division is a hairline
+   rather than a change of shade. */
+.pika-sidebar-pane, .pika-tool-panel, .pika-content,
+.pika-grid, .pika-viewer, .pika-editor-canvas,
+scrolledwindow, viewport, listview, flowbox, box.pika-section {
+  background: #ffffff;
+}
+.pika-tool-panel label, .pika-viewer label { color: #000000; }
+headerbar, .pika-header { background: #ffffff; }
+
+/* -- black text and icons throughout -----------------------------------
+ * Symbolic icons are recoloured by the theme's foreground, the same way
+ * labels are, so both are pinned here.  The exceptions below are the
+ * places where white is the correct colour: a selected sidebar row, and
+ * the badges that sit on top of a photograph. */
+window.pikalicious label,
+window.pikalicious image,
+window.pikalicious button image,
+window.pikalicious button label,
+popover label, popover image, popover modelbutton,
+dialog label, dialog image,
+.pika-tool-panel label, .pika-tool-panel image,
+.pika-header label, .pika-header image,
+.pika-sidebar label, .pika-sidebar image,
+row label, row image,
+checkbutton label, switch label, dropdown label, spinbutton text {
+  color: #000000;
+}
+
+/* Exceptions: white is right on the accent fill and over photographs. */
+.pika-sidebar row:selected label,
+.pika-sidebar row:selected image,
+.pika-badge, .pika-badge image,
+button.suggested-action label, button.suggested-action image,
+.pika-savings {
+  color: #ffffff;
+}
+.pika-savings { color: #1e9e63; }
+
+/* Muted greys stay muted - they are hierarchy, not disabled state. */
+.pika-dim, .pika-section-sub, .pika-count, .pika-sidebar-header,
+.pika-tool-group, .pika-slider-value, .pika-dim label {
+  color: @pika_text_dim;
+}
+
+/* -- symmetric top bars -------------------------------------------------
+ * The sidebar's header and the photo pane's header are separate widgets
+ * that meet along the same edge, so they must agree exactly on height
+ * and on the hairline they draw, or the top of the window reads as two
+ * mismatched strips. */
+.pika-header,
+.pika-sidebar-pane > headerbar,
+.pika-content > headerbar,
+headerbar.pika-header {
+  min-height: 46px;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: #ffffff;
+  border-bottom: 1px solid @pika_hairline;
+  box-shadow: none;
+}
+/* AdwToolbarView paints its own separator under the top bar; keep it the
+   same hairline on both sides rather than two different treatments. */
+.pika-sidebar-pane > box > widget,
+.pika-content > box > widget { background: @pika_hairline; }
+
+/* -- selected section: black fill, white content -----------------------
+ * The accent colour is used for emphasis inside the editor, but the
+ * sidebar's current section reads better as a solid black pill: it is
+ * the one piece of persistent state in the window, and black separates
+ * it from every transient highlight. */
+.pika-sidebar row:selected,
+.pika-sidebar row:selected:hover,
+.pika-sidebar row:selected:focus {
+  background: #000000;
+  color: #ffffff;
+}
+.pika-sidebar row:selected label,
+.pika-sidebar row:selected image,
+.pika-sidebar row:selected .pika-count {
+  color: #ffffff;
+}
+.pika-sidebar row:selected .pika-count { color: alpha(#ffffff, 0.75); }
+
+
+
+/* Tiles sit flush against one another, with no gap and no rounding, so
+   the grid reads as one continuous sheet of photographs. */
+.pika-tile { border-radius: 0; }
+.pika-tile-button { border-radius: 0; padding: 0; margin: 0; }
+.pika-tile-button.selected .pika-tile {
+  outline: 3px solid @pika_accent;
+  outline-offset: -3px;
+}
+.pika-grid flowbox, .pika-grid flowboxchild {
+  padding: 0; margin: 0; border-spacing: 0; background: transparent;
+}
+.pika-section { padding: 4px 0 18px 0; }
+.pika-section-title { margin-left: 18px; }
+.pika-section-sub { margin-left: 18px; }
+
+/* ======================================================================
+ * Base controls
+ *
+ * Dialogs, entries and buttons are drawn from the system theme's own
+ * palette, not from the window's.  On a dark desktop theme that left
+ * black entry fields and grey button bars sitting inside a white dialog.
+ * Every control the app actually uses is pinned here.
+ * ==================================================================== */
+
+/* -- text fields ------------------------------------------------------- */
+entry, spinbutton, entry.search, searchentry, textview, textview text {
+  background: #ffffff;
+  background-image: none;
+  color: #000000;
+  border: 1px solid @pika_hairline;
+  border-radius: 8px;
+  box-shadow: none;
+  min-height: 32px;
+  caret-color: #000000;
+}
+entry text, entry > text, spinbutton text, searchentry text, textview text {
+  background: transparent;
+  color: #000000;
+}
+entry:focus-within, spinbutton:focus-within, searchentry:focus-within,
+textview:focus-within {
+  border-color: @pika_accent;
+  box-shadow: 0 0 0 2px alpha(@pika_accent, 0.22);
+}
+entry placeholder, entry text placeholder, searchentry placeholder {
+  color: @pika_text_dim;
+}
+entry image, searchentry image { color: @pika_text_dim; }
+
+/* -- buttons ----------------------------------------------------------- */
+button {
+  background: #f4f4f6;
+  background-image: none;
+  color: #000000;
+  border: 1px solid @pika_hairline;
+  border-radius: 8px;
+  box-shadow: none;
+  min-height: 30px;
+}
+button:hover { background: #eaeaee; }
+button:active, button:checked { background: #e0e0e5; }
+button.flat, button.image-button.flat {
+  background: transparent;
+  border-color: transparent;
+}
+button.flat:hover { background: alpha(#000000, 0.07); }
+button:disabled { color: alpha(#000000, 0.35); background: #f7f7f8; }
+
+button.suggested-action {
+  background: @pika_accent;
+  color: #ffffff;
+  border-color: @pika_accent;
+}
+button.suggested-action:hover { background: #3a3a3c; }
+button.suggested-action label, button.suggested-action image { color: #ffffff; }
+button.destructive-action {
+  background: #f2f2f4; color: #000000; border-color: @pika_hairline;
+}
+button.destructive-action label { color: #000000; }
+
+/* -- dialog response bar ----------------------------------------------- */
+/* AdwAlertDialog already draws the hairlines itself: a horizontal
+   separator node above the response area and vertical ones between the
+   buttons. A border-top here doubled the top one into a 2px line, and
+   leaving the separators' colour to the desktop theme let it come out
+   near-black. Colour the separators; add no border of our own. */
+dialog .response-area,
+.response-area, alertdialog .response-area,
+dialog .dialog-action-area {
+  background: #ffffff;
+  border-top: none;
+}
+dialog-host sheet separator,
+alertdialog separator, dialog separator {
+  background-color: @pika_hairline;
+  min-width: 1px;
+  min-height: 1px;
+}
+/* A focused response button is shaded, not outlined - an outline drew an
+   accent stripe along the top of the button bar. */
+.response-area button:focus-visible {
+  outline: none;
+  background: alpha(#000000, 0.05);
+}
+.response-area button, dialog .response-area button {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: #000000;
+  min-height: 42px;
+}
+.response-area button:hover { background: alpha(#000000, 0.06); }
+.response-area button.suggested { color: @pika_accent; font-weight: 700; }
+.response-area button.destructive { color: #000000; font-weight: 700; }
+
+/* -- selection controls ------------------------------------------------- */
+checkbutton radio, checkbutton check, check, radio {
+  background: #ffffff;
+  border: 1px solid #b9b9c0;
+  color: #000000;
+}
+checkbutton radio:checked, checkbutton check:checked,
+check:checked, radio:checked {
+  background: @pika_accent;
+  border-color: @pika_accent;
+  color: #ffffff;
+}
+switch { background: #d6d6db; border: none; }
+switch:checked { background: @pika_accent; }
+switch slider { background: #ffffff; }
+
+dropdown button, combobox button { background: #f4f4f6; color: #000000; }
+dropdown popover listview > row:selected { background: @pika_accent; color: #ffffff; }
+
+/* -- scrollbars --------------------------------------------------------- */
+scrollbar { background: transparent; border: none; }
+scrollbar slider { background: alpha(#000000, 0.26); border-radius: 999px; }
+scrollbar slider:hover { background: alpha(#000000, 0.40); }
+
+/* -- progress / spinner -------------------------------------------------- */
+progressbar trough { background: alpha(#000000, 0.10); }
+progressbar progress { background: @pika_accent; }
+
+/* -- alert dialog response buttons --------------------------------------
+ * These sit inside an AdwGizmo (not a plain box), and each response
+ * button carries "suggested" or "destructive" directly - not the
+ * "-action" suffix regular buttons use. The generic "labels are black"
+ * rule above targets the Label element itself, which otherwise wins over
+ * color inherited from this button, so the exception must repeat here.
+ */
+.response-area button.suggested,
+.response-area button.suggested label {
+  color: @pika_accent;
+  font-weight: 700;
+}
+.response-area button.destructive,
+.response-area button.destructive label {
+  color: #000000;
+  font-weight: 700;
+}
+.response-area button:not(.suggested):not(.destructive) label {
+  color: #000000;
+  font-weight: 500;
+}
+
+/* Section headings ("LIBRARY", "ALBUMS", "OTHER") are not controls: they
+   must never show a hover, selection, or focus highlight. */
+.pika-sidebar row.pika-sidebar-header-row,
+.pika-sidebar row.pika-sidebar-header-row:hover,
+.pika-sidebar row.pika-sidebar-header-row:selected,
+.pika-sidebar row.pika-sidebar-header-row:focus,
+.pika-sidebar row.pika-sidebar-header-row:active {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+/* The album or folder a drag is currently over. The destination is
+   highlighted rather than the dragged item, so the target is obvious
+   before you let go. */
+.pika-sidebar row.pika-drop-into {
+  background: alpha(@pika_accent, 0.18);
+  outline: 2px solid @pika_accent;
+  outline-offset: -2px;
+}
+
+/* ======================================================================
+ * VISUAL PASS
+ *
+ * Everything below refines what is already here rather than introducing
+ * anything new: the palette stays white surfaces, black text and black
+ * accents - no colour accent anywhere - and the black selection pill. What changes is
+ * rhythm - consistent spacing, a real type scale, and hierarchy that
+ * comes from weight and space instead of from boxes and lines.
+ * ==================================================================== */
+
+/* -- type scale --------------------------------------------------------
+ * Four sizes, each with a job, instead of a dozen arbitrary ones. */
+.pika-sidebar row label        { font-size: 0.94rem; font-weight: 500; }
+.pika-sidebar-header           { font-size: 0.7rem;  font-weight: 800;
+                                 letter-spacing: 0.09em; }
+.pika-section-title            { font-size: 1.15rem; font-weight: 800;
+                                 letter-spacing: -0.01em; }
+.pika-section-sub              { font-size: 0.78rem; font-weight: 500; }
+
+/* -- sidebar rhythm ---------------------------------------------------- */
+.pika-sidebar row {
+  min-height: 34px;
+  margin: 1px 10px;
+  border-radius: 9px;
+  transition: background 120ms ease-out;
+}
+.pika-sidebar row:selected {
+  background: #000000;
+  /* The current place should feel settled, not shouted - a soft lift
+     rather than a hard slab. */
+  box-shadow: 0 1px 3px alpha(#000000, 0.22);
+}
+.pika-sidebar-header {
+  margin: 20px 16px 6px 16px;
+}
+.pika-sidebar row image { -gtk-icon-size: 17px; }
+.pika-count { font-size: 0.8rem; font-weight: 600; }
+
+/* The "+" beside a section heading is an affordance, not a button slab. */
+.pika-sidebar-add {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  margin-right: 8px;
+  border-radius: 7px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  opacity: 0.55;
+  transition: opacity 120ms ease-out, background 120ms ease-out;
+}
+.pika-sidebar-add:hover {
+  opacity: 1;
+  background: alpha(#000000, 0.07);
+}
+
+/* -- header bar -------------------------------------------------------- */
+.pika-header { min-height: 52px; }
+.pika-search {
+  min-height: 34px;
+  border-radius: 999px;
+  background: #f1f1f3;
+  border: 1px solid transparent;
+  transition: background 130ms ease-out, border-color 130ms ease-out;
+}
+.pika-search:focus-within {
+  background: #ffffff;
+  border-color: alpha(@pika_accent, 0.55);
+  box-shadow: 0 0 0 3px alpha(@pika_accent, 0.13);
+}
+.pika-header button.flat {
+  border-radius: 8px;
+  min-height: 30px;
+  min-width: 30px;
+}
+.pika-header button.flat:hover { background: alpha(#000000, 0.06); }
+
+
+
+/* The zoom slider should read as a control, not a raw widget. */
+.pika-header scale { min-width: 108px; }
+.pika-header scale trough {
+  min-height: 4px;
+  border-radius: 999px;
+  background: alpha(#000000, 0.13);
+}
+.pika-header scale highlight {
+  border-radius: 999px;
+  background: @pika_accent;
+}
+.pika-header scale slider {
+  min-width: 15px; min-height: 15px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid alpha(#000000, 0.18);
+  box-shadow: 0 1px 3px alpha(#000000, 0.22);
+}
+
+/* -- grid -------------------------------------------------------------- */
+.pika-section { padding: 2px 0 24px 0; border-bottom: none; }
+.pika-section-title { margin: 22px 20px 0 20px; }
+.pika-section-sub   { margin: 2px 20px 12px 20px; }
+
+/* A hairline that stops short of the edges reads as a divider between
+   days rather than as a border drawn around a panel. */
+.pika-grid > row:not(:first-child) .pika-section {
+  border-top: 1px solid @pika_hairline_soft;
+  margin-top: 4px;
+}
+
+.pika-tile-button {
+  transition: transform 110ms ease-out;
+}
+.pika-tile-button:hover { transform: scale(1.015); }
+.pika-tile-button.selected .pika-tile {
+  outline: 3px solid @pika_accent;
+  outline-offset: -3px;
+}
+.pika-badge {
+  background: alpha(#000000, 0.55);
+  padding: 2px 5px;
+  margin: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+/* -- selection action bar ----------------------------------------------
+ * Reads as one grouped strip of actions rather than loose icons. */
+.pika-toolbar { padding: 6px 14px; }
+.pika-toolbar button {
+  min-height: 30px;
+  min-width: 30px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  margin-right: 2px;
+  transition: background 120ms ease-out;
+}
+.pika-toolbar button:hover { background: alpha(#000000, 0.07); }
+.pika-toolbar button.suggested-action,
+.pika-toolbar button.destructive-action {
+  padding-left: 14px; padding-right: 14px;
+  font-weight: 600;
+}
+.pika-toolbar button.suggested-action { background: @pika_accent; }
+.pika-toolbar button.suggested-action:hover { background: #3a3a3c; }
+.pika-toolbar button.destructive-action { background: #f2f2f4; }
+
+/* -- empty states ------------------------------------------------------
+ * The stock status page renders a huge solid glyph that lands like a
+ * blot on a white gallery wall; soften it and let the words lead. */
+statuspage image {
+  -gtk-icon-size: 72px;
+  color: alpha(#000000, 0.13);
+  margin-bottom: 6px;
+}
+statuspage title { font-size: 1.25rem; font-weight: 700; }
+statuspage description { color: @pika_text_dim; }
+
+/* -- editor ------------------------------------------------------------ */
+.pika-tool-panel { padding-top: 2px; }
+.pika-tool-tile { border-radius: 10px; padding: 10px 4px; }
+.pika-tool-tile:hover { background: alpha(#000000, 0.055); }
+.pika-tool-name { font-size: 0.78rem; font-weight: 500; }
+.pika-tool-group {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.09em;
+  margin: 16px 6px 4px 6px; padding-top: 12px;
+}
+.pika-slider-label { font-size: 0.87rem; font-weight: 500; }
+.pika-slider-value { font-size: 0.82rem; font-weight: 600; }
+
+/* The Years / Months / Days / All Photos switcher: a single quiet
+   segmented control, with the current view filled in the accent. */
+.pika-viewswitch button {
+  min-height: 28px;
+  padding: 0 13px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  background: #f1f1f3;
+  border: 1px solid @pika_hairline;
+  color: #000000;
+  box-shadow: none;
+}
+.pika-viewswitch button:hover { background: #e9e9ec; }
+.pika-viewswitch button:checked {
+  background: @pika_accent;
+  border-color: @pika_accent;
+}
+.pika-viewswitch button:checked label { color: #ffffff; }
+
+/* ======================================================================
+ * Softening the GTK edges
+ *
+ * The remaining "this is a Linux app" tells are geometric, not
+ * chromatic: hard 90-degree corners, heavy 1px borders on every
+ * control, and slab-like fills. Rounder shapes, lighter hairlines and
+ * softer fills read as the same palette, just less severe.
+ * ==================================================================== */
+
+/* Window corners, generous rather than square. */
+window.pikalicious { border-radius: 12px; }
+window.pikalicious.csd { border-radius: 12px; }
+
+
+
+/* The segmented control as a pill, not a row of boxes. */
+.pika-viewswitch {
+  background: #ececef;
+  border-radius: 999px;
+  padding: 2px;
+}
+.pika-viewswitch button {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  min-height: 26px;
+  padding: 0 15px;
+  font-weight: 500;
+  box-shadow: none;
+}
+.pika-viewswitch button:hover { background: alpha(#000000, 0.05); }
+.pika-viewswitch button:checked {
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 1px 3px alpha(#000000, 0.17);
+}
+.pika-viewswitch button:checked label {
+  color: #000000;
+  font-weight: 600;
+}
+
+/* Selection in the sidebar: a soft tinted pill rather than a black slab. */
+.pika-sidebar row:selected {
+  background: alpha(#000000, 0.87);
+  box-shadow: none;
+  border-radius: 8px;
+}
+
+/* Controls generally: softer fills, hairlines instead of borders. */
+button {
+  border-radius: 8px;
+  border: 1px solid alpha(#000000, 0.09);
+  background: #f7f7f8;
+  box-shadow: none;
+}
+button:hover { background: #f0f0f2; }
+entry, spinbutton, textview {
+  border-radius: 9px;
+  border: 1px solid alpha(#000000, 0.11);
+}
+popover > contents {
+  border-radius: 12px;
+  border: 1px solid alpha(#000000, 0.09);
+  box-shadow: 0 6px 22px alpha(#000000, 0.16);
+}
+dialog-host > dialog sheet, dialog-host > alertdialog sheet { border-radius: 14px; }
+/* The list is the rounded card; its rows are not. Rounding every row let
+   the list's background show through at each row's corners - small dark
+   wedges down both edges of the export options. */
+.boxed-list {
+  background: #ffffff;
+  border-radius: 10px;
+}
+.boxed-list > row { border-radius: 0; }
+.boxed-list > row:first-child {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+.boxed-list > row:last-child {
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+/* Photos meet edge to edge; the grid's only inset is the section's own
+   left/right padding, which grid.py's SECTION_PADDING mirrors. */
+.pika-section { padding-left: 20px; padding-right: 20px; }
+.pika-section-title { margin-left: 0; margin-right: 0; }
+.pika-section-sub { margin-left: 0; margin-right: 0; }
+.pika-grid flowboxchild { padding: 0; margin: 0; min-width: 0; }
+
+/* -- contrast and chrome, final word ------------------------------------
+ * These come last and are deliberately specific.
+ *
+ * Text on dark buttons. "window.pikalicious button label" (one class,
+ * three elements) paints every button label black, and it outranked the
+ * white-text exception for filled buttons (one class, two elements) - so
+ * with a black accent, Export / Edit / Import were black text on a black
+ * button, and Delete black on red. Dialogs live inside the window, so they
+ * were hit too. Scoping the exception the same way makes it win. */
+window.pikalicious button.suggested-action,
+window.pikalicious button.suggested-action label,
+window.pikalicious button.suggested-action image,
+window.pikalicious .pika-toolbar button.suggested-action label {
+  color: #ffffff;
+}
+
+/* Destructive actions (Delete Permanently, Delete Files) carry no colour
+ * either: the owner wants nothing orange, and the usual red read as
+ * orange. They look like any other button - the words say what they do,
+ * and every one of them asks for confirmation first. */
+window.pikalicious button.destructive-action,
+window.pikalicious .pika-toolbar button.destructive-action {
+  background: #f2f2f4;
+  border: 1px solid @pika_hairline;
+}
+window.pikalicious button.destructive-action:hover,
+window.pikalicious .pika-toolbar button.destructive-action:hover {
+  background: #e6e6ea;
+}
+window.pikalicious button.destructive-action label,
+window.pikalicious button.destructive-action image,
+window.pikalicious .pika-toolbar button.destructive-action label,
+window.pikalicious .response-area button.destructive,
+window.pikalicious .response-area button.destructive label {
+  color: #000000;
+}
+
+
+
+/* Number fields (the preview sizes in Settings). The desktop theme gives
+ * the text inside a spin button its own hard dark border, which drew a
+ * black box inside the row. One hairline around the whole control. */
+spinbutton {
+  border: 1px solid @pika_hairline;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+}
+spinbutton > text, spinbutton text {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  color: #000000;
+}
+spinbutton > button {
+  border: none;
+  background: transparent;
+  color: #000000;
+}
+spinbutton:focus-within { border-color: #1d1d1f; }
+
+/* Window buttons: minimise, maximise, close - on the right, drawn like
+ * every other toolbar button in the app. Plain black symbols on the white
+ * bar, a soft grey circle under the pointer, and no colour at all (no
+ * traffic lights, no red close). */
+windowcontrols { margin: 0 2px; border-spacing: 2px; }
+windowcontrols button,
+.pika-header windowcontrols button,
+dialog windowcontrols button {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+  color: #000000;
+}
+windowcontrols button image,
+.pika-header windowcontrols button image {
+  -gtk-icon-size: 14px;
+  opacity: 1;
+  color: #000000;
+}
+windowcontrols button:hover { background: alpha(#000000, 0.07); }
+windowcontrols button:active { background: alpha(#000000, 0.14); }
+
+/* Original aspect ratio (the toolbar's Aspect Ratio button): each photo sits
+ * whole on the white wall. The grey fill a tile carries while its thumbnail
+ * loads would otherwise show as bands above and below every landscape
+ * photo. */
+.pika-original .pika-tile { background: transparent; }
+
+/* Years / Months summary cards. The photo is the card; the words sit below
+ * it in black, as captions, not over the picture. */
+.pika-summary, .pika-summary flowbox, .pika-summary flowboxchild { background: @pika_wall; }
+.pika-summary flowboxchild { padding: 0; }
+.pika-summary-art {
+  border-radius: 10px;
+  background: #f0f0f2;
+  box-shadow: 0 1px 3px alpha(#000000, 0.12);
+}
+.pika-summary-card:hover .pika-summary-art {
+  box-shadow: 0 3px 10px alpha(#000000, 0.18);
+}
+.pika-summary-title { font-size: 1.05rem; font-weight: 700; color: #000000; margin-top: 4px; }
+
+/* Text you type is always black. Every editable field in GTK draws its
+ * characters in a "text" node, but not always inside an "entry" node:
+ * libadwaita's EntryRow (Title, Caption, Keywords in Info), spin buttons
+ * and search fields each nest it differently, and wherever this file did
+ * not reach, the desktop theme's light text colour won - white letters on
+ * a white field. So the rule is written for the text node itself. */
+text,
+entry text, entry > text,
+row.entry text, row.entry > box text, .entry text,
+spinbutton text, searchentry text, textview text,
+editablelabel text, passwordentry text {
+  color: #000000;
+  caret-color: #000000;
+}
+text > placeholder, entry placeholder, row.entry placeholder,
+text placeholder {
+  color: #8e8e93;
+}
+text > selection, text selection {
+  background-color: alpha(#1d1d1f, 0.18);
+  color: #000000;
+}
+/* The floating label of an entry row ("Add a Title") stays readable. */
+row.entry .subtitle, row.entry label.subtitle, row.entry > box > box > label {
+  color: #6e6e73;
+}
+row.entry, row.entry:focus-within {
+  background-color: #ffffff;
+  color: #000000;
+}
+
+/* -- fields and pickers, one look ---------------------------------------
+ * Every place you type or pick follows the same quiet style: a white field
+ * with a hairline border; when it has focus the border simply darkens.
+ * With a black accent, the earlier focus ring (accent border plus a 3px
+ * halo) became a heavy dark frame around fields in the new dialogs, and
+ * drop-downs kept libadwaita's grey pill - neither matched the rest of the
+ * app. The search field keeps its own rounded shape. */
+entry:not(.pika-search), spinbutton, row.entry {
+  border: 1px solid @pika_hairline;
+  border-radius: 8px;
+  box-shadow: none;
+  outline: none;
+  background-color: #ffffff;
+}
+entry:not(.pika-search):focus-within, spinbutton:focus-within {
+  border-color: #8e8e93;
+  box-shadow: none;
+  outline: none;
+}
+row.entry { border: none; border-radius: 0; }
+row.entry:focus-within { box-shadow: none; outline: none; }
+.pika-search:focus-within { border-color: #8e8e93; box-shadow: none; }
+
+dropdown > button, dropdown button.combo, combobox button,
+.pika-smart-row dropdown > button, comborow dropdown > button {
+  background: #ffffff;
+  border: 1px solid @pika_hairline;
+  border-radius: 8px;
+  box-shadow: none;
+  color: #000000;
+  font-weight: 500;
+}
+dropdown > button:hover, combobox button:hover { background: #f6f6f8; }
+dropdown > button label, dropdown > button image,
+combobox button label, combobox button image { color: #000000; }
+/* A combo row's value sits flat in the row, as in the rest of the lists. */
+row.combo dropdown > button, row.combo button.combo {
+  border: none;
+  background: transparent;
+}
+
+/* -- menus: black text in every state -----------------------------------
+ * Right-click and toolbar menus. The desktop theme gives the item under the
+ * pointer (or the keyboard) its own light text colour; this file only
+ * lightened that item's background, so "Rename…" turned into pale text on
+ * grey. The words stay black whatever state the item is in. */
+popover modelbutton, popover.menu modelbutton,
+popover modelbutton:hover, popover modelbutton:focus, popover modelbutton:focus-visible,
+popover modelbutton:selected, popover modelbutton:active, popover modelbutton:checked,
+popover.menu contents modelbutton:hover,
+popover modelbutton label, popover modelbutton:hover label,
+popover modelbutton:selected label, popover modelbutton:focus label,
+popover modelbutton accelerator, popover modelbutton arrow,
+popover modelbutton check, popover modelbutton radio {
+  color: #000000;
+}
+popover modelbutton:hover, popover modelbutton:selected,
+popover modelbutton:focus-visible {
+  background-color: alpha(#000000, 0.07);
+}
+popover modelbutton:disabled, popover modelbutton:disabled label {
+  color: #8e8e93;
+}
+
+/* -- drag image ---------------------------------------------------------
+ * What travels under the pointer when photos are dragged onto an album:
+ * one small photo on a white card, a soft shadow, and a black count badge
+ * when there is more than one. */
+.pika-drag-icon {
+  background: #ffffff;
+  border-radius: 11px;
+  padding: 3px;
+  box-shadow: 0 6px 18px alpha(#000000, 0.22), 0 0 0 1px alpha(#000000, 0.06);
+}
+.pika-drag-count {
+  background: #1d1d1f;
+  color: #ffffff;
+  border-radius: 999px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 7px;
+  margin: -8px -8px 0 0;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+/* -- sidebar sections: fold and add -------------------------------------
+ * A heading is one line: the title, a small chevron that folds the section,
+ * and - for Albums - a "+" sitting on that same line, lined up with the
+ * counts below it. The spacing belongs to the line, not to the label, so
+ * the "+" is centred on the words instead of floating above them. */
+.pika-sidebar-header-box {
+  margin: 14px 10px 2px 8px;
+  min-height: 26px;
+}
+.pika-sidebar .pika-sidebar-header,
+.pika-sidebar-header {
+  margin: 0;
+  padding: 0;
+}
+.pika-sidebar-toggle {
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+.pika-sidebar-toggle:hover { background: alpha(#000000, 0.05); }
+.pika-sidebar-chevron {
+  -gtk-icon-size: 10px;
+  color: @pika_text_dim;
+  opacity: 0.55;
+}
+.pika-sidebar-toggle:hover .pika-sidebar-chevron { opacity: 1; color: #000000; }
+.pika-sidebar-toggle:hover .pika-sidebar-header { color: #000000; }
+
+.pika-sidebar .pika-sidebar-add,
+.pika-sidebar-add {
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  margin: 0 2px 0 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+}
+.pika-sidebar-add image {
+  -gtk-icon-size: 13px;
+  color: @pika_text_dim;
+}
+.pika-sidebar-add:hover { background: alpha(#000000, 0.07); }
+.pika-sidebar-add:hover image,
+.pika-sidebar-add:checked image { color: #000000; }
+
+/* -- app title in the sidebar ------------------------------------------ */
+.pika-header label.pika-app-title,
+.pika-app-title {
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #000000;
+  margin-left: 8px;
+}
+
+/* -- sidebar footer: what the library holds ----------------------------- */
+.pika-sidebar-footer {
+  padding: 10px 18px 14px 18px;
+  border-top: 1px solid @pika_hairline_soft;
+  background: @pika_sidebar;
+}
+.pika-footer-counts {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+.pika-footer-space {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: @pika_text_dim;
+}
+levelbar.pika-footer-meter { min-height: 3px; }
+levelbar.pika-footer-meter trough {
+  min-height: 3px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #e8e8ed;
+}
+levelbar.pika-footer-meter trough block,
+levelbar.pika-footer-meter trough block.filled,
+levelbar.pika-footer-meter trough block:not(.empty) {
+  min-height: 3px;
+  border: none;
+  border-radius: 999px;
+  background: #1d1d1f;
+}
+levelbar.pika-footer-meter trough block.empty { background: transparent; }
+
+/* -- the + beside ALBUMS, for real ----------------------------------------
+ * A MenuButton draws its own inner "button" node, and that inner node is
+ * what carried the grey slab and border; styling the MenuButton itself
+ * never reached it. */
+menubutton.pika-sidebar-add,
+menubutton.pika-sidebar-add > button,
+window.pikalicious menubutton.pika-sidebar-add > button {
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+menubutton.pika-sidebar-add > button image {
+  -gtk-icon-size: 13px;
+  color: @pika_text_dim;
+}
+menubutton.pika-sidebar-add > button:hover,
+menubutton.pika-sidebar-add > button:checked {
+  background: alpha(#000000, 0.07);
+}
+menubutton.pika-sidebar-add > button:hover image,
+menubutton.pika-sidebar-add > button:checked image { color: #000000; }
+
+/* -- selected photos, unmistakable ---------------------------------------
+ * A selected photo gets a thick black frame with a white inner edge (so
+ * it reads on dark photos too) and a black check disc in its corner.
+ * No colour: the app has none. Unselected tiles show no disc at all. */
+.pika-select-check {
+  opacity: 0;
+  -gtk-icon-size: 12px;
+  min-width: 22px;
+  min-height: 22px;
+  margin: 7px;
+  border-radius: 999px;
+  background: #1d1d1f;
+  color: #ffffff;
+  box-shadow: 0 0 0 2px #ffffff, 0 1px 4px alpha(#000000, 0.35);
+}
+.pika-tile-button.selected .pika-select-check { opacity: 1; }
+/* The frame is an outline on the tile's container: outlines are painted
+   after the children, so it sits on top of the photo. An inset box-shadow
+   is painted underneath the widget's content and the photo covered it. */
+window.pikalicious .pika-tile-button.selected,
+.pika-grid .pika-tile-button.selected {
+  outline: 4px solid #1d1d1f;
+  outline-offset: -4px;
+}
+window.pikalicious .pika-tile-button.selected .pika-tile,
+.pika-grid .pika-tile-button.selected .pika-tile {
+  outline: 2px solid #ffffff;
+  outline-offset: -6px;
+}
+.pika-tile-button.selected { opacity: 1; }
+
+/* -- selection details ---------------------------------------------------
+ * The check inside the disc is white: the grid's "icons are black" rule
+ * reached it too, leaving a black check on a black disc. And a day's band
+ * never shows a focus rectangle - clicking a photo focuses the list row
+ * behind it, which drew a grey box around the whole day. */
+window.pikalicious .pika-grid image.pika-select-check,
+.pika-grid .pika-tile-button image.pika-select-check,
+image.pika-select-check {
+  color: #ffffff;
+}
+.pika-grid > row:focus, .pika-grid > row:focus-visible,
+.pika-grid > row:focus-within {
+  outline: none;
+  box-shadow: none;
+}
+
+/* -- dark stage for viewing and editing ---------------------------------
+ * The library is a white gallery wall, but a photo you are looking at
+ * closely or editing sits on a dark stage: white around a
+ * photo makes it look darker and flatter than it is. The bars and the
+ * tool panel stay white. Full screen is the photo alone on black. */
+.pika-stage, .pika-stage viewport, .pika-stage > overlay,
+scrolledwindow.pika-stage, scrolledwindow.pika-stage > viewport,
+window.pikalicious .pika-stage {
+  background-color: #1c1c1e;
+}
+.pika-stage picture { background: transparent; }
+.pika-fullscreen, .pika-fullscreen .pika-stage,
+.pika-fullscreen scrolledwindow, .pika-fullscreen viewport,
+window.pikalicious .pika-fullscreen .pika-stage {
+  background-color: #000000;
+}
+
+/* -- room around the photo -----------------------------------------------
+ * The photo does not run into the edges: a little space on every side and
+ * a bit more below. In the editor the space is padding on the stage, so
+ * the picture and the crop/brush overlay drawn over it move together.
+ * Full screen keeps the whole screen for the photo. */
+overlay.pika-stage { padding: 18px 20px 30px 20px; }
+scrolledwindow.pika-stage picture { margin: 18px 20px 30px 20px; }
+.pika-fullscreen scrolledwindow.pika-stage picture { margin: 0; }
+
+/* -- brand mark ------------------------------------------------------------
+ * The camera and the name, larger than the rest of the bar and centred
+ * over the sidebar. Black, like everything else in the chrome. */
+.pika-brand { margin: 0; }
+.pika-header .pika-brand label.pika-app-title,
+window.pikalicious .pika-brand label.pika-app-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #000000;
+  margin: 0;
+}
+
+/* -- rename photo ------------------------------------------------------------
+ * Why a name can't be used, under the field. Black like all text here. */
+.pika-rename-problem { color: #1d1d1f; font-size: 0.9em; }
+
+/* -- right-click menus ---------------------------------------------------------
+ * One look for every context menu: a steady width, even rows, sections
+ * divided by a hairline, and the keyboard shortcut in grey on the right. */
+popover.pika-context-menu > contents {
+  min-width: 210px;
+  border-radius: 11px;
+}
+popover.pika-context-menu modelbutton {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+}
+popover.pika-context-menu modelbutton accelerator,
+popover.pika-context-menu modelbutton:hover accelerator {
+  color: #8e8e93;
+  margin-left: 24px;
+}
+/* Colour only: GTK sizes the menu before extra margins or padding on its
+ * separators and frame are added, so those cut off the last item. */
+popover.pika-context-menu separator {
+  background: alpha(#000000, 0.08);
+}
+
+/* -- video ---------------------------------------------------------------------
+ * The player sits on the same dark stage as a photo. Its controls float over
+ * the bottom of the picture in a dark rounded bar with white symbols - black
+ * and white like the rest of Piklin, never a colour. */
+.pika-player { background: #1c1c1e; }
+.pika-fullscreen .pika-player { background: #000000; }
+.pika-player-controls {
+  background: alpha(#1c1c1e, 0.9);
+  border-radius: 14px;
+  padding: 6px 12px;
+  box-shadow: 0 8px 28px alpha(#000000, 0.38);
+}
+window.pikalicious .pika-player-controls button,
+window.pikalicious .pika-player-controls menubutton > button {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 6px;
+  border-radius: 8px;
+}
+window.pikalicious .pika-player-controls button:hover,
+window.pikalicious .pika-player-controls menubutton > button:hover {
+  background: alpha(#ffffff, 0.12);
+}
+window.pikalicious .pika-player-controls button:checked {
+  background: alpha(#ffffff, 0.22);
+}
+window.pikalicious .pika-player-controls label,
+window.pikalicious .pika-player-controls image,
+window.pikalicious .pika-player-controls button label,
+window.pikalicious .pika-player-controls button image,
+window.pikalicious .pika-player-controls menubutton > button label,
+window.pikalicious .pika-player-controls menubutton > button arrow {
+  color: #ffffff;
+}
+.pika-player-time {
+  font-feature-settings: "tnum";
+  font-size: 0.85rem;
+}
+window.pikalicious .pika-player-rate > button label { font-weight: 600; }
+.pika-player-scrubber trough {
+  background: alpha(#ffffff, 0.24);
+  min-height: 4px;
+  border-radius: 2px;
+}
+.pika-player-scrubber highlight {
+  background: #ffffff;
+  border-radius: 2px;
+}
+.pika-player-scrubber slider {
+  background: #ffffff;
+  min-width: 13px;
+  min-height: 13px;
+  border-radius: 50%;
+  border: none;
+  box-shadow: 0 1px 4px alpha(#000000, 0.4);
+}
+window.pikalicious button.pika-player-big {
+  min-width: 76px;
+  min-height: 76px;
+  border-radius: 50%;
+  /* nearly opaque: see-through, it took on the colour of the video */
+  background: alpha(#1c1c1e, 0.9);
+  border: none;
+  box-shadow: 0 8px 28px alpha(#000000, 0.35);
+}
+window.pikalicious button.pika-player-big image {
+  color: #ffffff;
+  -gtk-icon-size: 30px;
+}
+window.pikalicious button.pika-player-big:hover { background: #1c1c1e; }
+.pika-player-note {
+  background: alpha(#1c1c1e, 0.86);
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 8px 14px;
+}
+window.pikalicious .pika-video-badge label,
+window.pikalicious .pika-video-badge image {
+  color: #ffffff;
+  font-feature-settings: "tnum";
+}
+
+/* -- video editor timeline -------------------------------------------------------
+ * A dark strip under the picture, continuing the stage: the filmstrip, the
+ * white trim handles and the playhead read on it, and nothing is coloured. */
+.pika-timeline-bar {
+  background: #1c1c1e;
+  padding: 8px 0 10px 0;
+  border-top: 1px solid alpha(#ffffff, 0.06);
+}
+window.pikalicious .pika-timeline-label {
+  color: alpha(#ffffff, 0.72);
+  font-size: 0.8rem;
+  font-feature-settings: "tnum";
+}
+
+/* -- live photos -----------------------------------------------------------------
+ * LIVE on a tile, and the button that plays it in the viewer: white letters
+ * on a dark pill, like every other badge here. */
+window.pikalicious .pika-live-badge {
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+/* A white pill with black letters: it reads over the dark stage and over
+ * a bright photo alike (dark on dark vanished beside the picture). */
+window.pikalicious button.pika-live-button {
+  background: alpha(#ffffff, 0.92);
+  border: none;
+  border-radius: 999px;
+  padding: 2px 12px;
+  min-height: 26px;
+  box-shadow: 0 2px 10px alpha(#000000, 0.35);
+}
+window.pikalicious button.pika-live-button:hover { background: #ffffff; }
+window.pikalicious button.pika-live-button label {
+  color: #000000;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+
+/* -- Buy Me a Coffee -------------------------------------------------------------
+ * Under the storage line: a small white pill with a hairline edge and black
+ * words, as quiet as the footer around it. */
+window.pikalicious button.pika-support {
+  background: #ffffff;
+  border: 1px solid alpha(#000000, 0.12);
+  border-radius: 999px;
+  min-height: 36px;
+  padding: 0 14px;
+  box-shadow: 0 1px 3px alpha(#000000, 0.06);
+}
+window.pikalicious button.pika-support:hover { background: #f2f2f4; }
+window.pikalicious button.pika-support label,
+window.pikalicious button.pika-support image {
+  color: #000000;
+  font-size: 0.9rem;
+  font-weight: 700;
+}

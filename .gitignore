@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Build output
+dist/
+*.deb
+*.AppImage
+packaging/deb-root/
+packaging/AppDir/
+packaging/wheel-cache/
+packaging/media-cache/
+
+# Logs
+*.log
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+.DS_Store

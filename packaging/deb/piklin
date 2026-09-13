@@ -1,0 +1,40 @@
+#!/usr/bin/python3 -s
+"""Piklin launcher, installed as /usr/bin/piklin by the .deb.
+
+The app runs on the distribution's own Python, GTK4 and libadwaita. The
+compiled Python libraries it needs (numpy, OpenCV, Pillow, rawpy, pi-heif)
+are shipped inside the package, one set per Python version, because the
+distributions do not package all of them or package versions too old.
+This picks the set that matches the running interpreter.
+
+-s keeps packages from the user's own ~/.local pip installs out of the
+way: a stray numpy there must not shadow the one we tested with.
+"""
+import os
+import sys
+
+# Paths relative to this file rather than hardcoded /usr, so an extracted
+# package (dpkg-deb -x) can be run in place for testing.
+prefix = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+libs = os.path.join(prefix, "lib", "piklin")
+pyver = "python%d.%d" % sys.version_info[:2]
+
+if not os.path.isdir(os.path.join(libs, pyver)):
+    sys.stderr.write(
+        "Piklin: this package does not include libraries for %s.\n"
+        "Supported: %s. Please download the version of Piklin made "
+        "for your system.\n" % (pyver, ", ".join(sorted(
+            d for d in os.listdir(libs) if d.startswith("python")))))
+    sys.exit(1)
+
+paths = [os.path.join(prefix, "share", "piklin"),
+         os.path.join(libs, pyver),
+         os.path.join(libs, "common")]
+sys.path[:0] = paths
+# Also for any child Python process the app starts.
+os.environ["PYTHONPATH"] = os.pathsep.join(
+    paths + ([os.environ["PYTHONPATH"]] if os.environ.get("PYTHONPATH") else []))
+
+from pikalicious.app import main  # noqa: E402
+
+sys.exit(main())

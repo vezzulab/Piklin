@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]; then
+    # Byte-compile now, as root, so the first launch is not slowed down
+    # by Python compiling everything into a directory it cannot write to.
+    pyver="$(python3 -c 'import sys; print("python%d.%d" % sys.version_info[:2])')"
+    for d in /usr/share/piklin/pikalicious \
+             "/usr/lib/piklin/$pyver" /usr/lib/piklin/common; do
+        [ -d "$d" ] && python3 -m compileall -q -j0 "$d" >/dev/null 2>&1 || true
+    done
+fi
+
+exit 0

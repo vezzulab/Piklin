@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Piklin
+GenericName=Photo Library
+Comment=Browse, organise and edit your photographs
+Exec=piklin %F
+TryExec=piklin
+Icon=piklin
+Terminal=false
+Categories=Graphics;Photography;Viewer;RasterGraphics;GTK;
+Keywords=photo;photos;picture;pictures;image;images;gallery;library;album;editor;raw;exif;
+# x-content/image-dcf is the type a camera or card with a DCIM
+# folder announces itself as, and image-picturecd covers photo
+# discs - listing them is what puts Piklin in the desktop's
+# "you just connected a camera, what should open it?" prompt.
+MimeType=x-content/image-dcf;x-content/image-picturecd;image/jpeg;image/png;image/webp;image/tiff;image/bmp;image/gif;image/heif;image/heic;image/avif;image/x-canon-cr2;image/x-canon-cr3;image/x-nikon-nef;image/x-sony-arw;image/x-fuji-raf;image/x-panasonic-rw2;image/x-olympus-orf;image/x-adobe-dng;inode/directory;
+StartupNotify=true
+StartupWMClass=piklin
+SingleMainWindow=true

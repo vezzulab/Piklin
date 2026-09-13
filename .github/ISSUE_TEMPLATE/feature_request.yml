@@ -1,0 +1,20 @@
+name: Feature request
+description: An idea to make Piklin better
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to do?
+      description: Describe the task or the moment where Piklin could help more.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How would you like it to work?
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Examples, sketches or screenshots help.
