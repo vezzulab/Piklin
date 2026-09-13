@@ -65,20 +65,53 @@ def _keyring():
 SCHEMA_ATTRS = {"application": "pikalicious", "remote": ""}
 
 
+def _schema(Secret):
+    return Secret.Schema.new(
+        "com.envy.Pikalicious", Secret.SchemaFlags.NONE,
+        {"application": Secret.SchemaAttributeType.STRING,
+         "remote": Secret.SchemaAttributeType.STRING})
+
+
+def _unlock_default_keyring(Secret) -> bool:
+    """Ask the desktop to unlock the default keyring.
+
+    The login keyring is often left locked - after an automatic login, or
+    when its password differs from the account's - and nothing can be
+    stored in or read from a locked keyring. The desktop shows its own
+    password prompt for it. True when the keyring is unlocked afterwards.
+    """
+    try:
+        service = Secret.Service.get_sync(Secret.ServiceFlags.LOAD_COLLECTIONS, None)
+        default = Secret.Collection.for_alias_sync(
+            service, "default", Secret.CollectionFlags.NONE, None)
+        if default is None:
+            return False
+        if default.get_locked():
+            service.unlock_sync([default], None)
+            default = Secret.Collection.for_alias_sync(
+                service, "default", Secret.CollectionFlags.NONE, None)
+        return default is not None and not default.get_locked()
+    except Exception:
+        return False
+
+
 def store_secret(remote_id: str, secret: str) -> bool:
-    """Put a password in the system keyring. False if unavailable."""
+    """Put a password in the system keyring. False if that is impossible."""
     Secret = _keyring()
     if Secret is None:
         return False
+    attrs = {"application": "pikalicious", "remote": remote_id}
+    label = f"Piklin remote: {remote_id}"
     try:
-        schema = Secret.Schema.new(
-            "com.envy.Pikalicious", Secret.SchemaFlags.NONE,
-            {"application": Secret.SchemaAttributeType.STRING,
-             "remote": Secret.SchemaAttributeType.STRING})
-        return bool(Secret.password_store_sync(
-            schema, {"application": "pikalicious", "remote": remote_id},
-            Secret.COLLECTION_DEFAULT,
-            f"Piklin remote: {remote_id}", secret, None))
+        schema = _schema(Secret)
+        try:
+            return bool(Secret.password_store_sync(
+                schema, attrs, Secret.COLLECTION_DEFAULT, label, secret, None))
+        except Exception:
+            if not _unlock_default_keyring(Secret):
+                return False
+            return bool(Secret.password_store_sync(
+                schema, attrs, Secret.COLLECTION_DEFAULT, label, secret, None))
     except Exception:
         return False
 
@@ -87,13 +120,13 @@ def load_secret(remote_id: str) -> str | None:
     Secret = _keyring()
     if Secret is None:
         return None
+    attrs = {"application": "pikalicious", "remote": remote_id}
     try:
-        schema = Secret.Schema.new(
-            "com.envy.Pikalicious", Secret.SchemaFlags.NONE,
-            {"application": Secret.SchemaAttributeType.STRING,
-             "remote": Secret.SchemaAttributeType.STRING})
-        return Secret.password_lookup_sync(
-            schema, {"application": "pikalicious", "remote": remote_id}, None)
+        schema = _schema(Secret)
+        value = Secret.password_lookup_sync(schema, attrs, None)
+        if value is None and _unlock_default_keyring(Secret):
+            value = Secret.password_lookup_sync(schema, attrs, None)
+        return value
     except Exception:
         return None
 
@@ -188,28 +221,35 @@ class Backend:
         raise NotImplementedError
 
     # -- shared sync logic ----------------------------------------------
-    def push(self, root: Path, files: Iterable[Path],
-             on_progress: Callable[[SyncProgress], None] | None = None,
-             ) -> SyncProgress:
-        """Upload everything that is missing or changed.
+    # What was sent to this destination: relative path -> [size, mtime] of
+    # the local file when it was uploaded. Many servers stamp a file with
+    # the time it arrived rather than its own modification time; with this
+    # record an unchanged photo is still recognised and never sent twice.
+    def _manifest_path(self, root: Path) -> Path:
+        return Path(root) / ".cache" / "backups" / f"{self.remote.id}.json"
 
-        Comparison is by size then mtime, which is what every practical
-        sync tool uses: hashing a 200 GB library on every run to find the
-        three files that changed would cost far more than it saves.
-        """
-        p = SyncProgress(phase="listing")
-        if on_progress:
-            on_progress(p)
+    def _load_manifest(self, root: Path) -> dict:
         try:
-            remote_index = self.listing()
-        except Exception as exc:
-            p.phase = "error"
-            p.message = f"could not list remote: {exc}"
-            if on_progress:
-                on_progress(p)
-            return p
+            data = json.loads(self._manifest_path(root).read_text())
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
 
-        todo: list[tuple[Path, str, int]] = []
+    def _save_manifest(self, root: Path, manifest: dict) -> None:
+        path = self._manifest_path(root)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(manifest))
+            tmp.replace(path)
+        except OSError:
+            pass
+
+    def _plan(self, root: Path, files: Iterable[Path],
+              remote_index: dict, manifest: dict):
+        """Files to send: missing on the destination, or modified since
+        they were sent. Returns (todo, skipped)."""
+        todo, skipped = [], 0
         for f in files:
             try:
                 st = f.stat()
@@ -217,36 +257,76 @@ class Backend:
                 continue
             rel = f.relative_to(root).as_posix()
             have = remote_index.get(rel)
-            if have and have[0] == st.st_size and abs(have[1] - st.st_mtime) < 2:
-                p.skipped += 1
-                continue
-            todo.append((f, rel, st.st_size))
+            if have and have[0] == st.st_size:
+                sent = manifest.get(rel)
+                same_time = abs(have[1] - st.st_mtime) < 2
+                sent_unchanged = (bool(sent) and sent[0] == st.st_size
+                                  and abs(sent[1] - st.st_mtime) < 1)
+                if same_time or sent_unchanged:
+                    skipped += 1
+                    continue
+            todo.append((f, rel, st.st_size, st.st_mtime))
+        return todo, skipped
 
+    def push(self, root: Path, files: Iterable[Path],
+             on_progress: Callable[[SyncProgress], None] | None = None,
+             ) -> SyncProgress:
+        """Upload what is missing on the destination or changed since.
+
+        A file already on the destination is never sent again unless it
+        was modified. Size and modification time decide, as in every
+        practical sync tool; hashing a 200 GB library on every run to find
+        the three files that changed would cost far more than it saves.
+        """
+        root = Path(root)
+        p = SyncProgress(phase="listing")
+        if on_progress:
+            on_progress(p)
+        try:
+            remote_index = self.listing()
+        except Exception as exc:
+            p.phase = "error"
+            p.message = f"could not list the destination: {exc}"
+            if on_progress:
+                on_progress(p)
+            return p
+
+        manifest = self._load_manifest(root)
+        todo, p.skipped = self._plan(root, files, remote_index, manifest)
         p.phase = "uploading"
         p.total_files = len(todo)
         p.total_bytes = sum(t[2] for t in todo)
         if on_progress:
             on_progress(p)
 
-        for f, rel, size in todo:
+        for n, (f, rel, size, mtime) in enumerate(todo, 1):
             if self.cancel.is_set():
                 p.phase = "cancelled"
                 break
             p.current = rel
             try:
-                if self.put(f, rel):
-                    p.uploaded += 1
-                else:
-                    p.errors += 1
+                ok = self.put(f, rel)
             except Exception:
+                ok = False
+            if ok:
+                p.uploaded += 1
+                manifest[rel] = [size, mtime]
+            else:
                 p.errors += 1
             p.done_files += 1
             p.done_bytes += size
+            if n % 50 == 0:
+                self._save_manifest(root, manifest)
             if on_progress:
                 on_progress(p)
+        self._save_manifest(root, manifest)
 
         if p.phase != "cancelled":
-            p.phase = "done"
+            if p.errors and not p.uploaded:
+                p.phase = "error"
+                p.message = f"none of the {p.errors} files could be uploaded"
+            else:
+                p.phase = "done"
         if on_progress:
             on_progress(p)
         return p
@@ -326,7 +406,11 @@ class LocalBackend(Backend):
 class WebDavBackend(Backend):
     """Native WebDAV: QNAP, Synology, Nextcloud, ownCloud, pCloud, Box."""
 
-    TIMEOUT = 30
+    TIMEOUT = 60
+
+    def __init__(self, remote: Remote):
+        super().__init__(remote)
+        self._folders: set[str] = set()
 
     @property
     def url(self) -> str:
@@ -338,21 +422,41 @@ class WebDavBackend(Backend):
 
     def _auth_header(self) -> dict:
         user = self.remote.config.get("username", "")
-        pw = load_secret(self.remote.id) or self.remote.config.get("password", "")
         if not user:
             return {}
+        pw = self.remote.config.get("password") or load_secret(self.remote.id) or ""
         token = b64encode(f"{user}:{pw}".encode()).decode()
         return {"Authorization": f"Basic {token}"}
 
-    def _request(self, method: str, rel: str = "", data: bytes | None = None,
-                 extra: dict | None = None) -> urllib.request.addinfourl:
-        parts = [p for p in (self.base_path, rel) if p]
-        path = "/".join(parts)
+    def _full(self, rel: str = "") -> str:
+        return "/".join(p for p in (self.base_path, rel.strip("/")) if p)
+
+    def _request_path(self, method: str, path: str, data=None,
+                      extra: dict | None = None):
         url = f"{self.url}/{urllib.parse.quote(path)}" if path else self.url
         req = urllib.request.Request(url, data=data, method=method)
         for k, v in {**self._auth_header(), **(extra or {})}.items():
             req.add_header(k, v)
         return urllib.request.urlopen(req, timeout=self.TIMEOUT)
+
+    def _request(self, method: str, rel: str = "", data=None,
+                 extra: dict | None = None):
+        return self._request_path(method, self._full(rel), data, extra)
+
+    def _ensure_folder(self, path: str) -> None:
+        """Create every missing folder of ``path`` (relative to the URL)."""
+        parts = [p for p in path.split("/") if p]
+        for i in range(1, len(parts) + 1):
+            sub = "/".join(parts[:i])
+            if sub in self._folders:
+                continue
+            try:
+                self._request_path("MKCOL", sub)
+            except urllib.error.HTTPError as exc:
+                if exc.code in (401, 403):
+                    raise
+                # 405 Method Not Allowed / 301: the folder already exists
+            self._folders.add(sub)
 
     def test(self) -> TestResult:
         if not self.url:
@@ -365,8 +469,17 @@ class WebDavBackend(Backend):
                               "Refusing to send credentials over plain HTTP",
                               "Use an https:// URL")
         try:
-            self._request("PROPFIND", extra={"Depth": "0"})
-            return TestResult(True, "Connected", self.url)
+            try:
+                self._request("PROPFIND", extra={"Depth": "0"})
+                return TestResult(True, "Connected", self.url)
+            except urllib.error.HTTPError as exc:
+                if exc.code == 404 and self.base_path:
+                    # The backup folder does not exist yet: create it.
+                    self._ensure_folder(self.base_path)
+                    self._request("PROPFIND", extra={"Depth": "0"})
+                    return TestResult(True, "Connected",
+                                      f"created the folder {self.base_path}")
+                raise
         except urllib.error.HTTPError as exc:
             if exc.code in (401, 403):
                 return TestResult(False, "Sign-in rejected", f"HTTP {exc.code}")
@@ -379,72 +492,90 @@ class WebDavBackend(Backend):
         except Exception as exc:
             return TestResult(False, "Connection failed", str(exc))
 
-    def listing(self) -> dict[str, tuple[int, float]]:
-        """PROPFIND the tree once and parse sizes and modification times."""
-        out: dict[str, tuple[int, float]] = {}
-        try:
-            resp = self._request("PROPFIND", extra={"Depth": "infinity"})
-            body = resp.read().decode("utf-8", "replace")
-        except Exception:
-            return out
+    def _entries(self, rel: str, depth: str) -> list[tuple[str, bool, int, float]]:
+        """(path relative to the backup folder, is folder, size, mtime)."""
         import re
         from email.utils import parsedate_to_datetime
-        prefix = f"/{self.base_path}" if self.base_path else ""
+        body = self._request("PROPFIND", rel, extra={"Depth": depth}).read()
+        body = body.decode("utf-8", "replace")
+        prefix = urllib.parse.urlparse(self.url).path.rstrip("/")
+        if self.base_path:
+            prefix += "/" + self.base_path
+        out = []
         for block in re.findall(r"<[^>]*response[^>]*>(.*?)</[^>]*response>",
                                 body, re.S | re.I):
             href = re.search(r"<[^>]*href[^>]*>(.*?)</[^>]*href>", block, re.S | re.I)
+            if not href:
+                continue
+            path = urllib.parse.unquote(urllib.parse.urlparse(href.group(1).strip()).path)
+            if prefix and path.startswith(prefix):
+                path = path[len(prefix):]
+            path = path.strip("/")
+            is_folder = bool(re.search(r"<[^>]*collection\s*/?>", block, re.I))
             size = re.search(r"getcontentlength[^>]*>(\d+)<", block, re.I)
             mod = re.search(r"getlastmodified[^>]*>(.*?)<", block, re.I)
-            if not href or not size:
-                continue
-            path = urllib.parse.unquote(href.group(1))
-            idx = path.find(prefix) if prefix else -1
-            rel = path[idx + len(prefix):] if idx >= 0 else path
-            rel = rel.strip("/")
-            if not rel:
-                continue
             ts = 0.0
             if mod:
                 try:
                     ts = parsedate_to_datetime(mod.group(1).strip()).timestamp()
                 except Exception:
                     ts = 0.0
-            out[rel] = (int(size.group(1)), ts)
+            out.append((path, is_folder, int(size.group(1)) if size else 0, ts))
         return out
 
-    def _mkcol(self, rel_dir: str) -> None:
-        parts = rel_dir.split("/")
-        for i in range(1, len(parts) + 1):
-            sub = "/".join(parts[:i])
-            if not sub:
-                continue
-            try:
-                self._request("MKCOL", sub)
-            except urllib.error.HTTPError as exc:
-                if exc.code not in (405, 301):     # already exists
-                    pass
-            except Exception:
-                pass
+    def listing(self) -> dict[str, tuple[int, float]]:
+        """Sizes and modification times of what is already on the server."""
+        try:
+            entries = self._entries("", "infinity")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                return {}                       # nothing backed up yet
+            if exc.code == 401:
+                raise
+            entries = None                      # Depth: infinity refused
+        # Servers that refuse or quietly ignore Depth: infinity (Nextcloud
+        # by default) return only the top level: walk the folders instead.
+        if entries is None or (any(d for r, d, _s, _t in entries if r)
+                               and not any(not d for r, d, _s, _t in entries if r)):
+            entries, pending, seen = [], [""], {""}
+            while pending:
+                folder = pending.pop()
+                for r, is_folder, size, ts in self._entries(folder, "1"):
+                    if r in seen:
+                        continue
+                    seen.add(r)
+                    if is_folder:
+                        pending.append(r)
+                    else:
+                        entries.append((r, False, size, ts))
+        return {r: (size, ts) for r, is_folder, size, ts in entries
+                if r and not is_folder}
 
     def put(self, local: Path, rel: str) -> bool:
         parent = "/".join(rel.split("/")[:-1])
-        if parent:
-            self._mkcol(parent)
-        data = local.read_bytes()
-        try:
-            self._request("PUT", rel, data=data,
-                          extra={"Content-Type": "application/octet-stream"})
-            return True
-        except urllib.error.HTTPError as exc:
-            return exc.code in (200, 201, 204)
-        except Exception:
-            return False
+        self._ensure_folder(self._full(parent))
+        st = local.stat()
+        # Streamed from the file: a 4 GB video is not read into memory.
+        with open(local, "rb") as fh:
+            try:
+                self._request("PUT", rel, data=fh, extra={
+                    "Content-Type": "application/octet-stream",
+                    "Content-Length": str(st.st_size),
+                    # Nextcloud and ownCloud keep the file's own time
+                    "X-OC-Mtime": str(int(st.st_mtime)),
+                })
+                return True
+            except urllib.error.HTTPError as exc:
+                return exc.code in (200, 201, 204)
+            except Exception:
+                return False
 
     def get(self, rel: str, local: Path) -> bool:
         try:
             resp = self._request("GET", rel)
             local.parent.mkdir(parents=True, exist_ok=True)
-            local.write_bytes(resp.read())
+            with open(local, "wb") as out:
+                shutil.copyfileobj(resp, out)
             return True
         except Exception:
             return False
@@ -492,12 +623,15 @@ class RcloneBackend(Backend):
             return TestResult(False, "No rclone remote chosen",
                               f"Configured: {', '.join(rclone_remotes()) or 'none'}")
         try:
+            # The backup folder may not exist yet; mkdir is harmless if it does.
+            made = subprocess.run([exe, "mkdir", self.target],
+                                  capture_output=True, text=True, timeout=60)
             out = subprocess.run([exe, "lsd", self.target, "--max-depth", "1"],
                                  capture_output=True, text=True, timeout=45)
             if out.returncode == 0:
                 return TestResult(True, "Connected", self.target)
             return TestResult(False, "rclone could not reach the remote",
-                              (out.stderr or out.stdout).strip()[:400])
+                              (out.stderr or made.stderr or out.stdout).strip()[:400])
         except subprocess.TimeoutExpired:
             return TestResult(False, "Timed out contacting the remote")
         except Exception as exc:
@@ -507,15 +641,18 @@ class RcloneBackend(Backend):
         exe = rclone_path()
         if not exe:
             return {}
-        try:
-            out = subprocess.run(
-                [exe, "lsjson", "-R", "--files-only", self.target],
-                capture_output=True, text=True, timeout=300)
-            if out.returncode != 0:
-                return {}
-            items = json.loads(out.stdout or "[]")
-        except Exception:
-            return {}
+        out = subprocess.run(
+            [exe, "lsjson", "-R", "--files-only", self.target],
+            capture_output=True, text=True, timeout=300)
+        if out.returncode != 0:
+            if out.returncode == 3 or "not found" in out.stderr.lower():
+                return {}                       # nothing backed up yet
+            # Unreachable or signed out: never mistake that for "empty",
+            # which would send the whole library again.
+            err = (out.stderr or "rclone lsjson failed").strip().splitlines()[-1]
+            # drop rclone's "2026/09/13 12:35:22 ERROR : " prefix
+            raise RuntimeError(err.split(" : ", 1)[-1][:300])
+        items = json.loads(out.stdout or "[]")
         res = {}
         for it in items:
             ts = 0.0
@@ -558,22 +695,48 @@ class RcloneBackend(Backend):
             return False
 
     def push(self, root: Path, files, on_progress=None) -> SyncProgress:
-        """Hand the whole directory to ``rclone sync``.
+        """Send what is missing or modified, in one rclone run.
 
-        rclone's own transfer engine does parallel uploads, resumes and
-        server-side checksums far better than a per-file loop over its
-        CLI would, so for a full library push we get out of its way.
+        The same rule as every destination - a file already backed up is
+        never sent again unless it changed - decides the list; rclone's
+        own engine then does the parallel uploads and retries.
         """
+        import tempfile
         exe = rclone_path()
         if not exe:
             return SyncProgress(phase="error", message="rclone not installed")
-        p = SyncProgress(phase="uploading")
+        root = Path(root)
+        p = SyncProgress(phase="listing")
         if on_progress:
             on_progress(p)
-        cmd = [exe, "copy", str(root), self.target, "--transfers", "4",
-               "--checkers", "8", "--stats", "1s", "--stats-one-line",
-               "--exclude", ".cache/**", "--use-json-log", "--stats-log-level",
-               "NOTICE"]
+        manifest = self._load_manifest(root)
+        try:
+            remote_index = self.listing()
+        except Exception as exc:
+            p.phase = "error"
+            p.message = f"could not list the destination: {exc}"
+            if on_progress:
+                on_progress(p)
+            return p
+        todo, p.skipped = self._plan(root, list(files), remote_index, manifest)
+        p.total_files = len(todo)
+        p.total_bytes = sum(t[2] for t in todo)
+        if not todo:
+            p.phase = "done"
+            if on_progress:
+                on_progress(p)
+            return p
+
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as lst:
+            lst.write("\n".join(rel for _f, rel, _s, _m in todo) + "\n")
+            list_path = lst.name
+        p.phase = "uploading"
+        if on_progress:
+            on_progress(p)
+        cmd = [exe, "copy", str(root), self.target,
+               "--files-from-raw", list_path, "--no-check-dest", "--no-traverse",
+               "--transfers", "4", "--stats", "1s", "--use-json-log",
+               "--stats-log-level", "NOTICE"]
         try:
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True)
@@ -586,26 +749,37 @@ class RcloneBackend(Backend):
                 if not line:
                     continue
                 try:
-                    rec = json.loads(line)
-                    stats = rec.get("stats") or {}
+                    stats = (json.loads(line).get("stats") or {})
                     if stats:
-                        p.total_bytes = int(stats.get("totalBytes", 0))
                         p.done_bytes = int(stats.get("bytes", 0))
-                        p.total_files = int(stats.get("totalTransfers", 0))
                         p.done_files = int(stats.get("transfers", 0))
                         p.errors = int(stats.get("errors", 0))
                 except ValueError:
                     p.current = line[:120]
                 if on_progress:
                     on_progress(p)
-            proc.wait(timeout=30)
+            proc.wait(timeout=60)
             if p.phase != "cancelled":
-                p.phase = "done" if proc.returncode == 0 else "error"
-                if proc.returncode:
+                if proc.returncode == 0:
+                    p.phase = "done"
+                    p.uploaded = p.done_files = len(todo)
+                    p.done_bytes = p.total_bytes
+                    p.errors = 0
+                    for _f, rel, size, mtime in todo:
+                        manifest[rel] = [size, mtime]
+                    self._save_manifest(root, manifest)
+                else:
+                    p.phase = "error"
+                    p.errors = max(p.errors, 1)
                     p.message = f"rclone exited {proc.returncode}"
         except Exception as exc:
             p.phase = "error"
             p.message = str(exc)
+        finally:
+            try:
+                os.unlink(list_path)
+            except OSError:
+                pass
         if on_progress:
             on_progress(p)
         return p

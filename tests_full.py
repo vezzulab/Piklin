@@ -631,6 +631,21 @@ p1 = b.push(lib.root, files)
 check("backup uploads files", p1.uploaded > 0 and p1.errors == 0, f"{p1.uploaded} files")
 p2 = b.push(lib.root, files)
 check("second backup skips unchanged", p2.uploaded == 0 and p2.skipped == p1.uploaded)
+class _UploadTimeBackend(type(b)):
+    # Like most WebDAV servers: files carry the time they arrived.
+    def listing(self):
+        return {k: (v[0], time.time()) for k, v in super().listing().items()}
+ub = _UploadTimeBackend(r)
+p3 = ub.push(lib.root, files)
+check("server upload times don't cause re-uploads", p3.uploaded == 0, f"{p3.uploaded} re-sent")
+changed = files[0]; changed.write_text('{"changed": true}')
+p4 = ub.push(lib.root, files)
+check("only the modified file is uploaded", p4.uploaded == 1, f"{p4.uploaded} sent")
+class _DownBackend(type(b)):
+    def listing(self):
+        raise OSError("HTTP Error 401")
+p5 = _DownBackend(r).push(lib.root, files)
+check("failed sign-in stops the backup", p5.phase == "error" and p5.uploaded == 0, p5.phase)
 check("missing folder reports clearly",
       not rem.Remote(id="x",name="x",kind="local",config={"path":"/nope"}).backend().test().ok)
 check("plain HTTP refused",
