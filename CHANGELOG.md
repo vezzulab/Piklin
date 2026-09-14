@@ -14,6 +14,7 @@
 - Crop works as expected: the whole photo shows while you set the crop, dragging inside draws a new one, corners and edges can be pulled, and Square, 16:9 or Original reshape the rectangle at once. Before, each adjustment cropped the crop again and the rectangle jumped
 - Brush, Healing and Selective start clean: strokes and points painted in one layer no longer appear in the next one, on any photo
 - Edits are kept: moving a slider in the editor is saved as you go, and leaving the editor by any way - Back, Esc or Return - saves the last change. Before, a tool could be kept with all its values at zero
+- Choosing a photo keeps the photos where they are. Before, far down a big library the view jumped away as soon as one was chosen: the count of chosen photos, shown at the top, narrowed the sidebar and resized every photo. The count is now in the bar at the bottom, that bar lies over the photos, and photos changing size keep your place
 - Double-clicking a photo right after clicking it opens it, instead of only showing the selection bar
 - The Left and Right arrow keys move between photos in the viewer
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
@@ -34,6 +35,7 @@
 ### Backups
 - Backups go in a Piklin folder inside the folder you choose, made when it is missing. A backup already made straight in the chosen folder is moved into it on the destination itself, without sending anything again; nothing else there is touched
 - A backup folder shared with other files - such as a NAS photo share with a Lightroom catalog in it - is no longer searched through: Piklin reads only its own part, so a backup that stayed on "Connecting…" for many minutes now starts straight away, and a restore never brings those other files into the library
+- Automatic backup no longer stops with "No password saved" when Piklin opens right after logging in, before the password keyring is unlocked: it waits and tries again a few minutes later
 - While Piklin checks what is already backed up, it says so
 - The backup status shows how far along it is while a big video uploads, instead of staying on the same file number for minutes
 - When one destination can't be reached - a NAS at home while you travel - the others are still backed up, and the one that was missed catches up by itself once it can be reached again

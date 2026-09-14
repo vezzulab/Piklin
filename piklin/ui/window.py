@@ -302,9 +302,11 @@ class MainWindow(Adw.ApplicationWindow):
         zoom.connect("value-changed", self._on_zoom)
         header.pack_start(zoom)
 
+        # Shown in the bar at the bottom, not up here: a label appearing in
+        # the header widened it, which narrowed the sidebar and resized
+        # every tile - the photos jumped as soon as one was chosen.
         self.select_label = Gtk.Label()
         self.select_label.add_css_class("pika-dim")
-        header.pack_start(self.select_label)
 
         header.pack_end(self.search)
 
@@ -407,6 +409,7 @@ class MainWindow(Adw.ApplicationWindow):
         clear.add_css_class("flat")
         clear.connect("clicked", lambda *_: self.grid.unselect_all())
         self.action_bar.pack_end(clear)
+        self.action_bar.pack_end(self.select_label)
 
         toolbar.add_top_bar(header)
         # In the library, Years and Months are summary cards; everywhere
@@ -430,6 +433,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.content_stack.add_named(self.folder_view, "folder")
         toolbar.set_content(self.content_stack)
         toolbar.add_bottom_bar(self.action_bar)
+        # The bar lies over the photos rather than taking their space: the
+        # view shrinking as it appeared moved the photos up under the pointer.
+        toolbar.set_extend_content_to_bottom_edge(True)
         return toolbar
 
     # ==================================================================

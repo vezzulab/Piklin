@@ -215,6 +215,9 @@ entry.pika-search > text { color: @pika_text; }
 
 /* -- grid -------------------------------------------------------------- */
 .pika-grid { background: @pika_wall; }
+/* room at the end, so the bar for chosen photos, which lies over the grid,
+   never covers the last row */
+.pika-grid { padding-bottom: 48px; }
 .pika-grid > row,
 .pika-grid > row:selected { padding: 0; background: transparent; }
 

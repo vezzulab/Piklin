@@ -1028,6 +1028,21 @@ check("missing folder reports clearly",
 check("plain HTTP refused",
       not rem.Remote(id="y",name="y",kind="webdav",
                      config={"url":"http://x/dav"}).backend().test().ok)
+_real_load, _real_ready = rem.load_secret, rem.keyring_ready
+_kr = {"pw": None, "ready": False}
+rem.load_secret = lambda rid: _kr["pw"]
+rem.keyring_ready = lambda: _kr["ready"]
+_kb = rem.Remote(id="k", name="k", kind="webdav",
+                 config={"url": "http://192.168.1.5/dav", "username": "u"}).backend()
+_kt = _kb.test()
+check("a locked keyring waits and tries again, not 'no password'",
+      not _kt.ok and _kt.unreachable, _kt.message)
+_kr["ready"] = True
+_kt = _kb.test()
+check("a truly missing password is still reported", not _kt.ok and not _kt.unreachable, _kt.message)
+_kr["pw"] = "secret"
+check("the password is read once the keyring opens", _kb._password() == "secret")
+rem.load_secret, rem.keyring_ready = _real_load, _real_ready
 check("rclone absence explained",
       "rclone" in rem.Remote(id="z",name="z",kind="rclone",
                              config={"remote":"pcloud"}).backend().test().message.lower())

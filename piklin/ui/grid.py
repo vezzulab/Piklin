@@ -273,6 +273,8 @@ class PhotoGrid(Gtk.Box):
         if px == self.tile_px and cols == self._columns:
             return
         old_cols = self._columns
+        if cols == old_cols:
+            self._keep_place()
         self.tile_px = px
         self._columns = cols
         for widgets in self._tile_widgets.values():
@@ -288,6 +290,41 @@ class PhotoGrid(Gtk.Box):
                 and not getattr(self, "_regroup_pending", False)):
             self._regroup_pending = True
             GLib.idle_add(self._regroup)
+
+    def _keep_place(self) -> None:
+        """Tiles are about to change size: keep the photo at the top of the
+        view where it is. Every row above it grows or shrinks a little, and
+        far down a big library that added up to a jump of whole screens -
+        when choosing a photo narrowed the sidebar, for one."""
+        if self._band is not None:
+            return
+        anchor = None
+        for pid, containers in self._tile_containers.items():
+            for c in containers:
+                if not c.get_mapped():
+                    continue
+                ok, r = c.compute_bounds(self.scroller)
+                if ok and r.get_y() + r.get_height() > 0 and (
+                        anchor is None or r.get_y() < anchor[1]):
+                    anchor = (c, r.get_y())
+        if anchor is None:
+            return
+        container, before = anchor
+        ticks = [0]
+
+        def settle(_widget, _clock):
+            ticks[0] += 1
+            ok, r = container.compute_bounds(self.scroller)
+            if not ok or not container.get_mapped():
+                return GLib.SOURCE_REMOVE
+            shift = r.get_y() - before
+            if abs(shift) >= 1:
+                adj = self.scroller.get_vadjustment()
+                adj.set_value(max(adj.get_lower(), min(
+                    adj.get_upper() - adj.get_page_size(), adj.get_value() + shift)))
+            # the new size takes a frame or two to be laid out
+            return GLib.SOURCE_CONTINUE if ticks[0] < 3 else GLib.SOURCE_REMOVE
+        self.add_tick_callback(settle)
 
     def _regroup(self):
         """Re-cut the list rows for a new number of columns, from the photos

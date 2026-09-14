@@ -345,6 +345,8 @@ ES = {
     "Use https:// for a server on the internet, so your password stays private":
         "Usa https:// para un servidor en internet, así tu contraseña queda protegida",
     "No password saved": "No hay contraseña guardada",
+    "The keyring is still locked": "El llavero de contraseñas aún está bloqueado",
+    "Piklin will try again in a few minutes": "Piklin lo volverá a intentar en unos minutos",
     "Edit this backup and enter the password again": "Edita esta copia y vuelve a escribir la contraseña",
     "Couldn't create the folder /{folder}": "No se pudo crear la carpeta /{folder}",
     "The server answered HTTP {code}. The folder must be inside a shared folder you can write to":

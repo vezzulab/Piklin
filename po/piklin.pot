@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-14 00:34-0400\n"
+"POT-Creation-Date: 2026-09-14 09:40-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -32,7 +32,7 @@ msgstr ""
 msgid "Backing up to {name} — {done} of {total} ({percent}%)"
 msgstr ""
 
-#: piklin/autobackup.py:80 piklin/remote.py:1467
+#: piklin/autobackup.py:80 piklin/remote.py:1490
 #, python-brace-format
 msgid "{count} file couldn't be uploaded"
 msgid_plural "{count} files couldn't be uploaded"
@@ -1312,254 +1312,262 @@ msgstr ""
 msgid "The library couldn't be updated, so the file keeps its old name."
 msgstr ""
 
-#: piklin/remote.py:346
+#: piklin/remote.py:362
 msgid "Couldn't show the folders"
 msgstr ""
 
-#: piklin/remote.py:454 piklin/remote.py:1402
+#: piklin/remote.py:470 piklin/remote.py:1425
 #, python-brace-format
 msgid "Couldn't read the backup destination: {error}"
 msgstr ""
 
-#: piklin/remote.py:518
+#: piklin/remote.py:534
 #, python-brace-format
 msgid "The file couldn't be uploaded"
 msgid_plural "None of the {count} files could be uploaded"
 msgstr[0] ""
 msgstr[1] ""
 
-#: piklin/remote.py:548
+#: piklin/remote.py:564
 #, python-brace-format
 msgid "Couldn't read the backup: {error}"
 msgstr ""
 
-#: piklin/remote.py:590
+#: piklin/remote.py:606
 #, python-brace-format
 msgid "The file couldn't be restored"
 msgid_plural "None of the {count} files could be restored"
 msgstr[0] ""
 msgstr[1] ""
 
-#: piklin/remote.py:665
+#: piklin/remote.py:681
 msgid "No folder chosen"
 msgstr ""
 
-#: piklin/remote.py:668
+#: piklin/remote.py:684
 msgid "This folder can't be found"
 msgstr ""
 
-#: piklin/remote.py:670
+#: piklin/remote.py:686
 msgid "Not a folder"
 msgstr ""
 
-#: piklin/remote.py:672 piklin/remote.py:685
+#: piklin/remote.py:688 piklin/remote.py:701
 msgid "Piklin can't save files in this folder"
 msgstr ""
 
-#: piklin/remote.py:688 piklin/remote.py:967 piklin/remote.py:982
-#: piklin/remote.py:1238
+#: piklin/remote.py:704 piklin/remote.py:990 piklin/remote.py:1005
+#: piklin/remote.py:1261
 msgid "Connected"
 msgstr ""
 
-#: piklin/remote.py:952
+#: piklin/remote.py:969
 msgid "Enter the server address"
 msgstr ""
 
-#: piklin/remote.py:955
+#: piklin/remote.py:972
 msgid "The address must start with https:// or http://"
 msgstr ""
 
-#: piklin/remote.py:957
+#: piklin/remote.py:974
 msgid "http:// only works at home"
 msgstr ""
 
-#: piklin/remote.py:958
+#: piklin/remote.py:975
 msgid ""
 "Use https:// for a server on the internet, so your password stays private"
 msgstr ""
 
-#: piklin/remote.py:961
+#: piklin/remote.py:981
+msgid "The keyring is still locked"
+msgstr ""
+
+#: piklin/remote.py:982
+msgid "Piklin will try again in a few minutes"
+msgstr ""
+
+#: piklin/remote.py:984
 msgid "No password saved"
 msgstr ""
 
-#: piklin/remote.py:962
+#: piklin/remote.py:985
 msgid "Edit this backup and enter the password again"
 msgstr ""
 
-#: piklin/remote.py:979
+#: piklin/remote.py:1002
 #, python-brace-format
 msgid "Couldn't create the folder /{folder}"
 msgstr ""
 
-#: piklin/remote.py:980
+#: piklin/remote.py:1003
 #, python-brace-format
 msgid ""
 "The server answered HTTP {code}. The folder must be inside a shared folder "
 "you can write to"
 msgstr ""
 
-#: piklin/remote.py:983
+#: piklin/remote.py:1006
 #, python-brace-format
 msgid "created the folder /{folder}"
 msgstr ""
 
-#: piklin/remote.py:994
+#: piklin/remote.py:1017
 msgid "Wrong username or password"
 msgstr ""
 
-#: piklin/remote.py:994
+#: piklin/remote.py:1017
 msgid "Check the username and password"
 msgstr ""
 
-#: piklin/remote.py:996
+#: piklin/remote.py:1019
 msgid "Not allowed"
 msgstr ""
 
-#: piklin/remote.py:997
+#: piklin/remote.py:1020
 msgid "This account isn't allowed to use that folder"
 msgstr ""
 
-#: piklin/remote.py:999
+#: piklin/remote.py:1022
 msgid "This address doesn't accept backups"
 msgstr ""
 
-#: piklin/remote.py:1000
+#: piklin/remote.py:1023
 msgid ""
 "Turn on WebDAV on your server and use the address it shows for it. On a "
 "QNAP: Control Panel › Network & File Services › Win/Mac/NFS/WebDAV"
 msgstr ""
 
-#: piklin/remote.py:1005
+#: piklin/remote.py:1028
 msgid "The server says to use another address"
 msgstr ""
 
-#: piklin/remote.py:1006
+#: piklin/remote.py:1029
 #, python-brace-format
 msgid "Try {address}"
 msgstr ""
 
-#: piklin/remote.py:1008
+#: piklin/remote.py:1031
 msgid "This folder isn't on the server"
 msgstr ""
 
-#: piklin/remote.py:1009
+#: piklin/remote.py:1032
 msgid "Check the address and the folder"
 msgstr ""
 
-#: piklin/remote.py:1010
+#: piklin/remote.py:1033
 #, python-brace-format
 msgid "The server answered HTTP {code}"
 msgstr ""
 
-#: piklin/remote.py:1015
+#: piklin/remote.py:1038
 msgid "The server's security certificate has changed"
 msgstr ""
 
-#: piklin/remote.py:1016
+#: piklin/remote.py:1039
 msgid "Trust the new one only if you replaced it yourself"
 msgstr ""
 
-#: piklin/remote.py:1023
+#: piklin/remote.py:1046
 msgid "Confirm this server is yours"
 msgstr ""
 
-#: piklin/remote.py:1024
+#: piklin/remote.py:1047
 msgid "It uses its own security certificate, which is normal for a NAS at home"
 msgstr ""
 
-#: piklin/remote.py:1026
+#: piklin/remote.py:1049
 msgid "A secure connection couldn't be made"
 msgstr ""
 
-#: piklin/remote.py:1027
+#: piklin/remote.py:1050
 msgid "Can't reach the server"
 msgstr ""
 
-#: piklin/remote.py:1222 piklin/remote.py:1251
+#: piklin/remote.py:1245 piklin/remote.py:1274
 msgid "rclone is not installed"
 msgstr ""
 
-#: piklin/remote.py:1223
+#: piklin/remote.py:1246
 msgid ""
 "Install rclone to use Google Drive, OneDrive, Dropbox, pCloud and more: sudo "
 "apt install rclone (then run: rclone config)"
 msgstr ""
 
-#: piklin/remote.py:1227
+#: piklin/remote.py:1250
 msgid "Enter the name of the cloud service"
 msgstr ""
 
-#: piklin/remote.py:1228
+#: piklin/remote.py:1251
 #, python-brace-format
 msgid "Set up in rclone: {names}"
 msgstr ""
 
-#: piklin/remote.py:1229
+#: piklin/remote.py:1252
 msgid "none"
 msgstr ""
 
-#: piklin/remote.py:1239
+#: piklin/remote.py:1262
 msgid "rclone can't reach the cloud service"
 msgstr ""
 
-#: piklin/remote.py:1243
+#: piklin/remote.py:1266
 msgid "The cloud service took too long to answer"
 msgstr ""
 
-#: piklin/remote.py:1246
+#: piklin/remote.py:1269
 msgid "rclone failed"
 msgstr ""
 
-#: piklin/remote.py:1254
+#: piklin/remote.py:1277
 msgid "Enter the name of the cloud service first"
 msgstr ""
 
-#: piklin/remote.py:1361
+#: piklin/remote.py:1384
 #, python-brace-format
 msgid "rclone stopped with error {code}"
 msgstr ""
 
-#: piklin/remote.py:1392
+#: piklin/remote.py:1415
 msgid "rclone not installed"
 msgstr ""
 
-#: piklin/remote.py:1626 piklin/ui/window.py:3142
+#: piklin/remote.py:1649 piklin/ui/window.py:3142
 msgid "Folder or Drive"
 msgstr ""
 
-#: piklin/remote.py:1627
+#: piklin/remote.py:1650
 msgid ""
 "A USB drive, a network folder from your NAS, or a folder that Dropbox or "
 "pCloud Drive keeps in sync. No password needed."
 msgstr ""
 
-#: piklin/remote.py:1629 piklin/ui/settings_dialog.py:487
+#: piklin/remote.py:1652 piklin/ui/settings_dialog.py:487
 msgid "NAS or Server (WebDAV)"
 msgstr ""
 
-#: piklin/remote.py:1630
+#: piklin/remote.py:1653
 msgid ""
 "For QNAP, Synology, Nextcloud and similar. You need the server address, your "
 "username and your password."
 msgstr ""
 
-#: piklin/remote.py:1632 piklin/ui/settings_dialog.py:487
+#: piklin/remote.py:1655 piklin/ui/settings_dialog.py:487
 #: piklin/ui/window.py:3140
 msgid "Cloud Service (rclone)"
 msgstr ""
 
-#: piklin/remote.py:1633
+#: piklin/remote.py:1656
 #, python-brace-format
 msgid "({count} set up)"
 msgstr ""
 
-#: piklin/remote.py:1634
+#: piklin/remote.py:1657
 msgid ""
 "Google Drive, OneDrive, Dropbox, Backblaze and about seventy more, through "
 "the free rclone app. For advanced users."
 msgstr ""
 
-#: piklin/remote.py:1637
+#: piklin/remote.py:1660
 msgid ""
 "Not installed yet. Install the free rclone app to use Google Drive, "
 "OneDrive, Dropbox and many more."
