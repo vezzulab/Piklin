@@ -237,9 +237,10 @@ class FolderView(Gtk.ScrolledWindow):
                 card.remove_css_class("selected")
 
     def _on_card_click(self, gesture, _n, _x, _y, key, signal):
+        from .chrome import PRIMARY_MASK
         state = gesture.get_current_event_state()
-        if state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK):
-            self._set_selected(self._selected ^ {key})   # Ctrl+click: choose it
+        if state & (PRIMARY_MASK | Gdk.ModifierType.SHIFT_MASK):
+            self._set_selected(self._selected ^ {key})   # Ctrl+click (Command on a Mac): choose it
             return
         self._set_selected(set())
         self.emit(signal, key[1])
@@ -269,8 +270,9 @@ class FolderView(Gtk.ScrolledWindow):
         if self._card_at(x, y) is not None:
             gesture.set_state(Gtk.EventSequenceState.DENIED)
             return
+        from .chrome import PRIMARY_MASK
         state = gesture.get_current_event_state()
-        keep = bool(state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK))
+        keep = bool(state & (PRIMARY_MASK | Gdk.ModifierType.SHIFT_MASK))
         self._band = {"x": x, "y": y, "dx": 0.0, "dy": 0.0, "moved": False,
                       "base": set(self._selected) if keep else set()}
 

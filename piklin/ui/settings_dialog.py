@@ -26,8 +26,10 @@ def _fmt(n: float) -> str:
 class SettingsDialog(Adw.PreferencesDialog):
     def __init__(self, parent, library, catalog, settings, thumbs,
                  page="general"):
-        super().__init__(title=_("Preferences"), content_width=640,
-                         content_height=720)
+        from .chrome import fit
+        width, height = fit(640, 720)
+        super().__init__(title=_("Preferences"), content_width=width,
+                         content_height=height)
         self.library = library
         self.catalog = catalog
         self.settings = settings

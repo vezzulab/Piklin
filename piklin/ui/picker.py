@@ -32,7 +32,9 @@ class PhotoPicker(Adw.Dialog):
 
     def __init__(self, catalog, thumbs, title=_("Choose a photo"),
                  exclude_path=None):
-        super().__init__(title=title, content_width=760, content_height=620)
+        from .chrome import fit
+        width, height = fit(760, 620)
+        super().__init__(title=title, content_width=width, content_height=height)
         self.catalog = catalog
         self.thumbs = thumbs
         self.exclude_path = exclude_path

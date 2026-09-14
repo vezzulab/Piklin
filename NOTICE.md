@@ -2,7 +2,7 @@
 
 Piklin is © 2026 Vezzu Studio and licensed under the [Piklin License 1.0](LICENSE).
 
-The Piklin package includes the software below. Each part keeps its own licence, and those licences apply to that part only. The full licence texts are installed with Piklin in `/usr/share/doc/piklin/third-party/`.
+The Piklin packages include the software below. Each part keeps its own licence, and those licences apply to that part only. The full licence texts are installed with Piklin: on Linux in `/usr/share/doc/piklin/third-party/`, on a Mac inside the app in `Piklin.app/Contents/Resources/third-party/`.
 
 | Component | Used for | Licence |
 |---|---|---|
@@ -20,6 +20,25 @@ The Piklin package includes the software below. Each part keeps its own licence,
 | [pi-heif](https://github.com/bigcat88/pillow_heif) with libheif and libde265 | HEIC and HEIF photos | BSD-3-Clause; LGPL-3.0 |
 | [rawpy](https://github.com/letmaik/rawpy) with LibRaw | Camera RAW photos | MIT; LGPL-2.1 or CDDL-1.0 |
 | [Inter](https://rsms.me/inter/) | Typeface | SIL Open Font License 1.1 |
+| [cffi](https://cffi.readthedocs.io) | Sound output (on a Mac; Linux provides it) | MIT |
+
+### On a Mac only
+
+On Linux, Piklin uses the Python, GTK and libraries of the system. The Mac app carries its own:
+
+| Component | Used for | Licence |
+|---|---|---|
+| [Python](https://www.python.org) 3.14 (python.org) | Runs Piklin | PSF License |
+| [GTK 4](https://gtk.org), [libadwaita](https://gnome.pages.gitlab.gnome.org/libadwaita/), [GLib](https://gitlab.gnome.org/GNOME/glib), [Pango](https://pango.gnome.org), [gdk-pixbuf](https://gitlab.gnome.org/GNOME/gdk-pixbuf), [graphene](https://github.com/ebassi/graphene), [AppStream](https://www.freedesktop.org/wiki/Distributions/AppStream/), [libxmlb](https://github.com/hughsie/libxmlb) | The interface | LGPL-2.1-or-later |
+| [cairo](https://cairographics.org), [pixman](https://pixman.org) | Drawing | LGPL-2.1 or MPL-1.1; MIT |
+| [HarfBuzz](https://harfbuzz.github.io), [FreeType](https://freetype.org), [Fontconfig](https://www.freedesktop.org/wiki/Software/fontconfig/), [FriBidi](https://github.com/fribidi/fribidi) | Text | MIT; FTL; MIT; LGPL-2.1-or-later |
+| [librsvg](https://gitlab.gnome.org/GNOME/librsvg) | Icons | LGPL-2.1-or-later |
+| [Adwaita icon theme](https://gitlab.gnome.org/GNOME/adwaita-icon-theme) | Icons | LGPL-3.0 or CC-BY-SA-3.0 |
+| [libpng](http://www.libpng.org), [libjpeg-turbo](https://libjpeg-turbo.org), [LibTIFF](https://libtiff.gitlab.io/libtiff/), [PCRE2](https://pcre.org), [libepoxy](https://github.com/anholt/libepoxy), [libfyaml](https://github.com/pantoniou/libfyaml) | Libraries the interface uses | libpng; BSD-3-Clause and IJG; libtiff; BSD-3-Clause; MIT; MIT |
+| [PyGObject](https://pygobject.gnome.org), [pycairo](https://pycairo.readthedocs.io) | Python access to GTK and cairo | LGPL-2.1-or-later |
+| [PyObjC](https://pyobjc.readthedocs.io) | iPhones, iPads and cameras through Image Capture | MIT |
+
+These libraries are separate shared libraries inside `Piklin.app/Contents/Resources/runtime-arm64` and `runtime-x86_64`, and may be replaced with your own builds. Their source code is available from the projects above.
 
 ## FFmpeg
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.0.5
+
+### Piklin on the Mac
+- Piklin runs on Mac: one download for Apple Silicon and Intel Macs with macOS 14 or newer, a disk image to drag into Applications. It is the same Piklin as on Linux - the same library, editor, video tools, backups and languages
+- The window looks at home on a Mac: close, minimise and zoom at the top left, the Piklin name at the top of the sidebar, and dialogs sized to fit smaller screens
+- Keyboard shortcuts use ⌘ on a Mac (⌘E to export, ⌘R to rotate), ⌘-click adds to a selection, and the delete key moves photos to Recently Deleted
+- Backup passwords are kept in the Mac's Keychain
+- Piklin follows the Mac's language, as it follows the computer's language on Linux
+- USB drives and memory cards appear in the sidebar when they are connected
+- Piklin updates itself on a Mac too, installing only versions signed by Vezzu Studio
+
+### iPhones, iPads and cameras
+- Connect an iPhone or iPad and its photos appear under Devices, ready to browse and import, on Mac and on Linux. Unlock it and choose Trust when it asks
+- Cameras and Android phones set to "Transfer photos (PTP)" work on a Mac as they do on Linux
+- An iPhone shows once in the sidebar, not once for each way Linux can reach it
+
+### Linux
+- Piklin is available for 64-bit ARM computers as well (arm64), such as a Raspberry Pi 5 or an ARM laptop running Ubuntu 24.04 or newer
+- Video always plays with sound: the package now asks for the small library miniaudio needs, which some minimal installations lacked
+
+### Everywhere
+- A video is never refused when the image library cannot open it: Piklin reads it through its own video engine instead
+
 ## 1.0.4
 
 ### Languages and help

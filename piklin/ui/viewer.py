@@ -159,9 +159,8 @@ class ViewerView(Gtk.Box):
         bar.append(trash)
         # This bar replaces the library's header while a photo is open, so
         # it carries the window buttons too - same place, same style.
-        controls = Gtk.WindowControls(side=Gtk.PackType.END)
-        controls.set_decoration_layout(":minimize,maximize,close")
-        bar.append(controls)
+        from .chrome import add_window_controls
+        add_window_controls(bar)
         # Adw.HeaderBar gets window-drag on its empty space for free;
         # this custom bar is a plain Box and does not, which is why the
         # window could not be moved at all while the editor or viewer was
@@ -533,8 +532,9 @@ class ViewerView(Gtk.Box):
         self.emit("closed")
 
     def _on_scroll(self, controller, dx, dy):
+        from .chrome import PRIMARY_MASK
         state = controller.get_current_event_state()
-        if not (state & Gdk.ModifierType.CONTROL_MASK):
+        if not (state & PRIMARY_MASK):
             return False
         self._zoom = max(1.0, min(8.0, self._zoom * (0.9 if dy > 0 else 1.1)))
         self._apply_zoom()

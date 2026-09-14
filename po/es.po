@@ -4212,3 +4212,7 @@ msgstr "Un GIF puede durar como máximo {limit} segundos; este duraría {length}
 #: piklin/video_edit.py:559
 msgid "No frames to put in the GIF."
 msgstr "No hay fotogramas para el GIF."
+
+#: piklin/ui/window.py
+msgid "Couldn't read this photo from {device}."
+msgstr "No se pudo leer esta foto de {device}."

@@ -98,6 +98,9 @@ class DeviceItem(GObject.Object):
         self.id = -(index + 1)          # negative: never a real photo id
         self.record = record
         self.path = record.get("path", "")
+        # A photo still on a Mac's camera or phone is drawn from a small
+        # preview until it is copied off (see imagecapture.py).
+        self.thumb_path = record.get("preview") or self.path
         self.filename = record.get("filename", "")
         self.width = record.get("width", 0)
         self.height = record.get("height", 0)

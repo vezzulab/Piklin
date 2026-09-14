@@ -52,6 +52,7 @@ from base64 import b64encode
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable
+from . import system
 from .i18n import _, ngettext
 
 SERVICE = "Pikalicious"
@@ -105,6 +106,8 @@ def _unlock_default_keyring(Secret) -> bool:
 
 def store_secret(remote_id: str, secret: str) -> bool:
     """Put a password in the system keyring. False if that is impossible."""
+    if system.IS_MAC:
+        return system.keychain_store(remote_id, secret)
     Secret = _keyring()
     if Secret is None:
         return False
@@ -125,6 +128,8 @@ def store_secret(remote_id: str, secret: str) -> bool:
 
 
 def load_secret(remote_id: str) -> str | None:
+    if system.IS_MAC:
+        return system.keychain_load(remote_id)
     Secret = _keyring()
     if Secret is None:
         return None
@@ -140,6 +145,8 @@ def load_secret(remote_id: str) -> str | None:
 
 
 def keyring_available() -> bool:
+    if system.IS_MAC:
+        return system.keychain_available()
     return _keyring() is not None
 
 
@@ -1221,7 +1228,8 @@ class RcloneBackend(Backend):
             return TestResult(
                 False, _("rclone is not installed"),
                 _("Install rclone to use Google Drive, OneDrive, Dropbox, pCloud and "
-                  "more: sudo apt install rclone (then run: rclone config)"))
+                  "more: sudo apt install rclone (then run: rclone config)")
+                .replace("sudo apt install rclone", system.rclone_install_command()))
         remote = self.remote.config.get("remote", "").rstrip(":")
         if not remote:
             return TestResult(False, _("Enter the name of the cloud service"),

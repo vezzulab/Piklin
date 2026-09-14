@@ -32,6 +32,7 @@ from gi.repository import Adw, GLib, GObject, Gdk, Gio, Graphene, Gtk  # noqa: E
 
 from ..thumbs import GRID_SIZE
 from .models import PhotoItem
+from .chrome import PRIMARY_MASK
 from .tile import PhotoTile
 
 PAGE = 600              # rows fetched per database page
@@ -660,7 +661,7 @@ class PhotoGrid(Gtk.Box):
             gesture.set_state(Gtk.EventSequenceState.DENIED)
             return
         state = gesture.get_current_event_state()
-        keep = bool(state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK))
+        keep = bool(state & (PRIMARY_MASK | Gdk.ModifierType.SHIFT_MASK))
         top = self.scroller.get_vadjustment().get_value()
         self._band = {"x": x, "sy": y, "y": y + top, "dx": 0.0, "dy": 0.0,
                       "base": set(self._selected) if keep else set(),
@@ -782,7 +783,7 @@ class PhotoGrid(Gtk.Box):
                         pass
                 return False
             GLib.idle_add(apply, priority=GLib.PRIORITY_DEFAULT_IDLE)
-        self.thumbs.request(item.path, GRID_SIZE, done)
+        self.thumbs.request(getattr(item, "thumb_path", None) or item.path, GRID_SIZE, done)
 
     # -- drag and drop ---------------------------------------------------
     DRAG_PREFIX = "pika-photos:"
@@ -838,7 +839,7 @@ class PhotoGrid(Gtk.Box):
     def _on_tile_click(self, gesture, n_press, x, y, button, item):
         self.grab_focus()
         state = gesture.get_current_event_state()
-        ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
+        ctrl = bool(state & PRIMARY_MASK)
         shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
 
         # A click on a photo, then a quick double click on it, opened nothing:
@@ -988,7 +989,7 @@ class PhotoGrid(Gtk.Box):
                 self.sections.items_changed(pos, 1, 1)
         has_items = bool(self._items or self._device_old)
         self.status.set_visible(not has_items)
-        self.scroller.set_visible(has_items)
+        self._show_grid(has_items)
 
     # What an empty view says depends on where you are standing: an empty
     # album is not an empty library, and "add a folder" was the wrong
@@ -1067,6 +1068,16 @@ class PhotoGrid(Gtk.Box):
         for widgets in self._tile_widgets.values():
             for w in widgets:
                 w.set_fit(self._fit)
+
+    def _show_grid(self, visible: bool) -> None:
+        """Show the photos, or leave the whole height to the empty page.
+
+        The overlay the photos sit in expands to fill the view; hiding only
+        the scroller inside it left that empty overlay taking the top half,
+        so an empty album's icon and title sat low instead of centred.
+        """
+        self.scroller.set_visible(visible)
+        self._overlay.set_visible(visible)
 
     def _describe_empty(self):
         if self._filters and not self._search:
@@ -1213,7 +1224,7 @@ class PhotoGrid(Gtk.Box):
                 if empty:
                     self._describe_empty()
                 self.status.set_visible(empty)
-                self.scroller.set_visible(not empty)
+                self._show_grid(not empty)
                 if not self._exhausted and not self._loading:
                     # The rest arrives in the background, a page at a time,
                     # with a pause between pages so the window stays smooth.

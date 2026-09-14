@@ -103,7 +103,9 @@ class SmartAlbumDialog(Adw.Dialog):
 
     def __init__(self, catalog, smart_id: int | None = None,
                  folder_id: int | None = None):
-        super().__init__(title=_("Smart Album"), content_width=620)
+        from .chrome import fit
+        width, _height = fit(620, -1)
+        super().__init__(title=_("Smart Album"), content_width=width)
         self.catalog = catalog
         self.smart_id = smart_id
         self.folder_id = folder_id

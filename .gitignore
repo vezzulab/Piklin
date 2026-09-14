@@ -20,3 +20,7 @@ packaging/media-cache/
 .idea/
 *.swp
 .DS_Store
+.venv-x86_64/
+packaging/macos-cache/
+packaging/media-cache-*/
+packaging/wheel-local-*/

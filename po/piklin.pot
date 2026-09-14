@@ -4338,3 +4338,7 @@ msgstr ""
 #: piklin/video_edit.py:559
 msgid "No frames to put in the GIF."
 msgstr ""
+
+#: piklin/ui/window.py
+msgid "Couldn't read this photo from {device}."
+msgstr ""

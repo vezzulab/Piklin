@@ -5,13 +5,13 @@
 <h1 align="center">Piklin</h1>
 
 <p align="center">
-  <strong>A free and private photo and video library for Linux.</strong><br>
+  <strong>A free and private photo and video library for Linux and Mac.</strong><br>
   Organize, edit and share your memories. They never leave your computer.
 </p>
 
 <p align="center">
-  <a href="https://github.com/vezzulab/Piklin/releases"><img src="https://img.shields.io/badge/download-.deb-0b0b0b?style=flat-square" alt="Download"></a>
-  <img src="https://img.shields.io/badge/platform-Linux-0b0b0b?style=flat-square" alt="Platform: Linux">
+  <a href="https://github.com/vezzulab/Piklin/releases"><img src="https://img.shields.io/badge/download-.deb%20%7C%20.dmg-0b0b0b?style=flat-square" alt="Download"></a>
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-0b0b0b?style=flat-square" alt="Platform: Linux and macOS">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Piklin%20License-0b0b0b?style=flat-square" alt="License: Piklin License"></a>
   <a href="https://ko-fi.com/vezzustudio"><img src="https://img.shields.io/badge/support-Ko--fi-0b0b0b?style=flat-square" alt="Support on Ko-fi"></a>
 </p>
@@ -27,7 +27,7 @@
 - **One package for everything.** Your library is a single `Piklin Library.piklin` package. Move it to another disk, copy it to a new computer and open it again.
 - **Years, Months, Days or All Photos.** Filters and search cover favourites, videos, screenshots, location and more.
 - **Albums, folders and smart albums.** Smart albums fill themselves from rules such as camera, date, rating, media type or video length.
-- **Import from cameras, cards and USB drives.** Connect one and it appears in the sidebar, ready to browse. Drag photos or whole folders from your desktop or file manager straight onto an album. Duplicates are recognised, and photos can be stored smaller without visible loss.
+- **Import from iPhones, iPads, cameras, cards and USB drives.** Connect one and it appears in the sidebar, ready to browse. Drag photos or whole folders from your desktop or file manager straight onto an album. Duplicates are recognised, and photos can be stored smaller without visible loss.
 - **Useful views.** Recently Deleted keeps items for 30 days; Duplicates, Hidden and Imports are one click away.
 
 ### Editing without fear
@@ -79,19 +79,31 @@ Connect the place you want to back up to once. From then on, new photos, videos 
 
 ## Install
 
-Download the latest `.deb` from **[Releases](https://github.com/vezzulab/Piklin/releases/latest)**. Then, in the folder where you saved it, run:
+Download from **[Releases](https://github.com/vezzulab/Piklin/releases/latest)**. Piklin updates itself afterwards, and your library, albums, edits and backups stay as they are.
+
+### Linux
+
+Download the `.deb` for your computer - `amd64` for most PCs, `arm64` for 64-bit ARM computers - and, in the folder where you saved it, run:
 
 ```bash
-sudo apt install ./piklin_*_amd64.deb
+sudo apt install ./piklin_*_amd64.deb     # or ./piklin_*_arm64.deb
 ```
-
-To update, download the new `.deb` and run the same command. Your library, albums, edits and backups stay as they are.
 
 Piklin brings everything it needs for photos, video and sound. It uses your system's GTK 4 and libadwaita.
 
-**Supported systems:** Ubuntu 24.04 or newer, Linux Mint 22 or newer, Debian 13 or newer, and distributions based on them, on 64-bit PCs (x86-64).
+**Supported systems:** Ubuntu 24.04 or newer, Linux Mint 22 or newer, Debian 13 or newer, and distributions based on them, on 64-bit PCs (x86-64) and 64-bit ARM (arm64).
+
+### Mac
+
+Download `Piklin-<version>.dmg`, open it and drag Piklin into Applications. One app works on Apple Silicon and Intel Macs with macOS 14 Sonoma or newer.
+
+Piklin is not yet signed with an Apple Developer ID, so the first time you open it macOS asks whether to trust it: open **System Settings › Privacy & Security** and choose **Open Anyway** beside Piklin.
 
 Your library is created in your Pictures folder the first time you open Piklin.
+
+### iPhones and iPads
+
+Connect the iPhone or iPad with a cable, unlock it, and choose **Trust** when it asks. It appears under Devices. On Linux this uses `gvfs-backends` and `usbmuxd`, which Ubuntu and Mint already have.
 
 ## Keyboard shortcuts
 
@@ -124,6 +136,20 @@ python3 -m venv --system-site-packages .venv
 packaging/build-media.sh      # builds FFmpeg and PyAV once, without GPL components
 ./run.sh                      # run from the source tree
 packaging/build-deb.sh        # build the .deb in dist/
+```
+
+The `.deb` for either architecture can also be built in Docker, on Linux or a Mac:
+
+```bash
+packaging/build-deb-docker.sh arm64     # or amd64
+```
+
+On a Mac with Xcode, Homebrew (Apple Silicon, plus Intel Homebrew in `/usr/local` for the Intel half) and Rust:
+
+```bash
+brew install meson ninja cmake pkgconf nasm cargo-c bison itstool python@3.14
+rustup target add x86_64-apple-darwin
+packaging/build-macos.sh      # builds GTK, FFmpeg and Piklin.app for both processors, then dist/Piklin-<version>.dmg
 ```
 
 ## Support Piklin

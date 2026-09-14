@@ -24,12 +24,18 @@ from ..thumbs import ThumbCache
 from .editor import EditorView
 from .grid import PhotoGrid
 from .viewer import ViewerView
+from .chrome import IS_MAC, PRIMARY_MASK, key_name
 
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app, library: Library):
+        from .chrome import fit
+        # Never larger than the screen: a Mac does not shrink a window that
+        # opens bigger than the screen, so the bottom of it (and every
+        # dialog centred in it) ended up out of reach.
+        width, height = fit(1400, 900, share=0.92)
         super().__init__(application=app, title="Piklin",
-                         default_width=1400, default_height=900)
+                         default_width=width, default_height=height)
         self.add_css_class("piklin")
         self.library = library
         self.settings = Settings(library.settings)
@@ -129,8 +135,9 @@ class MainWindow(Adw.ApplicationWindow):
     # layout
     # ==================================================================
     def _build_library_page(self):
+        from .chrome import SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH
         self.split = Adw.NavigationSplitView(
-            min_sidebar_width=210, max_sidebar_width=280)
+            min_sidebar_width=SIDEBAR_MIN_WIDTH, max_sidebar_width=SIDEBAR_MAX_WIDTH)
         self.split.set_sidebar(Adw.NavigationPage(
             child=self._build_sidebar(), title=_("Library")))
         self.split.set_content(Adw.NavigationPage(
@@ -143,13 +150,21 @@ class MainWindow(Adw.ApplicationWindow):
         toolbar.set_top_bar_style(Adw.ToolbarStyle.RAISED_BORDER)
         header = Adw.HeaderBar(show_title=True)
         header.add_css_class("pika-header")
-        # No window buttons on the sidebar's bar: they sit on the right of
-        # the content bar, in the app's own style.
-        header.set_decoration_layout(":")
+        # No window buttons on the sidebar's bar on Linux: they sit on the
+        # right of the content bar. On a Mac they belong here, at the top left.
+        from .chrome import SIDEBAR_LAYOUT
+        header.set_decoration_layout(SIDEBAR_LAYOUT)
         # The app's mark, centred over the sidebar.
         from .brand import BrandMark
-        self.brand = BrandMark(34)
-        header.set_title_widget(self.brand)
+        from .chrome import BRAND_IN_SIDEBAR, BRAND_SIZE
+        self.brand = BrandMark(BRAND_SIZE)
+        if BRAND_IN_SIDEBAR:
+            # The bar belongs to the window buttons; the brand opens the
+            # sidebar instead, just below them.
+            header.set_title_widget(Gtk.Box())
+            self.brand.add_css_class("pika-brand-sidebar")
+        else:
+            header.set_title_widget(self.brand)
         menu = Gio.Menu()
         sort_menu = Gio.Menu()
         for key, label in (("taken_desc", _("Newest First")),
@@ -198,7 +213,13 @@ class MainWindow(Adw.ApplicationWindow):
         scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER,
                                       vexpand=True)
         scroller.set_child(self.sidebar_list)
-        toolbar.set_content(scroller)
+        if BRAND_IN_SIDEBAR:
+            column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            column.append(self.brand)
+            column.append(scroller)
+            toolbar.set_content(column)
+        else:
+            toolbar.set_content(scroller)
 
         self.scan_bar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2,
                                 margin_start=12, margin_end=12,
@@ -261,8 +282,10 @@ class MainWindow(Adw.ApplicationWindow):
         header = Adw.HeaderBar()
         header.add_css_class("pika-header")
         # Minimise, maximise, close on the trailing edge, whatever order
-        # the desktop's own setting would put them in.
-        header.set_decoration_layout(":minimize,maximize,close")
+        # the desktop's own setting would put them in (none here on a Mac,
+        # where they are at the start of the sidebar's bar).
+        from .chrome import CONTENT_LAYOUT
+        header.set_decoration_layout(CONTENT_LAYOUT)
 
         self.search = Gtk.SearchEntry(placeholder_text=_("Search photos"),
                                       width_chars=22)
@@ -1488,38 +1511,42 @@ class MainWindow(Adw.ApplicationWindow):
         # cancel "New Album", "Rename" or Export - it only deselected photos
         # behind the dialog. It is handled in bubble phase below instead.
         for accel, action in (
-                              ("<Ctrl>z", "win.undo"),
-                              ("<Ctrl><Shift>z", "win.redo"),
-                              ("<Ctrl>e", "win.export"),
-                              ("<Ctrl>comma", "win.preferences"),
-                              ("<Ctrl>o", "win.add-folder"),
+                              ("<Primary>z", "win.undo"),
+                              ("<Primary><Shift>z", "win.redo"),
+                              ("<Primary>e", "win.export"),
+                              ("<Primary>comma", "win.preferences"),
+                              ("<Primary>o", "win.add-folder"),
                               # Rotating is everyday; looking for new photos
                               # is rare, and F5 is where people expect it.
                               ("F5", "win.rescan"),
                               ("F1", "win.help"),
-                              ("<Ctrl>r", "win.rotate-cw"),
-                              ("<Ctrl><Shift>r", "win.rotate-ccw"),
+                              ("<Primary>r", "win.rotate-cw"),
+                              ("<Primary><Shift>r", "win.rotate-ccw"),
                               # One key for each view.
-                              ("<Ctrl>1", "win.view-year"),
-                              ("<Ctrl>2", "win.view-month"),
-                              ("<Ctrl>3", "win.view-day"),
-                              ("<Ctrl>4", "win.view-all"),
-                              ("<Ctrl>f", "win.find"),
-                              ("<Ctrl>n", "win.new-album"),
-                              ("<Ctrl><Shift>n", "win.new-folder"),
-                              ("<Ctrl><Alt>n", "win.new-smart-album"),
+                              ("<Primary>1", "win.view-year"),
+                              ("<Primary>2", "win.view-month"),
+                              ("<Primary>3", "win.view-day"),
+                              ("<Primary>4", "win.view-all"),
+                              ("<Primary>f", "win.find"),
+                              ("<Primary>n", "win.new-album"),
+                              ("<Primary><Shift>n", "win.new-folder"),
+                              ("<Primary><Alt>n", "win.new-smart-album"),
                               ("F11", "win.fullscreen"),
-                              ("<Ctrl><Shift>f", "win.fullscreen"),
-                              ("<Ctrl><Shift>a", "win.deselect"),
-                              ("<Ctrl>l", "win.hide"),
-                              ("<Ctrl>i", "win.info"),
+                              ("<Primary><Shift>f", "win.fullscreen"),
+                              ("<Primary><Shift>a", "win.deselect"),
+                              ("<Primary>l", "win.hide"),
+                              ("<Primary>i", "win.info"),
                               # F2 renames, as in every Linux file manager.
                               ("F2", "win.rename-photo")):
             app.set_accels_for_action(action, [accel])
+        if IS_MAC:
+            # Control-Command-F is full screen in every Mac app.
+            app.set_accels_for_action("win.fullscreen",
+                                      ["<Primary><Shift>f", "<Control><Meta>f"])
         app.set_accels_for_action("win.zoom-in",
-                                  ["<Ctrl>plus", "<Ctrl>equal", "<Ctrl>KP_Add"])
+                                  ["<Primary>plus", "<Primary>equal", "<Primary>KP_Add"])
         app.set_accels_for_action("win.zoom-out",
-                                  ["<Ctrl>minus", "<Ctrl>KP_Subtract"])
+                                  ["<Primary>minus", "<Primary>KP_Subtract"])
 
         # "f" (favourite), Delete (trash) and Ctrl+A (select all) are
         # genuinely ambiguous: the same keys must type the letter f,
@@ -1557,8 +1584,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.add_controller(capture)
 
     def _on_grid_key(self, _controller, keyval, _keycode, state):
-        ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
-        name = Gdk.keyval_name(keyval) or ""
+        ctrl = bool(state & PRIMARY_MASK)
+        name = key_name(keyval)
         page = self.stack.get_visible_child_name()
         if name == "Escape":
             self._on_escape()
@@ -1657,7 +1684,8 @@ class MainWindow(Adw.ApplicationWindow):
                 self._on_edit_requested(self.viewer)
                 return True
             return False
-        if not ctrl and name == "Delete":
+        # Command-delete is also how a Mac moves things to the bin.
+        if name == "Delete" and (not ctrl or IS_MAC):
             self._on_bulk_trash(None)
             return True
         if ctrl and name.lower() == "a":
@@ -1679,13 +1707,13 @@ class MainWindow(Adw.ApplicationWindow):
         return False
 
     def _on_capture_key(self, controller, keyval, keycode, state):
-        name = Gdk.keyval_name(keyval) or ""
-        mods = state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK
-                        | Gdk.ModifierType.ALT_MASK)
-        # Ctrl+A selects every photo shown. Taken in capture phase: in bubble
-        # phase a focused photo tile or sidebar row used Ctrl+A for its own
-        # "select all" first, and the grid never got it.
-        if name.lower() == "a" and mods == Gdk.ModifierType.CONTROL_MASK:
+        name = key_name(keyval)
+        mods = state & (Gdk.ModifierType.CONTROL_MASK | PRIMARY_MASK
+                        | Gdk.ModifierType.SHIFT_MASK | Gdk.ModifierType.ALT_MASK)
+        # Ctrl+A (Command-A on a Mac) selects every photo shown. Taken in
+        # capture phase: in bubble phase a focused photo tile or sidebar row
+        # used it for its own "select all" first, and the grid never got it.
+        if name.lower() == "a" and mods == PRIMARY_MASK:
             if (self._focus_takes_keys()
                     or self.stack.get_visible_child_name() != "grid"
                     or self.content_stack.get_visible_child_name() != "grid"):
@@ -1707,7 +1735,8 @@ class MainWindow(Adw.ApplicationWindow):
             # this desktop; Ctrl+Shift+F did. Taken here directly.
             self._on_fullscreen()
             return True
-        if state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK):
+        if state & (Gdk.ModifierType.CONTROL_MASK | PRIMARY_MASK | Gdk.ModifierType.ALT_MASK) \
+                and not (IS_MAC and name == "Delete" and not state & Gdk.ModifierType.ALT_MASK):
             return False
         if self._focus_takes_keys():
             return False
@@ -1832,6 +1861,20 @@ class MainWindow(Adw.ApplicationWindow):
 
     # -- photo flow ------------------------------------------------------
     def _on_photo_activated(self, _grid, item):
+        record = getattr(item, "record", None) or {}
+        if record.get("camera") and not Path(item.path).exists():
+            # Still on a Mac's camera or phone: copy this one off to open it.
+            def work():
+                ok = devicemod.imagecapture.fetch(item.path)
+                GLib.idle_add(lambda: (self._open_fetched(item) if ok else self._show_toast(
+                    _("Couldn't read this photo from {device}.").format(
+                        device=getattr(self._device, "name", ""))), False)[1])
+            threading.Thread(target=work, daemon=True).start()
+            return
+        self.viewer.show_photo(item)
+        self._show("viewer")
+
+    def _open_fetched(self, item):
         self.viewer.show_photo(item)
         self._show("viewer")
 
@@ -2835,12 +2878,12 @@ class MainWindow(Adw.ApplicationWindow):
             [("favorite", _("Remove from Favourites") if all_fav else _("Favourite"),
               "period", lambda: self._on_bulk_favorite(None)),
              ("hide", hide_label,
-              "<Ctrl>l", lambda: self._on_bulk_hide())],
-            [("rotate-ccw", _("Rotate Left"), "<Ctrl><Shift>r",
+              "<Primary>l", lambda: self._on_bulk_hide())],
+            [("rotate-ccw", _("Rotate Left"), "<Primary><Shift>r",
               lambda: self._on_rotate(-1, ids)),
-             ("rotate-cw", _("Rotate Right"), "<Ctrl>r",
+             ("rotate-cw", _("Rotate Right"), "<Primary>r",
               lambda: self._on_rotate(1, ids))],
-            [("export", export_label, "<Ctrl>e",
+            [("export", export_label, "<Primary>e",
               lambda: self._on_bulk_export(None))],
             [("cover", _("Make Album Cover"), None,
               lambda: self._make_album_cover(item))]
@@ -2858,9 +2901,9 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _new_here_items(self):
         target = self._folder_here()
-        return [("new-album", _("New Album…"), "<Ctrl>n",
+        return [("new-album", _("New Album…"), "<Primary>n",
                  lambda: self._on_new_album(None, folder_id=target)),
-                ("new-folder", _("New Folder…"), "<Ctrl><Shift>n",
+                ("new-folder", _("New Folder…"), "<Primary><Shift>n",
                  lambda: self._on_new_folder(target))]
 
     def _on_background_menu(self, source, x, y):

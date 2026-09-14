@@ -6,7 +6,14 @@ import os
 import sys
 from pathlib import Path
 
-import gi
+if sys.platform == "darwin":
+    # Pango finds fonts through CoreText on a Mac, where a font added for this
+    # process alone (Inter, below) is never picked up and Helvetica stands in.
+    # Its fontconfig backend finds fonts the way it does on Linux. Set before
+    # anything loads Pango.
+    os.environ.setdefault("PANGOCAIRO_BACKEND", "fontconfig")
+
+import gi  # noqa: E402
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -65,7 +72,14 @@ def _load_bundled_fonts():
 
 
 def _load_css():
-    css = Path(__file__).parent / "ui" / "style.css"
+    _add_css(Path(__file__).parent / "ui" / "style.css")
+    if sys.platform == "darwin":
+        # Window buttons drawn as a Mac draws them; one step above
+        # style.css so these rules win where both set a property.
+        _add_css(Path(__file__).parent / "ui" / "style-macos.css", extra=1)
+
+
+def _add_css(css: Path, extra: int = 0):
     if not css.is_file():
         return
     provider = Gtk.CssProvider()
@@ -87,7 +101,7 @@ def _load_css():
         # there (Cipher, with its magenta fields and selections) still
         # won wherever it set a property we also set.
         Gtk.StyleContext.add_provider_for_display(
-            display, provider, Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
+            display, provider, Gtk.STYLE_PROVIDER_PRIORITY_USER + 1 + extra)
 
 
 class PikaliciousApp(Adw.Application):
@@ -104,7 +118,7 @@ class PikaliciousApp(Adw.Application):
         quit_action = Gio.SimpleAction.new("quit", None)
         quit_action.connect("activate", lambda *_: self.quit())
         self.add_action(quit_action)
-        self.set_accels_for_action("app.quit", ["<Ctrl>q"])
+        self.set_accels_for_action("app.quit", ["<Primary>q"])
 
     def do_activate(self):
         if self.window is None:
@@ -330,11 +344,12 @@ def main(argv=None):
     # library opens in a fresh process once this one has fully quit.
     target = getattr(app, "relaunch_library", None)
     if target:
-        from .updates import LAUNCHER
-        if getattr(app, "relaunch_update", False) and os.access(LAUNCHER, os.X_OK):
+        from .updates import launcher
+        start = launcher()
+        if getattr(app, "relaunch_update", False) and os.access(start, os.X_OK):
             # Just updated: start through the new package's own launcher, which
             # picks the libraries that version shipped.
-            os.execv(LAUNCHER, [LAUNCHER, "--library", target])
+            os.execv(start, [start, "--library", target])
         os.execv(sys.executable, [sys.executable, "-s", "-m",
                                   "piklin.app", "--library", target])
     return status

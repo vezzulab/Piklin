@@ -26,7 +26,9 @@ SRC = sorted(glob.glob(os.path.join(
     os.environ.get("PIKLIN_TEST_PHOTOS", "/usr/share/backgrounds/linuxmint-wallpapers"), "*.jpg")))
 # A portrait for the face-detection tests: set PIKLIN_TEST_FACE to an image of a face.
 FACE = [os.environ["PIKLIN_TEST_FACE"]] if os.environ.get("PIKLIN_TEST_FACE") else []
-TMP = tempfile.mkdtemp(prefix="pika-test-")
+# The real path: on a Mac the temporary folder sits behind a symlink
+# (/var -> /private/var), and the catalog stores photos by their real path.
+TMP = os.path.realpath(tempfile.mkdtemp(prefix="pika-test-"))
 
 # ===================================================================
 section("1. Image I/O and metadata")
@@ -1067,10 +1069,23 @@ from piklin.indexer import Indexer as _Ix
 _vdir = os.path.join(TMP, "videos"); os.makedirs(_vdir)
 _clip = os.path.join(_vdir, "VID_20240501_101500.mp4")
 _vw = _cv2.VideoWriter(_clip, _cv2.VideoWriter_fourcc(*"mp4v"), 25, (320, 240))
-for _i in range(50):
-    _fr = np.zeros((240, 320, 3), np.uint8); _fr[:, :, 1] = _i * 5
-    _vw.write(_fr)
-_vw.release()
+if _vw.isOpened():
+    for _i in range(50):
+        _fr = np.zeros((240, 320, 3), np.uint8); _fr[:, :, 1] = _i * 5
+        _vw.write(_fr)
+    _vw.release()
+else:
+    # This OpenCV has no FFmpeg (the one for Intel Macs): the same clip through PyAV.
+    import av as _av
+    with _av.open(_clip, "w") as _out:
+        _st = _out.add_stream("mpeg4", rate=25)
+        _st.width, _st.height, _st.pix_fmt = 320, 240, "yuv420p"
+        for _i in range(50):
+            _fr = np.zeros((240, 320, 3), np.uint8); _fr[:, :, 1] = _i * 5
+            for _pk in _st.encode(_av.VideoFrame.from_ndarray(_fr, format="bgr24")):
+                _out.mux(_pk)
+        for _pk in _st.encode():
+            _out.mux(_pk)
 _rec = iio.probe(_clip)
 check("video probed: size, length, date from name",
       _rec is not None and (_rec["width"], _rec["height"]) == (320, 240)
@@ -1439,44 +1454,84 @@ _helper_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "packagi
 _spec = _ilu.spec_from_loader("piklin_update_helper", _ilm.SourceFileLoader("piklin_update_helper", _helper_path))
 _hu = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_hu)
 _ud = Path(TMP) / "update"; _ud.mkdir()
-_arch = _hu.architecture()
-def _make_deb(version, name_version=None, package="piklin"):
-    root = _ud / f"root-{package}-{version}"; (root / "DEBIAN").mkdir(parents=True)
-    (root / "DEBIAN" / "control").write_text(
-        f"Package: {package}\nVersion: {version}\nArchitecture: {_arch}\n"
-        "Maintainer: Test <t@example.com>\nDescription: test\n")
-    out = _ud / f"piklin_{name_version or version}_{_arch}.deb"
-    _sp2.run(["dpkg-deb", "--build", "--root-owner-group", str(root), str(out)],
-             check=True, capture_output=True)
-    return out
-def _sign(deb, key):
-    manifest = Path(str(deb) + ".sha256")
-    digest = hashlib.sha256(deb.read_bytes()).hexdigest()
-    manifest.write_text(f"{digest}  {deb.name}\n")
-    _sp2.run(["openssl", "pkeyutl", "-sign", "-inkey", str(key), "-rawin", "-in", str(manifest),
-              "-out", str(manifest) + ".sig"], check=True, capture_output=True)
-_key, _other = _ud / "key.pem", _ud / "other.pem"
-for k in (_key, _other):
-    _sp2.run(["openssl", "genpkey", "-algorithm", "ed25519", "-out", str(k)], check=True, capture_output=True)
-_pub = _ud / "key.pub.pem"
-_sp2.run(["openssl", "pkey", "-in", str(_key), "-pubout", "-out", str(_pub)], check=True, capture_output=True)
-_deb = _make_deb("9.9.9"); _sign(_deb, _key)
-check("a signed official package passes", _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 0)
-_sign(_deb, _other)
-check("a package signed with another key is refused",
-      _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
-_sign(_deb, _key)
-with open(_deb, "ab") as _f: _f.write(b"tampered")
-check("a changed package is refused", _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
-_deb = _make_deb("9.9.8", name_version="9.9.9"); _sign(_deb, _key)
-check("a package whose version is not the one asked for is refused",
-      _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
-_deb = _make_deb("9.9.9", package="notpiklin"); _sign(_deb, _key)
-check("a package that is not Piklin is refused",
-      _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
+# The .deb helper needs dpkg; elsewhere (a Mac) only its pure logic is tested.
+_HAS_DPKG = shutil.which("dpkg-deb") is not None
+if not _HAS_DPKG:
+    print("  SKIP  .deb package checks (no dpkg on this system)")
+if _HAS_DPKG:
+    _arch = _hu.architecture()
+    def _make_deb(version, name_version=None, package="piklin"):
+        root = _ud / f"root-{package}-{version}"; (root / "DEBIAN").mkdir(parents=True)
+        (root / "DEBIAN" / "control").write_text(
+            f"Package: {package}\nVersion: {version}\nArchitecture: {_arch}\n"
+            "Maintainer: Test <t@example.com>\nDescription: test\n")
+        out = _ud / f"piklin_{name_version or version}_{_arch}.deb"
+        _sp2.run(["dpkg-deb", "--build", "--root-owner-group", str(root), str(out)],
+                 check=True, capture_output=True)
+        return out
+    def _sign(deb, key):
+        manifest = Path(str(deb) + ".sha256")
+        digest = hashlib.sha256(deb.read_bytes()).hexdigest()
+        manifest.write_text(f"{digest}  {deb.name}\n")
+        _sp2.run(["openssl", "pkeyutl", "-sign", "-inkey", str(key), "-rawin", "-in", str(manifest),
+                  "-out", str(manifest) + ".sig"], check=True, capture_output=True)
+    _key, _other = _ud / "key.pem", _ud / "other.pem"
+    for k in (_key, _other):
+        _sp2.run(["openssl", "genpkey", "-algorithm", "ed25519", "-out", str(k)], check=True, capture_output=True)
+    _pub = _ud / "key.pub.pem"
+    _sp2.run(["openssl", "pkey", "-in", str(_key), "-pubout", "-out", str(_pub)], check=True, capture_output=True)
+    _deb = _make_deb("9.9.9"); _sign(_deb, _key)
+    check("a signed official package passes", _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 0)
+    _sign(_deb, _other)
+    check("a package signed with another key is refused",
+          _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
+    _sign(_deb, _key)
+    with open(_deb, "ab") as _f: _f.write(b"tampered")
+    check("a changed package is refused", _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
+    _deb = _make_deb("9.9.8", name_version="9.9.9"); _sign(_deb, _key)
+    check("a package whose version is not the one asked for is refused",
+          _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
+    _deb = _make_deb("9.9.9", package="notpiklin"); _sign(_deb, _key)
+    check("a package that is not Piklin is refused",
+          _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
 check("only a version number is accepted", _hu.main(["../../etc"]) == 2
       and _hu.main(["--verify-only", "1.0; rm", str(_ud)]) == 2)
 from piklin import updates as _upd
+# Piklin checks release signatures itself where openssl cannot (a Mac's LibreSSL).
+from piklin import ed25519 as _ed
+_rfc_pub = bytes.fromhex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a")
+_rfc_sig = bytes.fromhex("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555"
+                         "fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b")
+check("Ed25519 signatures are checked exactly (RFC 8032 test vector)",
+      _ed.verify(_rfc_pub, b"", _rfc_sig) and not _ed.verify(_rfc_pub, b"x", _rfc_sig)
+      and len(_ed.public_key_from_pem(Path(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                         "packaging", "deb", "release-key.pem")).read_text())) == 32)
+_ossl3 = next((o for o in (shutil.which("openssl"), "/opt/homebrew/opt/openssl@3/bin/openssl",
+                           "/usr/local/opt/openssl@3/bin/openssl")
+               if o and os.path.exists(o)
+               and "LibreSSL" not in _sp2.run([o, "version"], capture_output=True, text=True).stdout), None)
+if _ossl3:
+    _md = Path(TMP) / "dmgupdate"; _md.mkdir()
+    _mk, _mo = _md / "k.pem", _md / "o.pem"
+    for _k in (_mk, _mo):
+        _sp2.run([_ossl3, "genpkey", "-algorithm", "ed25519", "-out", str(_k)], check=True, capture_output=True)
+    _mpub = _sp2.run([_ossl3, "pkey", "-in", str(_mk), "-pubout"], check=True, capture_output=True, text=True).stdout
+    _dmg = _md / "Piklin-9.9.9.dmg"; _dmg.write_bytes(b"disk image")
+    def _msign(key):
+        m = Path(str(_dmg) + ".sha256")
+        m.write_text(f"{hashlib.sha256(_dmg.read_bytes()).hexdigest()}  {_dmg.name}\n")
+        _sp2.run([_ossl3, "pkeyutl", "-sign", "-inkey", str(key), "-rawin", "-in", str(m),
+                  "-out", str(m) + ".sig"], check=True, capture_output=True)
+    def _mverify():
+        try:
+            _upd.verify_signed(_md, _dmg.name, _mpub); return "ok"
+        except _upd.UpdateError as e:
+            return e.kind
+    _msign(_mk); _ok = _mverify()
+    _msign(_mo); _other = _mverify()
+    _msign(_mk); _dmg.write_bytes(b"disk image, changed"); _changed = _mverify()
+    check("a Mac update is installed only when signed with the release key and unchanged",
+          (_ok, _other, _changed) == ("ok", "verification", "verification"), (_ok, _other, _changed))
 check("running from source points to the download instead of installing",
       not _upd.can_install_itself())
 _saved_cfg_u = os.environ.get("XDG_CONFIG_HOME"); os.environ["XDG_CONFIG_HOME"] = os.path.join(TMP, "updcfg")
@@ -1494,21 +1549,24 @@ finally:
     if _saved_cfg_u is None: os.environ.pop("XDG_CONFIG_HOME", None)
     else: os.environ["XDG_CONFIG_HOME"] = _saved_cfg_u
 # The same version published again with fixes is still an update
-check("a new build of the same version is installed; the same build or an older version is not",
-      _hu.decide("1.0.4", "1.0.4", "abc-2", "abc-1") == "reinstall"
-      and _hu.decide("1.0.4", "1.0.4", "abc-1", "abc-1") == "no"
-      and _hu.decide("1.0.4", "1.0.4", "", "abc-1") == "no"
-      and _hu.decide("1.0.5", "1.0.4", "x", "y") == "install"
-      and _hu.decide("1.0.3", "1.0.4", "x", "y") == "no")
-_bid_root = _ud / "root-build"; (_bid_root / "DEBIAN").mkdir(parents=True)
-(_bid_root / "DEBIAN" / "control").write_text(
-    f"Package: piklin\nVersion: 9.9.9\nArchitecture: {_arch}\nMaintainer: T <t@example.com>\nDescription: t\n")
-(_bid_root / "usr/share/piklin/piklin").mkdir(parents=True)
-(_bid_root / "usr/share/piklin/piklin/BUILD_ID").write_text("c0ffee-20260913\n")
-_bid_deb = _ud / "build-id.deb"
-_sp2.run(["dpkg-deb", "--build", "--root-owner-group", str(_bid_root), str(_bid_deb)], check=True, capture_output=True)
-check("the build id is read from a package without installing it",
-      _hu.build_of(str(_bid_deb)) == "c0ffee-20260913", _hu.build_of(str(_bid_deb)))
+# (the helper compares versions with dpkg)
+if _HAS_DPKG:
+    check("a new build of the same version is installed; the same build or an older version is not",
+          _hu.decide("1.0.4", "1.0.4", "abc-2", "abc-1") == "reinstall"
+          and _hu.decide("1.0.4", "1.0.4", "abc-1", "abc-1") == "no"
+          and _hu.decide("1.0.4", "1.0.4", "", "abc-1") == "no"
+          and _hu.decide("1.0.5", "1.0.4", "x", "y") == "install"
+          and _hu.decide("1.0.3", "1.0.4", "x", "y") == "no")
+if _HAS_DPKG:
+    _bid_root = _ud / "root-build"; (_bid_root / "DEBIAN").mkdir(parents=True)
+    (_bid_root / "DEBIAN" / "control").write_text(
+        f"Package: piklin\nVersion: 9.9.9\nArchitecture: {_arch}\nMaintainer: T <t@example.com>\nDescription: t\n")
+    (_bid_root / "usr/share/piklin/piklin").mkdir(parents=True)
+    (_bid_root / "usr/share/piklin/piklin/BUILD_ID").write_text("c0ffee-20260913\n")
+    _bid_deb = _ud / "build-id.deb"
+    _sp2.run(["dpkg-deb", "--build", "--root-owner-group", str(_bid_root), str(_bid_deb)], check=True, capture_output=True)
+    check("the build id is read from a package without installing it",
+          _hu.build_of(str(_bid_deb)) == "c0ffee-20260913", _hu.build_of(str(_bid_deb)))
 _orig_ib = _upd.installed_build
 try:
     _upd.installed_build = lambda: "c0ffee-1"

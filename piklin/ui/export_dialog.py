@@ -31,8 +31,10 @@ def _fmt(n: float) -> str:
 class ExportDialog(Adw.Dialog):
     def __init__(self, parent, library, settings, paths, stack=None,
                  catalog=None):
-        super().__init__(title=_("Export"), content_width=520,
-                         content_height=620)
+        from .chrome import fit
+        width, height = fit(520, 620)
+        super().__init__(title=_("Export"), content_width=width,
+                         content_height=height)
         self.library = library
         self.settings = settings
         self.paths = [Path(p) for p in paths]

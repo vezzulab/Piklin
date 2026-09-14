@@ -15,13 +15,21 @@
 # shared libraries that travel are FFmpeg's own, renamed by auditwheel so
 # they can never be confused with a system FFmpeg.
 #
+# Builds for the machine it runs on: x86_64 (amd64) or aarch64 (arm64).
+#
 # Needs, on the build machine only: gcc make nasm meson ninja cmake patchelf
 # pkg-config curl.     Output: packaging/media-cache/wheels/av-*.whl
+# (packaging/media-cache-aarch64/wheels/ on an arm64 machine)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
-CACHE="$HERE/media-cache"
+MACHINE="$(uname -m)"
+case "$MACHINE" in
+  x86_64)  OPENH264_ARCH=x86_64; CACHE="$HERE/media-cache" ;;
+  aarch64) OPENH264_ARCH=arm64;  CACHE="$HERE/media-cache-aarch64" ;;
+  *) echo "unsupported machine: $MACHINE" >&2; exit 1 ;;
+esac
 SRC="$CACHE/src"
 PREFIX="$CACHE/prefix"
 OUT="$CACHE/wheels"
@@ -40,7 +48,7 @@ fetch() {   # fetch <url> <file>
   [ -s "$SRC/$2" ] || curl -fL --retry 3 -o "$SRC/$2" "$1"
 }
 mkdir -p "$SRC" "$PREFIX" "$OUT"
-export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib/x86_64-linux-gnu/pkgconfig"
+export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib/$MACHINE-linux-gnu/pkgconfig"
 export CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC"
 
 say "Downloading sources"
@@ -55,7 +63,7 @@ build_dir() { rm -rf "$SRC/$1"; mkdir -p "$SRC/$1"; tar -xf "$SRC/$2" -C "$SRC/$
 if [ ! -f "$PREFIX/lib/libopenh264.a" ]; then
   say "OpenH264 $OPENH264 (BSD)"
   build_dir openh264 "openh264-$OPENH264.tar.gz"
-  make -C "$SRC/openh264" -j"$JOBS" OS=linux ARCH=x86_64 PREFIX="$PREFIX" install-static >/dev/null
+  make -C "$SRC/openh264" -j"$JOBS" OS=linux ARCH="$OPENH264_ARCH" PREFIX="$PREFIX" install-static >/dev/null
 fi
 
 if [ ! -f "$PREFIX/lib/libvpx.a" ]; then
@@ -110,6 +118,6 @@ PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig" LD_LIBRARY_PATH="$PREFIX/lib" \
 say "Bundling FFmpeg into the wheel"
 rm -f "$OUT"/av-*.whl
 LD_LIBRARY_PATH="$PREFIX/lib" "$PY" -m auditwheel repair \
-  --plat "manylinux_2_39_x86_64" -w "$OUT" "$CACHE"/pyav-build/av-*.whl >/dev/null
+  --plat "manylinux_2_39_$MACHINE" -w "$OUT" "$CACHE"/pyav-build/av-*.whl >/dev/null
 cp "$SRC/ffmpeg/COPYING.LGPLv2.1" "$CACHE/FFMPEG-LICENSE.txt"
 say "Done: $(ls "$OUT"/av-*.whl)"

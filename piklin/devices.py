@@ -30,7 +30,9 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
+from . import imagecapture
 from . import imageio as iio
+from . import system
 from .i18n import _
 
 # Where cameras put pictures. DCIM is the one the standard actually
@@ -109,7 +111,9 @@ def _classify(mount) -> tuple[str, str]:
         pass
     if uri.startswith("gphoto2://"):
         return "camera", "camera-photo-symbolic"
-    if uri.startswith("mtp://"):
+    # An iPhone or iPad on Linux: gvfs reaches its Camera Roll over Apple's
+    # AFC protocol (libimobiledevice), with a DCIM folder like any camera.
+    if uri.startswith(("mtp://", "afc://")):
         return "phone", "phone-symbolic"
     return "storage", "media-flash-symbolic"
 
@@ -137,6 +141,12 @@ def list_devices() -> list[Device]:
         # folder, or a USB stick or external disk - never the system's own
         # disks, which the desktop does not list as mounts for the user.
         name = mount.get_name() or _("Camera")
+        if uri.startswith("afc://"):
+            # An iPhone mounts twice over AFC: its Camera Roll, with a DCIM
+            # folder, and its apps' documents ("afc://<id>:3/"). Only the
+            # first holds photos.
+            if path is None or not (path / "DCIM").is_dir():
+                continue
         if kind == "storage":
             if path is None:
                 continue
@@ -150,6 +160,37 @@ def list_devices() -> list[Device]:
         devices.append(Device(
             id=uri, name=name, path=path, uri=uri,
             icon=icon, kind=kind, mount=mount))
+
+    # An iPhone can also show up as a PTP camera beside its AFC mount; the
+    # AFC mount already has every photo, so it is not listed twice.
+    if any(d.uri.startswith("afc://") for d in devices):
+        devices = [d for d in devices if not (
+            d.uri.startswith("gphoto2://")
+            and any(w in (d.name + " " + d.uri).lower() for w in ("iphone", "ipad", "apple")))]
+
+    # Drives and cards GIO does not report (a Mac's /Volumes), treated the
+    # way a card or USB drive mounted in /media is above.
+    for name, local in system.external_volumes():
+        uri = Gio.File.new_for_path(local).get_uri()
+        if uri in seen:
+            continue
+        path = Path(local)
+        if _looks_like_camera(path):
+            kind, icon = "storage", "media-flash-symbolic"
+        else:
+            kind, icon = "drive", "drive-removable-media-symbolic"
+        seen.add(uri)
+        devices.append(Device(id=uri, name=name, path=path, uri=uri,
+                              icon=icon, kind=kind))
+
+    # Cameras and phones a Mac reaches through Image Capture, where Linux
+    # has them mounted by gvfs above.
+    for cam in imagecapture.cameras():
+        uri = f"imagecapture://{cam['uuid']}"
+        devices.append(Device(
+            id=uri, name=cam["name"] or _("Camera"), path=Path(cam["root"]), uri=uri,
+            icon="phone-symbolic" if cam["phone"] else "camera-photo-symbolic",
+            kind="phone" if cam["phone"] else "camera"))
     return devices
 
 
@@ -176,6 +217,9 @@ def scan_device(device: Device, limit: int = 10000,
     worth paying - at import, when the file is being copied anyway.
     """
     exts = iio.supported_extensions()
+    if device.uri.startswith("imagecapture://"):
+        return imagecapture.scan(device.uri.split("://", 1)[1], exts,
+                                 on_batch=on_batch, limit=limit)
     records: list[dict] = []
     # ``on_batch`` receives what was found so far every few hundred files or
     # fraction of a second, so a big drive shows its first photos at once.
@@ -286,8 +330,8 @@ def _source_size_of(dest: Path) -> int | None:
     """The size of the camera file a library copy was made from, recorded
     on the copy when it was compressed on import."""
     try:
-        return int(os.getxattr(dest, _SOURCE_SIZE_XATTR).decode())
-    except (OSError, ValueError, AttributeError):
+        return int(system.get_xattr(dest, _SOURCE_SIZE_XATTR).decode())
+    except (OSError, ValueError):
         return None
 
 
@@ -369,7 +413,12 @@ def import_photos(library, records: list[dict], on_progress=None,
             return None
         src = Path(rec["path"])
         claimed = None
+        # A photo on a Mac's camera or phone is copied off it first, into the
+        # folder standing in for the device, and removed from there after.
+        staged = bool(rec.get("camera"))
         try:
+            if staged and not imagecapture.fetch(str(src)):
+                return ("failed", src, None)
             # Filing by date means the date the shutter fired, not the
             # file's timestamp - so if this record came from the fast
             # listing, read the real EXIF now, while the file is about to
@@ -415,8 +464,8 @@ def import_photos(library, records: list[dict], on_progress=None,
                 except OSError:
                     pass
                 try:
-                    os.setxattr(dest, _SOURCE_SIZE_XATTR, str(src.stat().st_size).encode())
-                except (OSError, AttributeError):
+                    system.set_xattr(dest, _SOURCE_SIZE_XATTR, str(src.stat().st_size).encode())
+                except OSError:
                     pass
             elif is_video(src) and video_profile == "h264":
                 # Copied as it is first - quick, and the video is in the
@@ -435,6 +484,8 @@ def import_photos(library, records: list[dict], on_progress=None,
             if claimed is not None:
                 with lock:
                     reserved.discard(claimed)
+            if staged:
+                src.unlink(missing_ok=True)
 
     copied, done_sources, placed = [], [], []
     skipped = failed = done = 0
@@ -520,9 +571,9 @@ def shrink_video(library, catalog, photo_id: int, on_progress=None,
     os.utime(out, (st.st_atime, st.st_mtime))
     try:
         # the size of the camera file, so importing it again is recognised
-        os.setxattr(out, _SOURCE_SIZE_XATTR,
-                    str(_source_size_of(src) or st.st_size).encode())
-    except (OSError, AttributeError):
+        system.set_xattr(out, _SOURCE_SIZE_XATTR,
+                         str(_source_size_of(src) or st.st_size).encode())
+    except OSError:
         pass
     final = src.with_suffix(".mp4")
     if final != src:
@@ -570,6 +621,11 @@ def delete_from_device(paths) -> tuple[int, int]:
     GIO so it works on a camera mounted over gphoto2 as well as a card.
     """
     removed = failed = 0
+    paths = list(paths)
+    on_camera = [p for p in paths if imagecapture.is_camera_path(str(p))]
+    if on_camera:
+        removed, failed = imagecapture.delete(on_camera)
+        paths = [p for p in paths if p not in on_camera]
     for path in paths:
         try:
             Gio.File.new_for_path(str(path)).delete(None)
@@ -591,6 +647,19 @@ class DeviceWatcher:
             self._monitor.connect("volume-added", self._changed),
             self._monitor.connect("volume-removed", self._changed),
         ]
+        # Where GIO does not announce drives (a Mac), watch the folder they
+        # are mounted in instead.
+        self._folder_monitor = None
+        folder = system.volumes_folder()
+        if folder:
+            try:
+                self._folder_monitor = Gio.File.new_for_path(folder).monitor_directory(
+                    Gio.FileMonitorFlags.WATCH_MOUNTS, None)
+                self._folder_monitor.connect("changed", self._changed)
+            except Exception:
+                self._folder_monitor = None
+        # Cameras and phones on a Mac (Image Capture); nothing elsewhere.
+        imagecapture.start(self._changed)
 
     def _changed(self, *_args):
         # A mount is announced before its filesystem is necessarily
@@ -611,3 +680,7 @@ class DeviceWatcher:
             except Exception:
                 pass
         self._handlers = []
+        imagecapture.stop_listening(self._changed)
+        if self._folder_monitor is not None:
+            self._folder_monitor.cancel()
+            self._folder_monitor = None

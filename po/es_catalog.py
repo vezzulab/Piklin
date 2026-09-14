@@ -550,6 +550,7 @@ ES = {
     "Rename": "Cambiar nombre",
     "There is already a file named “{name}”.": "Ya hay un archivo llamado “{name}”.",
     "Couldn’t Rename": "No se pudo cambiar el nombre",
+    "Couldn't read this photo from {device}.": "No se pudo leer esta foto de {device}.",
     "OK": "Aceptar",
 
     # -- preferences -------------------------------------------------------------------------

@@ -1,0 +1,48 @@
+/* macOS only, loaded after style.css.
+ *
+ * The window buttons as a Mac draws them: three small circles at the top
+ * left - close red, minimise yellow, zoom green - with their symbols showing
+ * only while the pointer is over the group. */
+windowcontrols.start { margin: 0 6px 0 4px; border-spacing: 8px; }
+windowcontrols.start button,
+.pika-header windowcontrols.start button,
+dialog windowcontrols.start button {
+  min-width: 12px;
+  min-height: 12px;
+  padding: 0;
+  margin: 0;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 0.5px alpha(#000000, 0.18);
+  color: alpha(#000000, 0.55);
+}
+windowcontrols.start button.close { background: #ff5f57; }
+windowcontrols.start button.minimize { background: #febc2e; }
+windowcontrols.start button.maximize { background: #28c840; }
+windowcontrols.start button:active { filter: brightness(0.85); }
+
+windowcontrols.start button image,
+.pika-header windowcontrols.start button image {
+  -gtk-icon-size: 8px;
+  opacity: 0;
+  color: alpha(#000000, 0.55);
+}
+windowcontrols.start:hover button image { opacity: 1; }
+
+/* The brand, at the top of the sidebar below the window buttons rather than
+ * squeezed between them and the menu button in the bar. */
+.pika-brand.pika-brand-sidebar {
+  margin: 14px 12px 6px 12px;
+  border-spacing: 8px;
+}
+window.piklin .pika-brand-sidebar label.pika-app-title {
+  font-family: Inter, -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* An unfocused window greys its buttons, as the system does. */
+window:backdrop windowcontrols.start button {
+  background: #dcdcdc;
+  box-shadow: inset 0 0 0 0.5px alpha(#000000, 0.12);
+}

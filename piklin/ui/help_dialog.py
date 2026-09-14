@@ -120,8 +120,10 @@ GUIDE = (
 
 class HelpDialog(Adw.Dialog):
     def __init__(self):
-        super().__init__(title=_("How to Use Piklin"), content_width=620,
-                         content_height=720)
+        from .chrome import fit
+        width, height = fit(620, 720)
+        super().__init__(title=_("How to Use Piklin"), content_width=width,
+                         content_height=height)
         view = Adw.ToolbarView()
         view.add_top_bar(Adw.HeaderBar())
         page = Adw.PreferencesPage()

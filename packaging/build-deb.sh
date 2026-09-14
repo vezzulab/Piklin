@@ -9,14 +9,28 @@
 #
 #   MAINTAINER="Your Name <you@example.com>" ./packaging/build-deb.sh
 #
-# Output: dist/piklin_<version>_amd64.deb
+# Builds for the machine it runs on, amd64 or arm64 (ARCH=... to choose).
+# packaging/build-deb-docker.sh runs it in a clean Ubuntu for either.
+#
+# Output: dist/piklin_<version>_<amd64|arm64>.deb
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
 STAGE="$HERE/deb-root"
 WHEELS="$HERE/wheel-cache"
-ARCH=amd64
+ARCH="${ARCH:-$(dpkg --print-architecture 2>/dev/null || echo amd64)}"
+case "$ARCH" in
+  amd64) WHEEL_ARCH=x86_64;  MEDIA="$HERE/media-cache"
+         PLATFORMS=(--platform manylinux_2_28_x86_64 --platform manylinux_2_27_x86_64) ;;
+  arm64) WHEEL_ARCH=aarch64; MEDIA="$HERE/media-cache-aarch64"
+         PLATFORMS=(--platform manylinux_2_28_aarch64 --platform manylinux_2_27_aarch64
+                    --platform manylinux_2_17_aarch64 --platform manylinux2014_aarch64) ;;
+  *) echo "unsupported architecture: $ARCH" >&2; exit 1 ;;
+esac
+# Wheels PyPI does not publish for this architecture (miniaudio on arm64),
+# built by build-deb-docker.sh in a manylinux container.
+LOCAL_WHEELS="$HERE/wheel-local-$WHEEL_ARCH"
 PKG=piklin
 VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$ROOT/piklin/app.py")"
 MAINTAINER="${MAINTAINER:-Vezzu Studio <maintainer@example.com>}"
@@ -59,9 +73,10 @@ install -m 755 "$HERE/deb/piklin" "$STAGE/usr/bin/piklin"
 # than the one running this script, so one machine builds all of them.
 pipget() {   # pipget <python-version> <target> <requirements...>
   local v="$1" target="$2"; shift 2
+  local links=()
+  [ -d "$LOCAL_WHEELS" ] && links=(--find-links "$LOCAL_WHEELS")
   python3 -m pip install --quiet --no-deps --only-binary=:all: \
-      --implementation cp --python-version "$v" \
-      --platform manylinux_2_28_x86_64 --platform manylinux_2_27_x86_64 \
+      --implementation cp --python-version "$v" "${PLATFORMS[@]}" ${links[@]+"${links[@]}"} \
       --cache-dir "$WHEELS" --target "$target" "$@"
 }
 for v in $PYVERS; do
@@ -73,7 +88,7 @@ pipget "${PYVERS%% *}" "$LIB/common" "${ABI3[@]}"
 
 # Video: PyAV built by packaging/build-media.sh against an FFmpeg with no
 # GPL code. The PyPI wheel carries x264/x265 (GPL) and must never be used.
-MEDIA_WHEEL="$(ls "$HERE"/media-cache/wheels/av-*.whl 2>/dev/null | head -1)"
+MEDIA_WHEEL="$(ls "$MEDIA"/wheels/av-*.whl 2>/dev/null | head -1)"
 [ -n "$MEDIA_WHEEL" ] || { echo "Run packaging/build-media.sh first" >&2; exit 1; }
 case "$MEDIA_WHEEL" in
   *abi3*) say "PyAV with Piklin's own FFmpeg (LGPL)"
@@ -168,8 +183,8 @@ done
 cp "$LIB"/common/cv2/LICENSE*.txt "$DOC/third-party/"opencv*/ 2>/dev/null || true
 cp "$ROOT"/data/fonts/Inter/*.txt "$DOC/third-party/" 2>/dev/null || true
 mkdir -p "$DOC/third-party/ffmpeg"
-cp "$HERE/media-cache/FFMPEG-LICENSE.txt" "$DOC/third-party/ffmpeg/COPYING.LGPLv2.1"
-cp "$HERE/media-cache/ffmpeg-configure.log" "$DOC/third-party/ffmpeg/configure.log" 2>/dev/null || true
+cp "$MEDIA/FFMPEG-LICENSE.txt" "$DOC/third-party/ffmpeg/COPYING.LGPLv2.1"
+cp "$MEDIA/ffmpeg-configure.log" "$DOC/third-party/ffmpeg/configure.log" 2>/dev/null || true
 cat > "$DOC/third-party/ffmpeg/SOURCE.txt" <<SRC
 Piklin plays and exports video with FFmpeg $(sed -n 's/^FFMPEG=//p' "$HERE/build-media.sh"),
 licensed under the GNU Lesser General Public License version 2.1 or later,
@@ -228,8 +243,8 @@ Maintainer: $MAINTAINER
 Installed-Size: $(du -sk --exclude=DEBIAN "$STAGE" | cut -f1)
 Depends: python3 (>= 3.12), python3 (<< 3.15), python3-gi (>= 3.42), python3-gi-cairo,
  gir1.2-glib-2.0, gir1.2-gtk-4.0 (>= 4.14), gir1.2-adw-1 (>= 1.5),
- gir1.2-secret-1, pkexec | policykit-1, openssl
-Recommends: gvfs, gvfs-backends, fonts-dejavu-core
+ gir1.2-secret-1, pkexec | policykit-1, openssl, python3-cffi-backend
+Recommends: gvfs, gvfs-backends, usbmuxd, fonts-dejavu-core
 Replaces: pikalicious
 Conflicts: pikalicious
 Suggests: rclone

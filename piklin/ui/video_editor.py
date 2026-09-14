@@ -349,9 +349,8 @@ class VideoEditorView(Gtk.Box):
         export.add_css_class("suggested-action")
         export.connect("clicked", self._on_export)
         bar.append(export)
-        controls = Gtk.WindowControls(side=Gtk.PackType.END)
-        controls.set_decoration_layout(":minimize,maximize,close")
-        bar.append(controls)
+        from .chrome import add_window_controls
+        add_window_controls(bar)
         handle = Gtk.WindowHandle()
         handle.set_child(bar)
         return handle

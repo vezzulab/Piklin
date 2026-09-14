@@ -14,6 +14,7 @@ from __future__ import annotations
 import gettext
 import json
 import os
+import sys
 from pathlib import Path
 
 DOMAIN = "piklin"
@@ -58,6 +59,11 @@ def setup(language: str | None = None) -> str:
         # GTK's own dialogs (file chooser, About) follow the same choice.
         os.environ["LANGUAGE"] = language
         languages = [language]
+    elif not any(os.environ.get(v) for v in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG")):
+        # A Mac app keeps the computer's language in the system settings,
+        # not in the environment.
+        from . import system
+        languages = system.preferred_languages() or None
     else:
         languages = None                      # LANGUAGE, LC_ALL, LC_MESSAGES, LANG
     _translation = gettext.translation(DOMAIN, LOCALE_DIR, languages=languages,
@@ -71,16 +77,27 @@ def current_language() -> str:
     return _current
 
 
+# Shortcuts are written "Ctrl+R" in the text; a Mac shows them the way its
+# own menus do, with the Command key: "⌘R", "⇧⌘R".
+if sys.platform == "darwin":
+    def _keys(text: str) -> str:
+        return (text.replace("Ctrl+Shift+", "⇧⌘").replace("Ctrl+Mayús+", "⇧⌘")
+                .replace("Ctrl+", "⌘"))
+else:
+    def _keys(text: str) -> str:
+        return text
+
+
 def _(message: str) -> str:
-    return _translation.gettext(message)
+    return _keys(_translation.gettext(message))
 
 
 def ngettext(singular: str, plural: str, n: int) -> str:
-    return _translation.ngettext(singular, plural, n)
+    return _keys(_translation.ngettext(singular, plural, n))
 
 
 def pgettext(context: str, message: str) -> str:
-    return _translation.pgettext(context, message)
+    return _keys(_translation.pgettext(context, message))
 
 
 def N_(message: str) -> str:

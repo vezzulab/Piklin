@@ -60,7 +60,7 @@ def stream_info(path: Path | str) -> dict | None:
     import cv2
     cap = _capture(path)
     if cap is None:
-        return None
+        return _av_stream_info(path)
     try:
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -94,7 +94,7 @@ def frame_at(path: Path | str, seconds: float = 0.0,
     from PIL import Image
     cap = _capture(path)
     if cap is None:
-        raise OSError(f"cannot open video {path}")
+        return _av_frame_at(path, seconds, max_side)
     try:
         if seconds > 0:
             cap.set(cv2.CAP_PROP_POS_MSEC, seconds * 1000.0)
@@ -109,6 +109,82 @@ def frame_at(path: Path | str, seconds: float = 0.0,
     finally:
         cap.release()
     im = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    if max_side and max(im.size) > max_side:
+        im.thumbnail((max_side, max_side), Image.LANCZOS)
+    return im
+
+
+# -- the same through PyAV ---------------------------------------------------
+# Some OpenCV builds come without its FFmpeg (the one for Intel Macs), and
+# open no video at all. PyAV, with the FFmpeg Piklin ships, reads the same
+# files on every system, so a video is never refused for that.
+def _av_frame(container, stream, seconds: float):
+    """The first frame at or after ``seconds`` (the last one if it runs out)."""
+    if seconds > 0 and stream.time_base:
+        try:
+            container.seek(int(seconds / stream.time_base), stream=stream)
+        except Exception:
+            pass
+    last = None
+    for frame in container.decode(stream):
+        if seconds <= 0 or frame.time is None or frame.time >= seconds - 1e-3:
+            return frame
+        last = frame
+    return last
+
+
+def _av_upright(frame):
+    """The frame as an RGB array turned upright, and the rotation applied -
+    the way ui/player.py turns frames, and OpenCV does by itself."""
+    import numpy as np
+    arr = frame.to_ndarray(format="rgb24")
+    turns = int(round(-(getattr(frame, "rotation", 0) or 0))) % 360
+    if turns in (90, 180, 270):
+        arr = np.ascontiguousarray(np.rot90(arr, k={90: -1, 180: 2, 270: 1}[turns]))
+    return arr, turns
+
+
+def _av_stream_info(path) -> dict | None:
+    try:
+        import av
+    except Exception:
+        return None
+    try:
+        with av.open(str(path)) as container:
+            stream = container.streams.video[0]
+            fps = float(stream.average_rate or stream.guessed_rate or 0.0)
+            if stream.duration and stream.time_base:
+                duration = float(stream.duration * stream.time_base)
+            else:
+                duration = (container.duration or 0) / 1_000_000
+            frame = _av_frame(container, stream, 0.0)
+            if frame is None:
+                return None
+            arr, rotation = _av_upright(frame)
+    except Exception:
+        return None
+    h, w = arr.shape[:2]
+    if not (0 < fps < 1000):
+        fps = 0.0
+    return {"width": w, "height": h, "fps": fps, "duration": duration,
+            "rotation": rotation}
+
+
+def _av_frame_at(path, seconds: float, max_side: int | None):
+    from PIL import Image
+    try:
+        import av
+        with av.open(str(path)) as container:
+            stream = container.streams.video[0]
+            frame = _av_frame(container, stream, seconds)
+            if frame is None:
+                raise OSError(f"no frame in {path}")
+            arr, _turns = _av_upright(frame)
+    except OSError:
+        raise
+    except Exception as exc:
+        raise OSError(f"cannot open video {path}") from exc
+    im = Image.fromarray(arr)
     if max_side and max(im.size) > max_side:
         im.thumbnail((max_side, max_side), Image.LANCZOS)
     return im

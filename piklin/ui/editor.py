@@ -153,9 +153,8 @@ class EditorView(Gtk.Box):
         bar.append(export)
         # The editor replaces the library's header, so it carries the
         # window buttons too - same place, same style as everywhere else.
-        controls = Gtk.WindowControls(side=Gtk.PackType.END)
-        controls.set_decoration_layout(":minimize,maximize,close")
-        bar.append(controls)
+        from .chrome import add_window_controls
+        add_window_controls(bar)
         # Adw.HeaderBar gets window-drag on its empty space for free;
         # this custom bar is a plain Box and does not, which is why the
         # window could not be moved at all while the editor or viewer was
