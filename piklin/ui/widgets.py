@@ -7,7 +7,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import GObject, Gdk, Gtk  # noqa: E402
+from gi.repository import GLib, GObject, Gdk, Gtk  # noqa: E402
 
 import numpy as np
 from ..i18n import _
@@ -81,10 +81,27 @@ class ParamSlider(Gtk.Box):
         self._update_label()
         if self._dragging:
             self.emit("changing", self.adj.get_value())
+            # The scale's own drag gesture takes the pointer, so our
+            # "released" often never comes: without this the slider stayed
+            # "dragging" for good, never reported a settled value, and the
+            # edit was never saved. Settle a moment after it stops moving.
+            if getattr(self, "_settle", 0):
+                GLib.source_remove(self._settle)
+            self._settle = GLib.timeout_add(250, self._on_settle)
         else:
             self.emit("changed", self.adj.get_value())
 
+    def _on_settle(self):
+        self._settle = 0
+        if self._dragging:
+            self._dragging = False
+            self.emit("changed", self.adj.get_value())
+        return False
+
     def _on_release(self, *_):
+        if getattr(self, "_settle", 0):
+            GLib.source_remove(self._settle)
+            self._settle = 0
         if self._dragging:
             self._dragging = False
             self.emit("changed", self.adj.get_value())

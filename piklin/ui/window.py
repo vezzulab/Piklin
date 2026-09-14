@@ -1986,6 +1986,15 @@ class MainWindow(Adw.ApplicationWindow):
         threading.Thread(target=work, daemon=True).start()
 
     def _on_editor_closed(self, _editor):
+        # Whatever way the editor was left - Back, Esc, Return - the last
+        # change is saved before the photo is shown again.
+        for ed in (self.editor, getattr(self, "video_editor", None)):
+            flush = getattr(ed, "flush", None)
+            if flush is not None:
+                try:
+                    flush()
+                except Exception:
+                    pass
         if self.viewer.item is not None:
             self.viewer.show_photo(self.viewer.item)
             self._show("viewer")

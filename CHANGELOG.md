@@ -11,6 +11,7 @@
 - Rotating is instant: the photo turns in the grid straight away, even with many selected. Rotate buttons are now in the bar for chosen photos too
 - Photos of the same day run on without a line or gap, and days are separated only by space and their date
 - Edited photos show a green mark on a white disc
+- Edits are kept: moving a slider in the editor is saved as you go, and leaving the editor by any way - Back, Esc or Return - saves the last change. Before, a tool could be kept with all its values at zero
 - Double-clicking a photo right after clicking it opens it, instead of only showing the selection bar
 - The Left and Right arrow keys move between photos in the viewer
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover

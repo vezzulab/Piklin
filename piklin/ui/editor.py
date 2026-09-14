@@ -119,7 +119,7 @@ class EditorView(Gtk.Box):
                       margin_end=10)
         back = Gtk.Button(icon_name="go-previous-symbolic",
                           tooltip_text=_("Back to library"))
-        back.connect("clicked", lambda *_: self.emit("closed"))
+        back.connect("clicked", lambda *_: (self.flush(), self.emit("closed")))
         bar.append(back)
 
         self.title_label = Gtk.Label(xalign=0.0, hexpand=True)
@@ -622,6 +622,7 @@ class EditorView(Gtk.Box):
         def changing(_w, v):
             layer.opacity = max(0.0, min(1.0, v / 100.0))
             self._request_render(draft=True)
+            self._autosave_soon()
 
         def changed(_w, v):
             layer.opacity = max(0.0, min(1.0, v / 100.0))
@@ -636,6 +637,31 @@ class EditorView(Gtk.Box):
     def _on_param_changing(self, _w, value, index, key):
         self.stack.set_params(index, {key: value})
         self._request_render(draft=True)
+        self._autosave_soon()
+
+    def _autosave_soon(self):
+        """Save a moment after the last change while a control is moving.
+        Only saving on release lost the value whenever no release came - a
+        key press, the scroll wheel, typing a number - and going back then
+        kept the tool with all its values at zero."""
+        timer = getattr(self, "_save_timer", 0)
+        if timer:
+            GLib.source_remove(timer)
+
+        def fire():
+            self._save_timer = 0
+            self._autosave()
+            return GLib.SOURCE_REMOVE
+        self._save_timer = GLib.timeout_add(400, fire)
+
+    def flush(self):
+        """Save now: called whenever the editor is left, by any way out."""
+        timer = getattr(self, "_save_timer", 0)
+        if timer:
+            GLib.source_remove(timer)
+            self._save_timer = 0
+        if getattr(self, "photo_path", None):
+            self._autosave()
 
     def _on_param_changed(self, _w, value, index, key):
         self.stack.set_params(index, {key: value})
