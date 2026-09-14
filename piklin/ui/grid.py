@@ -15,6 +15,7 @@ into several sections; no single row is ever unbounded.
 """
 from __future__ import annotations
 
+from collections import OrderedDict
 from pathlib import Path
 
 import threading
@@ -26,16 +27,54 @@ from ..i18n import _, N_, ngettext, month_year, weekday_name, long_date
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, GObject, Gdk, Gio, Gtk  # noqa: E402
+gi.require_version("Graphene", "1.0")
+from gi.repository import Adw, GLib, GObject, Gdk, Gio, Graphene, Gtk  # noqa: E402
 
 from ..thumbs import GRID_SIZE
 from .models import PhotoItem
 from .tile import PhotoTile
 
 PAGE = 600              # rows fetched per database page
+# The first page is small, so a view appears at once; the rest follows in
+# the background, page by page, while nobody is looking at it yet.
+FIRST_PAGE = 120
 SECTION_PADDING = 20    # must match .pika-section in style.css
 SCROLLBAR_ALLOWANCE = 14
-MAX_PER_SECTION = 120   # cap on one row's tiles, so a huge day still scrolls
+# Tiles in one list row. The list only builds the rows on screen, so a
+# small row means opening an album builds and decodes about what is visible
+# instead of everything in the first page. A day with more photos simply
+# continues in the next row, without a gap.
+MAX_PER_SECTION = 36
+
+# Thumbnails already decoded, kept across views so going back to an album
+# or to All Photos shows them at once: photo path -> (thumbnail file,
+# texture, bytes). Bounded by memory, oldest first out.
+_TEXTURE_BUDGET = 256 * 1024 * 1024
+_textures: OrderedDict = OrderedDict()
+_texture_bytes = 0
+_texture_lock = threading.Lock()
+
+
+def _cached_texture(photo_path):
+    with _texture_lock:
+        hit = _textures.get(photo_path)
+        if hit is not None:
+            _textures.move_to_end(photo_path)
+        return hit
+
+
+def _remember_texture(photo_path, thumb_path, texture) -> None:
+    global _texture_bytes
+    size = texture.get_width() * texture.get_height() * 4
+    with _texture_lock:
+        old = _textures.pop(photo_path, None)
+        if old is not None:
+            _texture_bytes -= old[2]
+        _textures[photo_path] = (thumb_path, texture, size)
+        _texture_bytes += size
+        while _texture_bytes > _TEXTURE_BUDGET and len(_textures) > 1:
+            _key, (_thumb, _tex, gone) = _textures.popitem(last=False)
+            _texture_bytes -= gone
 
 
 class DaySection(GObject.Object):
@@ -47,6 +86,9 @@ class DaySection(GObject.Object):
         self.title = title
         self.subtitle = subtitle
         self.items = items
+        # the subtitle label while this section is on screen, so a growing
+        # photo count updates the text without rebuilding the tiles
+        self.sub_label = None
 
 
 def _section_key(ts, mode):
@@ -121,6 +163,10 @@ class PhotoGrid(Gtk.Box):
         self.scroller.set_child(self.view)
         self.scroller.get_vadjustment().connect("value-changed",
                                                 self._maybe_load_more)
+        # rows bound but not yet given their tiles (see _on_bind)
+        self._pending_rows = set()
+        self._build_scheduled = False
+        self.scroller.get_vadjustment().connect("value-changed", self._schedule_build)
         self.append(self.scroller)
 
         self.status = Adw.StatusPage(
@@ -186,6 +232,7 @@ class PhotoGrid(Gtk.Box):
         px = max(60, avail // cols)
         if px == self.tile_px and cols == self._columns:
             return
+        old_cols = self._columns
         self.tile_px = px
         self._columns = cols
         for widgets in self._tile_widgets.values():
@@ -194,6 +241,37 @@ class PhotoGrid(Gtk.Box):
         for flow in self._flows:
             flow.set_min_children_per_line(cols)
             flow.set_max_children_per_line(cols)
+        for list_item in list(self._pending_rows):
+            self._reserve_height(list_item)
+        self._schedule_build()
+        if (cols != old_cols and self._items and self._scope != "device"
+                and not getattr(self, "_regroup_pending", False)):
+            self._regroup_pending = True
+            GLib.idle_add(self._regroup)
+
+    def _regroup(self):
+        """Re-cut the list rows for a new number of columns, from the photos
+        already loaded - no database work - keeping roughly the same place."""
+        self._regroup_pending = False
+        if not self._items or self._scope == "device":
+            return GLib.SOURCE_REMOVE
+        adj = self.scroller.get_vadjustment()
+        upper = max(1.0, adj.get_upper())
+        anchor = self._items[min(len(self._items) - 1,
+                                 int(len(self._items) * adj.get_value() / upper))]
+        self._tail = None
+        self._day_counts, self._day_heads = {}, {}
+        self.sections.remove_all()
+        self._group(list(self._items))
+        for i in range(self.sections.get_n_items()):
+            if anchor in self.sections.get_item(i).items:
+                if i:
+                    try:
+                        self.view.scroll_to(i, Gtk.ListScrollFlags.NONE, None)
+                    except Exception:
+                        pass
+                break
+        return GLib.SOURCE_REMOVE
 
     # -- tile size -------------------------------------------------------
     def set_tile_size(self, px: int) -> None:
@@ -244,12 +322,36 @@ class PhotoGrid(Gtk.Box):
         list_item._title.set_visible(bool(section.title))
         list_item._sub.set_text(section.subtitle or "")
         list_item._sub.set_visible(bool(section.subtitle))
+        section.sub_label = list_item._sub
 
         flow = list_item._flow
         while (child := flow.get_first_child()) is not None:
             flow.remove(child)
         list_item._tiles = []
 
+        # The list binds far more rows than are on screen (it cannot know
+        # their height before they are built), and building every tile of
+        # them is what made a big album take a second to open. A row takes
+        # its full height at once, empty, and gets its tiles only when it
+        # comes near the screen.
+        self._reserve_height(list_item)
+        self._pending_rows.add(list_item)
+        self._schedule_build()
+
+    def _reserve_height(self, list_item) -> None:
+        section = list_item.get_item()
+        if section is None:
+            return
+        cols = max(1, self._columns or 1)
+        rows = -(-len(section.items) // cols)
+        list_item._flow.set_size_request(-1, rows * self.tile_px)
+
+    def _build_row(self, list_item) -> None:
+        self._pending_rows.discard(list_item)
+        section = list_item.get_item()
+        if section is None or list_item._tiles:
+            return
+        flow = list_item._flow
         for item in section.items:
             tile = self._make_tile(item, list_item)
             flow.append(tile)
@@ -260,8 +362,40 @@ class PhotoGrid(Gtk.Box):
             if cell is not None:
                 cell.update_property([Gtk.AccessibleProperty.LABEL],
                                      [getattr(item, "filename", "") or _("Photo")])
+        flow.set_size_request(-1, -1)
+
+    def _schedule_build(self, *_args) -> None:
+        if not self._build_scheduled:
+            self._build_scheduled = True
+            GLib.idle_add(self._build_visible)
+
+    def _build_visible(self):
+        """Give tiles to the rows on screen, and to a screen's worth above
+        and below, so scrolling finds them ready."""
+        self._build_scheduled = False
+        if not self._pending_rows:
+            return GLib.SOURCE_REMOVE
+        view_h = self.scroller.get_height() or 800
+        origin = Graphene.Point().init(0, 0)
+        near = []
+        for list_item in self._pending_rows:
+            box = list_item.get_child()
+            if box is None or not box.get_mapped():
+                continue
+            ok, pt = box.compute_point(self.scroller, origin)
+            if ok and pt.y + box.get_height() >= -view_h and pt.y <= 2 * view_h:
+                near.append((pt.y, list_item))
+        # top to bottom, so what is on screen is built first
+        for _y, list_item in sorted(near, key=lambda n: n[0]):
+            self._build_row(list_item)
+        return GLib.SOURCE_REMOVE
 
     def _on_unbind(self, _factory, list_item):
+        section = list_item.get_item()
+        if section is not None and getattr(section, "sub_label", None) is list_item._sub:
+            section.sub_label = None
+        self._pending_rows.discard(list_item)
+        list_item._flow.set_size_request(-1, -1)
         flow = list_item._flow
         while (child := flow.get_first_child()) is not None:
             flow.remove(child)
@@ -380,7 +514,13 @@ class PhotoGrid(Gtk.Box):
         if item.texture is not None:
             picture.set_paintable(item.texture)
         elif not item.missing:
-            self._request_thumb(item, picture)
+            # Seen before in this session: shown at once, then checked in
+            # the background in case the photo was edited since.
+            hit = _cached_texture(item.path)
+            if hit is not None:
+                item.texture = hit[1]
+                picture.set_paintable(hit[1])
+            self._request_thumb(item, picture, known=hit[0] if hit else None)
         return container
 
     # -- video preview under the pointer ---------------------------------
@@ -442,21 +582,31 @@ class PhotoGrid(Gtk.Box):
             else:
                 item.texture = None     # not on screen: fetched when it is
 
-    def _request_thumb(self, item, picture):
+    def _request_thumb(self, item, picture, known=None):
+        """Fetch the thumbnail and paint it. ``known``: the thumbnail file
+        already on screen from the cache - nothing to do if it is current."""
         def done(path):
+            # Runs on a thumbnail worker thread.
+            if path is None:
+                GLib.idle_add(lambda: (picture.add_css_class("pika-tile-missing"), False)[1])
+                return
+            if known is not None and str(path) == known:
+                return
+            try:
+                # Decoded here, off the UI thread: decoding hundreds of
+                # JPEGs on it is what made opening a big album take seconds.
+                texture = Gdk.Texture.new_from_filename(str(path))
+            except Exception:
+                return
+            _remember_texture(item.path, str(path), texture)
+
             def apply():
-                if path is None:
-                    picture.add_css_class("pika-tile-missing")
-                    return False
-                try:
-                    item.texture = Gdk.Texture.new_from_filename(str(path))
-                except Exception:
-                    return False
+                item.texture = texture
                 # The tile may have been recycled; paint every live widget
                 # currently showing this photo.
                 for w in self._tile_widgets.get(item.id, []):
                     try:
-                        w.set_paintable(item.texture)
+                        w.set_paintable(texture)
                     except Exception:
                         pass
                 return False
@@ -617,8 +767,9 @@ class PhotoGrid(Gtk.Box):
         self._device_old = []
         self.append_records(records, 0)
         old = self._device_old
-        for i in range(0, len(old), MAX_PER_SECTION):
-            chunk = old[i:i + MAX_PER_SECTION]
+        size = self._chunk_size()
+        for i in range(0, len(old), size):
+            chunk = old[i:i + size]
             self.sections.append(DaySection(
                 _("Already Imported") if i == 0 else "",
                 ngettext("{count} item already in your library",
@@ -631,6 +782,7 @@ class PhotoGrid(Gtk.Box):
         from .models import DeviceItem
         prev_tail = self._tail
         grew_tail = False
+        size = self._chunk_size()
         for i, rec in enumerate(records, start):
             item = DeviceItem(i, rec)
             self._by_id[item.id] = item
@@ -648,7 +800,7 @@ class PhotoGrid(Gtk.Box):
             title = (self._device_name or _("New Items")) if key in ("", ".") else key
             tail = self._tail
             if (tail is not None and tail[0] == key
-                    and len(tail[1].items) < MAX_PER_SECTION):
+                    and len(tail[1].items) < size):
                 tail[1].items.append(item)
                 if tail is prev_tail:
                     grew_tail = True
@@ -780,6 +932,8 @@ class PhotoGrid(Gtk.Box):
         self._loading = False        # abandon any fetch still in flight
         self._generation += 1
         self._tail = None
+        self._day_counts = {}         # section key -> photos in that day so far
+        self._day_heads = {}          # section key -> the section with its title
         self._items = []
         self._by_id = {}
         # A refresh after marking a favourite or hiding keeps what was
@@ -802,6 +956,7 @@ class PhotoGrid(Gtk.Box):
         self._loading = True
         gen = self._generation
         offset = self._offset
+        limit = FIRST_PAGE if offset == 0 else PAGE
 
         def work():
             try:
@@ -810,7 +965,7 @@ class PhotoGrid(Gtk.Box):
                     smart_id=self._smart_id,
                     search=self._search, order=self._order,
                     filters=self._filters,
-                    limit=PAGE, offset=offset)
+                    limit=limit, offset=offset)
             except Exception:
                 rows = []
 
@@ -825,7 +980,7 @@ class PhotoGrid(Gtk.Box):
                 if rows:
                     self._append_rows(rows)
                     self._offset += len(rows)
-                if not rows or len(rows) < PAGE:
+                if not rows or len(rows) < limit:
                     self._exhausted = True
                 self._continue_reveal()
                 empty = not self._items
@@ -833,50 +988,83 @@ class PhotoGrid(Gtk.Box):
                     self._describe_empty()
                 self.status.set_visible(empty)
                 self.scroller.set_visible(not empty)
+                if not self._exhausted and not self._loading:
+                    # The rest arrives in the background, a page at a time,
+                    # with a pause between pages so the window stays smooth.
+                    GLib.timeout_add(40, lambda: (gen == self._generation
+                                                  and self._load_page(), False)[1])
                 return False
             GLib.idle_add(apply)
         threading.Thread(target=work, daemon=True).start()
 
+    def _chunk_size(self) -> int:
+        """Tiles per list row: always whole rows of the grid, so a day that
+        continues in the next list row never shows a short row in the middle."""
+        return max(1, self._columns or 6) * 6
+
     def _append_rows(self, rows) -> None:
-        mode = self.settings.get("group_by", "day")
-        sort_by_date = self._order.startswith("taken")
-        new_sections = []
-        for row in rows:
-            item = PhotoItem(row)
+        items = [PhotoItem(row) for row in rows]
+        for item in items:
             self._items.append(item)
             self._by_id[item.id] = item
+        self._group(items)
 
+    def _group(self, items) -> None:
+        mode = self.settings.get("group_by", "day")
+        sort_by_date = self._order.startswith("taken")
+        if not hasattr(self, "_day_counts"):
+            self._day_counts, self._day_heads = {}, {}
+        chunk = self._chunk_size()
+        new_sections, new_ids = [], set()
+        touched = set()
+        grown = None
+        tail = self._tail
+        for item in items:
             if not sort_by_date or mode == "none":
                 key, title, sub = ("all", "", "")
             else:
                 key, title, sub = _section_key(item.taken_at, mode)
+            self._day_counts[key] = self._day_counts.get(key, 0) + 1
+            touched.add(key)
 
-            tail = self._tail
             if (tail is not None and tail[0] == key
-                    and len(tail[1].items) < MAX_PER_SECTION):
+                    and len(tail[1].items) < chunk):
                 tail[1].items.append(item)
+                if id(tail[1]) not in new_ids:
+                    grown = tail[1]         # the last row of the page before
                 continue
-            # A day that runs past MAX_PER_SECTION continues in a row of its
-            # own, without repeating the day's title.
+            # A day that runs past the chunk continues in a row of its own,
+            # without repeating the day's title.
             continued = tail is not None and tail[0] == key
             section = DaySection("" if continued else title, "", [item])
-            self._tail = (key, section)
+            if not continued:
+                self._day_heads[key] = section
+            tail = (key, section)
             new_sections.append(section)
+            new_ids.add(id(section))
+        self._tail = tail
+        if grown is not None:
+            # Only that one row is rebuilt, to fill its last grid row.
+            found, pos = self.sections.find(grown)
+            if found:
+                self.sections.items_changed(pos, 1, 1)
 
-        for section in new_sections:
-            self.sections.append(section)
-        # Counts are only final once a section stops growing, so refresh
-        # the subtitle of everything now that this page is grouped.
-        for i in range(self.sections.get_n_items()):
-            sec = self.sections.get_item(i)
-            n = len(sec.items)
-            sec.subtitle = (ngettext("{count} photo", "{count} photos", n).format(count=n)
-                            if sec.title else "")
-        # Re-emit so rows already on screen pick up the counts, which are
-        # only final once the whole page has been grouped.
-        n_items = self.sections.get_n_items()
-        if n_items:
-            self.sections.items_changed(0, n_items, n_items)
+        # The day's photo count sits under its title, which may be a row
+        # already on screen: update just that label, not the whole list,
+        # so nothing is rebuilt while more photos arrive.
+        for key in touched:
+            head = self._day_heads.get(key)
+            if head is None or not head.title:
+                continue
+            n = self._day_counts[key]
+            head.subtitle = ngettext("{count} photo", "{count} photos", n).format(count=n)
+            label = head.sub_label
+            if label is not None:
+                label.set_text(head.subtitle)
+                label.set_visible(True)
+
+        if new_sections:
+            self.sections.splice(self.sections.get_n_items(), 0, new_sections)
 
     def _maybe_load_more(self, adj) -> None:
         if self._exhausted or self._loading:

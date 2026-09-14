@@ -173,13 +173,17 @@ class FolderView(Gtk.ScrolledWindow):
         gen = self._generation
 
         def done(p):
+            # decoded on the worker thread, only painted on the UI thread
+            if p is None or gen != self._generation:
+                return
+            try:
+                texture = Gdk.Texture.new_from_filename(str(p))
+            except Exception:
+                return
+
             def apply():
-                if p is None or gen != self._generation:
-                    return False
-                try:
-                    tile.set_paintable(Gdk.Texture.new_from_filename(str(p)))
-                except Exception:
-                    pass
+                if gen == self._generation:
+                    tile.set_paintable(texture)
                 return False
             GLib.idle_add(apply)
         self.thumbs.request(path, GRID_SIZE, done)

@@ -996,6 +996,9 @@ ES = {
     "Keep Copying": "Seguir copiando",
     "Stop and Close": "Detener y cerrar",
 
+    "Make Album Cover": "Usar como portada del álbum",
+    "Album cover changed": "Portada del álbum cambiada",
+
     # -- updates -------------------------------------------------------------------------------
     "Piklin {version} is available. Installing it…": "Piklin {version} está disponible. Instalándola…",
     "Piklin {version} is installed. Piklin will reopen in a moment.":

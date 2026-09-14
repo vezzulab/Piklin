@@ -242,6 +242,9 @@ def rebuild_index(library: Library) -> int:
                 ids.append(row["id"])
         if ids:
             catalog.album_add(aid, ids)
+        cover = catalog.photo_by_path(data["cover"]) if data.get("cover") else None
+        if cover is not None:
+            catalog.set_album_cover(aid, cover["id"])
         restored += 1
     print(f"  restored {restored} albums")
 

@@ -203,6 +203,21 @@ STATE_FILES = {"photo-state.json", "removed-photos.json", "watched-folders.json"
 VERSIONS_DIR = ".piklin-versions"
 # Rebuilt from the rest on every backup: no point keeping old copies.
 NO_VERSIONS = {"catalog.db"}
+# The folders a backup writes at the destination (see library_files). A
+# backup folder may be shared with other things - a NAS photo share with a
+# Lightroom catalog beside it - so a listing reads only these and the
+# library's own files next to them, and never walks anything else: walking
+# a catalog of previews there took many minutes on every backup, and a
+# restore must never bring those files into the library.
+BACKUP_FOLDERS = ("Edits", "Albums", "Originals")
+
+
+def _ours(rel: str) -> bool:
+    """Whether a path at the destination is part of Piklin's backup."""
+    first, sep, rest = rel.partition("/")
+    if not sep:
+        return first in ("catalog.db", "README.txt") or first.endswith(".json")
+    return first in BACKUP_FOLDERS and bool(rest)
 
 
 # ==========================================================================
@@ -580,14 +595,23 @@ class LocalBackend(Backend):
         base = self.base
         if not base.is_dir():
             return out
-        for dirpath, _, names in os.walk(base):
-            for n in names:
-                fp = Path(dirpath) / n
-                try:
-                    st = fp.stat()
-                except OSError:
-                    continue
-                out[fp.relative_to(base).as_posix()] = (st.st_size, st.st_mtime)
+        places = [(base, False)] + [(base / f, True) for f in BACKUP_FOLDERS]
+        for top, deep in places:
+            if not top.is_dir():
+                continue
+            for dirpath, dirnames, names in os.walk(top):
+                if not deep:
+                    dirnames.clear()        # only the files beside the folders
+                for n in names:
+                    fp = Path(dirpath) / n
+                    rel = fp.relative_to(base).as_posix()
+                    if not _ours(rel):
+                        continue
+                    try:
+                        st = fp.stat()
+                    except OSError:
+                        continue
+                    out[rel] = (st.st_size, st.st_mtime)
         return out
 
     def put(self, local: Path, rel: str) -> bool:
@@ -904,25 +928,52 @@ class WebDavBackend(Backend):
         return self._connection_problem(exc)
 
     def listing(self) -> dict[str, tuple[int, float]]:
-        """Sizes and modification times of what is already on the server."""
+        """Sizes and modification times of Piklin's files already on the
+        server. Only the backup's own folders are read (see BACKUP_FOLDERS)."""
         try:
-            entries = self._entries("", "infinity")
+            top = self._entries("", "1")
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
                 return {}                       # nothing backed up yet
+            raise
+        found: dict[str, tuple[int, float]] = {}
+        folders = []
+        for r, is_folder, size, ts in top:
+            if not r or "/" in r:
+                continue
+            if is_folder:
+                if r in BACKUP_FOLDERS:
+                    folders.append(r)
+            elif _ours(r):
+                found[r] = (size, ts)
+        for folder in folders:
+            found.update(self._folder_listing(folder))
+        return found
+
+    def _folder_listing(self, folder: str) -> dict[str, tuple[int, float]]:
+        try:
+            entries = self._entries(folder, "infinity")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                return {}
             if exc.code in (401, 501):
                 raise
             # Depth: infinity refused - Apache, and so QNAP, answers 403
             # by default. A real lack of access fails in the walk below.
             entries = None
-        # Servers that refuse or quietly ignore Depth: infinity (Nextcloud
-        # by default) return only the top level: walk the folders instead.
-        if entries is None or (any(d for r, d, _s, _t in entries if r)
-                               and not any(not d for r, d, _s, _t in entries if r)):
-            entries, pending, seen = [], [""], {""}
+        if entries is not None:
+            # A server that quietly ignores Depth: infinity (Nextcloud by
+            # default) returns one level only: a folder shows up without
+            # anything inside it. Walk then, one level at a time.
+            folders = {r for r, d, _s, _t in entries if d and r and r != folder}
+            parents = {r.rsplit("/", 1)[0] for r, _d, _s, _t in entries if "/" in r}
+            if any(f not in parents for f in folders):
+                entries = None
+        if entries is None:
+            entries, pending, seen = [], [folder], {folder}
             while pending:
-                folder = pending.pop()
-                for r, is_folder, size, ts in self._entries(folder, "1"):
+                current = pending.pop()
+                for r, is_folder, size, ts in self._entries(current, "1"):
                     if r in seen:
                         continue
                     seen.add(r)
@@ -931,7 +982,7 @@ class WebDavBackend(Backend):
                     else:
                         entries.append((r, False, size, ts))
         return {r: (size, ts) for r, is_folder, size, ts in entries
-                if r and not is_folder}
+                if r and not is_folder and _ours(r)}
 
     def _archive(self, rel: str, stamp: str) -> None:
         dest = f"{VERSIONS_DIR}/{stamp}/{rel}"
@@ -1060,8 +1111,13 @@ class RcloneBackend(Backend):
         exe = rclone_path()
         if not exe:
             return {}
+        # Only the backup's own folders and files: rclone then never descends
+        # into anything else kept in the same place.
+        only = [a for f in BACKUP_FOLDERS for a in ("--include", f"/{f}/**")]
+        only += ["--include", "/*.json", "--include", "/README.txt",
+                 "--include", "/catalog.db"]
         out = subprocess.run(
-            [exe, "lsjson", "-R", "--files-only", self.target],
+            [exe, "lsjson", "-R", "--files-only", *only, self.target],
             capture_output=True, text=True, timeout=300)
         if out.returncode != 0:
             if out.returncode == 3 or "not found" in out.stderr.lower():

@@ -64,7 +64,9 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
             continue
 
         def report(p, name=r.name):
-            if progress and p.phase == "uploading" and p.total_files:
+            if progress and p.phase == "listing":
+                progress(_("Checking what is already backed up"))
+            elif progress and p.phase == "uploading" and p.total_files:
                 progress(_("Backing up to {name} — {done} of {total}").format(
                     name=name, done=f"{p.done_files:,}", total=f"{p.total_files:,}"))
 

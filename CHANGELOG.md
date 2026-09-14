@@ -13,8 +13,11 @@
 - Edited photos show a green mark on a white disc
 - Double-clicking a photo right after clicking it opens it, instead of only showing the selection bar
 - The Left and Right arrow keys move between photos in the viewer
+- Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
 
 ### Backups
+- A backup folder shared with other files - such as a NAS photo share with a Lightroom catalog in it - is no longer searched through: Piklin reads only its own part, so a backup that stayed on "Connecting…" for many minutes now starts straight away, and a restore never brings those other files into the library
+- While Piklin checks what is already backed up, it says so
 - When one destination can't be reached - a NAS at home while you travel - the others are still backed up, and the one that was missed catches up by itself once it can be reached again
 
 ### Updates

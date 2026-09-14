@@ -2657,6 +2657,10 @@ class MainWindow(Adw.ApplicationWindow):
                    "created_at": row["created_at"],
                    "folder_uuid": folder_uuid,
                    "photos": self.catalog.album_photo_paths(album_id)}
+        if row["cover_id"] is not None:
+            cover = self.catalog.photo(row["cover_id"])
+            if cover is not None:
+                payload["cover"] = cover["path"]
         safe = "".join(c if c.isalnum() or c in " -_" else "_"
                        for c in row["name"])[:80] or row["uuid"]
         try:
@@ -2749,9 +2753,22 @@ class MainWindow(Adw.ApplicationWindow):
               lambda: self._on_rotate(1, ids))],
             [("export", export_label, "<Ctrl>e",
               lambda: self._on_bulk_export(None))],
+            [("cover", _("Make Album Cover"), None,
+              lambda: self._make_album_cover(item))]
+            if single and self._scope == "album" and self._album_id is not None else [],
             [("delete", delete_label, "Delete",
               lambda: self._on_bulk_trash(None))],
         ])
+
+    def _make_album_cover(self, item):
+        """Show this photo for the album in folders and wherever albums appear."""
+        album_id = self._album_id
+        if album_id is None:
+            return
+        self.catalog.set_album_cover(album_id, item.id)
+        self._write_album_sidecar(album_id)
+        self.refresh_sidebar()
+        self._show_toast(_("Album cover changed"))
 
     # -- libraries -------------------------------------------------------
     def _on_open_library(self):

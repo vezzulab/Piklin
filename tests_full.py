@@ -706,6 +706,27 @@ class _ApacheDav(rem.WebDavBackend):
 _idx = _ApacheDav(rem.Remote(id="a", name="a", kind="webdav", config={"url": "https://x"})).listing()
 check("servers refusing deep listings are read folder by folder",
       _idx == {"a.json": (2, 0), "Originals/p.jpg": (5, 0)}, _idx)
+class _SharedDav(_ApacheDav):
+    # The backup folder is a NAS photo share with a Lightroom catalog beside it
+    tree = {"": [("", True, 0, 0), ("Originals", True, 0, 0), ("Lightroom", True, 0, 0),
+                 ("a.json", False, 2, 0), (".DS_Store", False, 9, 0), ("notes.txt", False, 3, 0)],
+            "Originals": [("Originals", True, 0, 0), ("Originals/p.jpg", False, 5, 0)]}
+    asked = []
+    def _entries(self, rel, depth):
+        self.asked.append(rel)
+        return super()._entries(rel, depth)
+_sd = _SharedDav(rem.Remote(id="s", name="s", kind="webdav", config={"url": "https://x"}))
+_idx = _sd.listing()
+check("a backup folder shared with other things: only Piklin's part is read",
+      _idx == {"a.json": (2, 0), "Originals/p.jpg": (5, 0)}
+      and not any(a.startswith("Lightroom") for a in _sd.asked), (_idx, _sd.asked))
+_shared = Path(TMP) / "shared-nas"; (_shared / "Lightroom" / "Previews.lrdata" / "0").mkdir(parents=True)
+(_shared / "Lightroom" / "Previews.lrdata" / "0" / "x.lrprev").write_bytes(b"lr")
+(_shared / "Originals" / "2020").mkdir(parents=True); (_shared / "Originals" / "2020" / "p.jpg").write_bytes(b"12345")
+(_shared / "settings.json").write_text("{}"); (_shared / "notes.txt").write_text("mine")
+_lidx = rem.Remote(id="l", name="l", kind="local", config={"path": str(_shared)}).backend().listing()
+check("a shared folder or drive: other files are left out of the backup's listing",
+      set(_lidx) == {"Originals/2020/p.jpg", "settings.json"}, sorted(_lidx))
 _qnap_reply = """<?xml version="1.0" encoding="utf-8"?><D:multistatus xmlns:D="DAV:">
 <D:response><D:href>/dav/Users/</D:href><D:propstat><D:prop><lp1:resourcetype><D:collection/></lp1:resourcetype></D:prop></D:propstat></D:response>
 <D:response><D:href>/dav/Users/alex/</D:href><D:propstat><D:prop><lp1:resourcetype><D:collection/></lp1:resourcetype></D:prop></D:propstat></D:response>
@@ -1235,6 +1256,25 @@ try:
 finally:
     if _saved_cfg is None: os.environ.pop("XDG_CONFIG_HOME", None)
     else: os.environ["XDG_CONFIG_HOME"] = _saved_cfg
+
+# -- album cover chosen by the user ---------------------------------------------
+_cc = Catalog(os.path.join(TMP, "cover.db"))
+_cids = []
+for _n in range(3):
+    with _cc.write() as _cur:
+        _cur.execute("INSERT INTO photos(uuid, path, filename, ext, added_at, mtime, bytes) "
+                     "VALUES(?,?,?,?,?,?,?)",
+                     (f"cover-{_n}", f"/c/p{_n}.jpg", f"p{_n}.jpg", ".jpg", 0, 0, 1))
+        _cids.append(int(_cur.lastrowid))
+_caid = _cc.create_album("Trip"); _cc.album_add(_caid, _cids)
+_cover = lambda: next(r["cover_path"] for r in _cc.albums() if r["id"] == _caid)
+_first = _cover()
+_cc.set_album_cover(_caid, _cids[2])
+_chosen = _cover()
+_cc.album_remove(_caid, [_cids[2]])
+check("an album shows the cover you choose, and its first photo again if that one leaves",
+      _first == "/c/p0.jpg" and _chosen == "/c/p2.jpg" and _cover() == "/c/p0.jpg",
+      (_first, _chosen, _cover()))
 
 # -- self-update: only a signed, official, matching package is accepted ---------
 import importlib.machinery as _ilm, importlib.util as _ilu, subprocess as _sp2, hashlib
