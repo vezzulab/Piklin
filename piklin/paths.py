@@ -29,7 +29,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-APP_ID = "com.envy.Piklin"
+# PIKLIN_APP_ID runs a test build as its own app, beside the installed one,
+# instead of handing everything to it. Reopening Piklin keeps the setting.
+APP_ID = os.environ.get("PIKLIN_APP_ID") or "com.envy.Piklin"
 APP_NAME = "Piklin"
 # Where "Support on Ko-fi" in the sidebar leads. Empty hides the button.
 SUPPORT_URL = "https://ko-fi.com/vezzustudio"

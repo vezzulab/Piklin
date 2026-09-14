@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.4
+
+### Languages and help
+- Piklin speaks Spanish as well as English. It follows the computer's language, or choose one on the welcome screen or in Preferences › General
+- How to Use Piklin, under Help in the menu (or F1), explains in plain words what each button does
+
+### Albums and photos
+- Selecting a folder in the sidebar shows its albums and folders as cards; click one to open it
+- Rotating is instant: the photo turns in the grid straight away, even with many selected. Rotate buttons are now in the bar for chosen photos too
+- Photos of the same day run on without a line or gap, and days are separated only by space and their date
+- Edited photos show a green mark on a white disc
+
+### Backups
+- When one destination can't be reached - a NAS at home while you travel - the others are still backed up, and the one that was missed catches up by itself once it can be reached again
+
 ## 1.0.3
 
 ### Importing
