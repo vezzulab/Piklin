@@ -998,6 +998,9 @@ ES = {
     "Stop and Close": "Detener y cerrar",
 
     "Make Album Cover": "Usar como portada del álbum",
+    "Back to {folder}": "Volver a {folder}",
+    "For photos copied into the library: from a camera, a memory card, a USB drive or dragged in. Your folders are never changed.":
+        "Para las fotos que se copian a la biblioteca: desde una cámara, una tarjeta de memoria, una unidad USB o arrastradas. Tus carpetas nunca se modifican.",
     "{count} identical copy": ("{count} copia idéntica", "{count} copias idénticas"),
     "Keep One of Each": "Dejar una de cada",
     "Remove {count} Extra Copy": ("Quitar {count} copia de más", "Quitar {count} copias de más"),

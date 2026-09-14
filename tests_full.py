@@ -1382,6 +1382,11 @@ for _n in ("Trip 10", "Trip 2", "Trip 1"):
     _tc2.create_album(_n)
 check("the sidebar tree lists albums in that order", [n["row"]["name"] for n in _tc2.tree()]
       == ["Trip 1", "Trip 2", "Trip 10"], [n["row"]["name"] for n in _tc2.tree()])
+_tc2.create_folder("Paternos"); _tc2.create_album("Maternos"); _tc2.create_folder("Aniella")
+check("folders and albums share one A to Z order",
+      [n["row"]["name"] for n in _tc2.tree()]
+      == ["Aniella", "Maternos", "Paternos", "Trip 1", "Trip 2", "Trip 10"],
+      [n["row"]["name"] for n in _tc2.tree()])
 
 # -- album cover chosen by the user ---------------------------------------------
 _cc = Catalog(os.path.join(TMP, "cover.db"))

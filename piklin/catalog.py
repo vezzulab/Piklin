@@ -1072,7 +1072,7 @@ class Catalog:
         """Folders and albums assembled into a nested structure.
 
         Each node is ``{"kind": "folder"|"album", "row": <sqlite3.Row>,
-        "children": [...]}``.  Folders sort before albums within the same
+        "children": [...]}``.  Folders and albums share one A to Z order within the same
         parent, the usual order for a folder's contents.
         """
         folders = self.folders()
@@ -1092,8 +1092,9 @@ class Catalog:
 
         def build(parent_id):
             items = by_parent.get(parent_id, [])
-            items.sort(key=lambda n: (n["kind"] != "folder",
-                                      natural_key(n["row"]["name"])))
+            # One A to Z list, folders and albums together: putting every
+            # folder first read as out of order ("Paternos" above "Maternos").
+            items.sort(key=lambda n: natural_key(n["row"]["name"]))
             for n in items:
                 if n["kind"] == "folder":
                     n["children"] = build(n["row"]["id"])

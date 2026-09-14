@@ -281,12 +281,23 @@ class _AvEngine:
                 pass
 
     def _stream_rotation(self, v) -> int:
-        """Clockwise degrees the picture must turn to be upright."""
+        """Clockwise degrees the picture must turn to be upright.
+
+        A phone filming upright stores the picture on its side with a note
+        to turn it. Older FFmpeg gave that note as a "rotate" tag; current
+        FFmpeg only puts it on the decoded frames (the display matrix), so
+        reading just the tag played every upright phone video sideways."""
         try:
             tag = v.metadata.get("rotate")
             if tag is not None:
                 return int(float(tag)) % 360
         except (AttributeError, ValueError):
+            pass
+        try:
+            for frame in self._c.decode(v):
+                # counter-clockwise degrees in the display matrix
+                return int(round(-(getattr(frame, "rotation", 0) or 0))) % 360
+        except Exception:
             pass
         return 0
 

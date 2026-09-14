@@ -67,7 +67,7 @@ def stream_info(path: Path | str) -> dict | None:
         fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
         frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0.0)
         rotation = int(cap.get(cv2.CAP_PROP_ORIENTATION_META) or 0) % 360
-        ok, _frame = cap.read()
+        ok, frame = cap.read()
         if not ok or w <= 0 or h <= 0:
             return None
     finally:
@@ -75,7 +75,13 @@ def stream_info(path: Path | str) -> dict | None:
     if not (0 < fps < 1000):
         fps = 0.0
     duration = frames / fps if fps and frames > 0 else 0.0
-    if rotation in (90, 270):
+    # The size as shown is the size of a decoded frame: OpenCV already turns
+    # frames upright. Swapping width and height again for the rotation made
+    # an upright phone video 720x1280 count as 1280x720.
+    fh, fw = frame.shape[:2]
+    if fw > 0 and fh > 0:
+        w, h = fw, fh
+    elif rotation in (90, 270):
         w, h = h, w
     return {"width": w, "height": h, "fps": fps, "duration": duration,
             "rotation": rotation}

@@ -38,8 +38,19 @@ class FolderView(Gtk.ScrolledWindow):
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.title = Gtk.Label(xalign=0.0, ellipsize=3, margin_top=22,
-                               margin_start=24, margin_end=24)
+                               margin_end=24, hexpand=True)
         self.title.add_css_class("pika-section-title")
+        # A folder inside another folder: a back arrow beside its name.
+        self.back = Gtk.Button(icon_name="go-previous-symbolic", visible=False,
+                               valign=Gtk.Align.END, margin_start=16)
+        self.back.add_css_class("flat")
+        self.back.add_css_class("pika-heading-back")
+        self.back.connect("clicked", lambda *_: self._parent is not None
+                          and self.emit("open-folder", self._parent))
+        self._parent = None
+        title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        title_row.append(self.back)
+        title_row.append(self.title)
         self.subtitle = Gtk.Label(xalign=0.0, ellipsize=3, margin_top=2,
                                   margin_start=24, margin_end=24)
         self.subtitle.add_css_class("pika-dim")
@@ -54,7 +65,7 @@ class FolderView(Gtk.ScrolledWindow):
             icon_name="folder-symbolic", vexpand=True, visible=False,
             title=_("This Folder Is Empty"),
             description=_("Drag albums onto this folder in the sidebar to group them."))
-        for w in (self.title, self.subtitle, self.flow, self.empty):
+        for w in (title_row, self.subtitle, self.flow, self.empty):
             box.append(w)
         self.set_child(box)
 
@@ -84,6 +95,14 @@ class FolderView(Gtk.ScrolledWindow):
             return
         children = node["children"]
         self.title.set_text(node["row"]["name"])
+        parent_id = node["row"]["parent_id"]
+        parent = (self.catalog.q1("SELECT id, name FROM folders WHERE id=?", (parent_id,))
+                  if parent_id is not None else None)
+        self._parent = int(parent["id"]) if parent is not None else None
+        self.back.set_visible(parent is not None)
+        self.title.set_margin_start(0 if parent is not None else 24)
+        if parent is not None:
+            self.back.set_tooltip_text(_("Back to {folder}").format(folder=parent["name"]))
         n_folders = sum(1 for c in children if c["kind"] == "folder")
         n_albums = len(children) - n_folders
         parts = []

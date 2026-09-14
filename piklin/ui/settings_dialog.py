@@ -250,8 +250,8 @@ class SettingsDialog(Adw.PreferencesDialog):
             names.append(label)
         storage = Adw.ComboRow(
             title=_("Make imported photos smaller"),
-            subtitle=_("Only photos from a camera or memory card. Your folders are never "
-                       "changed."),
+            subtitle=_("For photos copied into the library: from a camera, a memory card, "
+                       "a USB drive or dragged in. Your folders are never changed."),
             model=Gtk.StringList.new(names))
         current = self.settings.get("storage_profile", "visually_lossless")
         storage.set_selected(profile_ids.index(current)

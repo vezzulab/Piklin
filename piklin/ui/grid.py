@@ -88,6 +88,8 @@ class DaySection(GObject.Object):
         self.items = items
         # the name of the album at the top of the view, above its days
         self.heading = heading
+        # (folder id, folder name) the back arrow beside the heading opens
+        self.back_to = None
         # the subtitle label while this section is on screen, so a growing
         # photo count updates the text without rebuilding the tiles
         self.sub_label = None
@@ -121,6 +123,8 @@ class PhotoGrid(Gtk.Box):
 
     __gsignals__ = {
         "activated": (GObject.SignalFlags.RUN_FIRST, None, (object,)),
+        # the back arrow beside an album's name: the folder it is in
+        "open-folder": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
         "selection-changed": (GObject.SignalFlags.RUN_FIRST, None, ()),
         # right-click on a photo: (item, tile widget, x, y)
         "context-menu": (GObject.SignalFlags.RUN_FIRST, None,
@@ -300,10 +304,20 @@ class PhotoGrid(Gtk.Box):
                            column_spacing=0, max_children_per_line=64,
                            min_children_per_line=1, valign=Gtk.Align.START,
                            halign=Gtk.Align.START)
-        box.append(title)
+        # A heading's back arrow sits beside its title; hidden on day rows.
+        head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        back = Gtk.Button(icon_name="go-previous-symbolic", visible=False,
+                          valign=Gtk.Align.END)
+        back.add_css_class("flat")
+        back.add_css_class("pika-heading-back")
+        back.connect("clicked", self._on_heading_back, list_item)
+        head.append(back)
+        head.append(title)
+        box.append(head)
         box.append(sub)
         box.append(flow)
         list_item.set_child(box)
+        list_item._back = back
         list_item._title = title
         list_item._sub = sub
         list_item._flow = flow
@@ -327,6 +341,10 @@ class PhotoGrid(Gtk.Box):
             box.add_css_class("pika-view-heading")
         else:
             box.remove_css_class("pika-view-heading")
+        back_to = getattr(section, "back_to", None)
+        list_item._back.set_visible(back_to is not None)
+        if back_to is not None:
+            list_item._back.set_tooltip_text(_("Back to {folder}").format(folder=back_to[1]))
         # a heading's line under the title may be a sentence: let it wrap
         heading = getattr(section, "heading", False)
         list_item._sub.set_wrap(heading)
@@ -961,16 +979,24 @@ class PhotoGrid(Gtk.Box):
             self.sections.append(heading)
         self._load_page()
 
+    def _on_heading_back(self, _btn, list_item):
+        section = list_item.get_item()
+        back_to = getattr(section, "back_to", None)
+        if back_to is not None:
+            self.emit("open-folder", back_to[0])
+
     def _heading_section(self):
         """An album's name and size, shown above its photos and scrolling
         away with them. None for views that are not an album."""
         try:
             if self._scope == "album" and self._album_id is not None:
-                row = self.catalog.q1("SELECT name FROM albums WHERE id=?", (self._album_id,))
+                row = self.catalog.q1("SELECT name, folder_id FROM albums WHERE id=?",
+                                      (self._album_id,))
                 n = int(self.catalog.scalar(
                     "SELECT COUNT(*) FROM album_items WHERE album_id=?", (self._album_id,), 0))
             elif self._scope == "smart" and self._smart_id is not None:
-                row = self.catalog.q1("SELECT name FROM smart_albums WHERE id=?", (self._smart_id,))
+                row = self.catalog.q1("SELECT name, folder_id FROM smart_albums WHERE id=?",
+                                      (self._smart_id,))
                 n = int(self.catalog.smart_album_count(self._smart_id))
             elif self._scope == "duplicates":
                 # What the button below does, said before anyone has to guess.
@@ -988,7 +1014,14 @@ class PhotoGrid(Gtk.Box):
         if row is None:
             return None
         count = ngettext("{count} photo", "{count} photos", n).format(count=f"{n:,}")
-        return DaySection(row["name"], count, [], heading=True)
+        section = DaySection(row["name"], count, [], heading=True)
+        # Inside a folder, a back arrow beside the name returns to it.
+        if row["folder_id"] is not None:
+            folder = self.catalog.q1("SELECT id, name FROM folders WHERE id=?",
+                                     (row["folder_id"],))
+            if folder is not None:
+                section.back_to = (int(folder["id"]), folder["name"])
+        return section
 
     def refresh(self) -> None:
         if self._scope == "device":

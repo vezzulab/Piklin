@@ -17,7 +17,10 @@
 - Double-clicking a photo right after clicking it opens it, instead of only showing the selection bar
 - The Left and Right arrow keys move between photos in the viewer
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
-- An album shows its name and number of photos above its photos
+- An album shows its name and number of photos above its photos, with a back arrow beside the name when the album is inside a folder; a folder inside another folder has one too
+- Videos filmed upright on a phone play upright, in the viewer and when previewed in the grid, and their size is recorded the right way round
+- Photos and videos dragged into Piklin are stored at the size chosen in Preferences › Storage, like those from a camera or a USB drive
+- Folders and albums share one A to Z order, instead of all folders first
 - Albums and folders are listed the way people count: "Birthday 2" comes before "Birthday 10", in the sidebar, in folders and in the Add to Album list
 - Duplicates shows each set of identical copies as its own group, says at the top what the button does, and the button says exactly what goes: Keep One of Each, or Remove 2 Extra Copies for the groups you select
 - One click on a folder in the sidebar shows its albums on screen without opening it in the sidebar; a double click opens or closes it there

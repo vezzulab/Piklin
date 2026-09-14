@@ -68,6 +68,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.grid = PhotoGrid(self.catalog, self.thumbs, self.settings)
         self.grid.connect("activated", self._on_photo_activated)
+        self.grid.connect("open-folder", lambda _g, fid: self._open_folder(fid))
         self.grid.connect("selection-changed", self._on_selection_changed)
         self.grid.connect("context-menu", self._on_photo_context_menu)
 
@@ -917,13 +918,12 @@ class MainWindow(Adw.ApplicationWindow):
         return True
 
     def _import_profiles(self, device=None):
-        """Cameras and memory cards are stored smaller when that is chosen in
-        Preferences; photos from a USB drive or dragged in are copied as
-        they are, which is also much faster."""
-        if device is not None and getattr(device, "kind", "") in ("storage", "camera", "phone"):
-            return {"profile": self.settings.get("storage_profile", "visually_lossless"),
-                    "video_profile": self.settings.get("storage_video_profile", "original")}
-        return {"profile": "original", "video_profile": "original"}
+        """What Preferences › Storage says for photos and videos copied into
+        the library - from a camera, a memory card, a USB drive, or dragged
+        in. Dragged-in files used to be copied as they were, whatever was
+        chosen, so the smaller size someone picked was never applied."""
+        return {"profile": self.settings.get("storage_profile", "visually_lossless"),
+                "video_profile": self.settings.get("storage_video_profile", "original")}
 
     def _run_import(self, records, *, heading, done_cb, album_id=None,
                     profile="original", video_profile="original", cancel=None):
@@ -2882,7 +2882,35 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.indexer.start(roots, progress, with_thumbnails=True)
 
+    def _repair_video_sizes(self):
+        """Once per library: upright phone videos were recorded as wide
+        (1280x720 for a 720x1280 video) before the size came from a decoded
+        frame. Measure each video again, in the background."""
+        if self.settings.get("video_sizes_checked_v2"):
+            return
+        from ..catalog import VIDEO_SQL
+        from ..video import stream_info
+        rows = self.catalog.q(
+            f"SELECT p.id, p.path, p.width, p.height FROM photos p WHERE {VIDEO_SQL}")
+
+        def work():
+            fixed = []
+            for r in rows:
+                try:
+                    info = stream_info(r["path"])
+                except Exception:
+                    info = None
+                if info and (info["width"], info["height"]) != (r["width"], r["height"]):
+                    fixed.append((info["width"], info["height"], r["id"]))
+            if fixed:
+                with self.catalog.write() as cur:
+                    cur.executemany("UPDATE photos SET width=?, height=? WHERE id=?", fixed)
+            GLib.idle_add(lambda: (self.settings.set("video_sizes_checked_v2", True),
+                                   fixed and self.grid.refresh(), False)[2])
+        threading.Thread(target=work, daemon=True).start()
+
     def _first_run(self):
+        GLib.timeout_add_seconds(20, lambda: (self._repair_video_sizes(), False)[1])
         self.refresh_sidebar()
         # A few seconds in, so opening Piklin is never slowed by the network.
         GLib.timeout_add_seconds(8, lambda: (self._check_updates(quiet=True), False)[1])
