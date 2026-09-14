@@ -14,6 +14,7 @@
 - Double-clicking a photo right after clicking it opens it, instead of only showing the selection bar
 - The Left and Right arrow keys move between photos in the viewer
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
+- Albums and views open at once, however many photos they hold: the first photos appear in a few hundredths of a second, the rest load in the background, only the photos near the screen are drawn, and going back to a view shows its thumbnails straight away
 
 ### Backups
 - A backup folder shared with other files - such as a NAS photo share with a Lightroom catalog in it - is no longer searched through: Piklin reads only its own part, so a backup that stayed on "Connecting…" for many minutes now starts straight away, and a restore never brings those other files into the library
