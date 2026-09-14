@@ -25,6 +25,10 @@ class FolderView(Gtk.ScrolledWindow):
         "open-album": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
         "open-smart": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
         "open-folder": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
+        # right-click on empty space: (widget, x, y)
+        "background-menu": (GObject.SignalFlags.RUN_FIRST, None, (object, float, float)),
+        # right-click on cards: ([(kind, id, name), ...], x, y)
+        "cards-menu": (GObject.SignalFlags.RUN_FIRST, None, (object, float, float)),
     }
 
     def __init__(self, catalog, thumbs):
@@ -69,7 +73,26 @@ class FolderView(Gtk.ScrolledWindow):
             description=_("Drag albums onto this folder in the sidebar to group them."))
         for w in (title_row, self.subtitle, self.flow, self.empty):
             box.append(w)
-        self.set_child(box)
+        # Cards can be chosen - dragging a rectangle from empty space, or
+        # Ctrl+click - and a right-click offers what to do with them.
+        self._cards = []                 # (key, card box); key = (kind, id, name)
+        self._selected = set()
+        self._band = None
+        overlay = Gtk.Overlay()
+        overlay.set_child(box)
+        self._band_area = Gtk.DrawingArea(can_target=False)
+        self._band_area.set_draw_func(self._draw_band)
+        overlay.add_overlay(self._band_area)
+        self.set_child(overlay)
+        drag = Gtk.GestureDrag(button=Gdk.BUTTON_PRIMARY)
+        drag.connect("drag-begin", self._band_begin)
+        drag.connect("drag-update", self._band_update)
+        drag.connect("drag-end", self._band_end)
+        overlay.add_controller(drag)
+        menu = Gtk.GestureClick(button=Gdk.BUTTON_SECONDARY)
+        menu.connect("pressed", self._on_right_click)
+        overlay.add_controller(menu)
+        self._overlay = overlay
 
     # -- data ------------------------------------------------------------
     @staticmethod
@@ -86,6 +109,8 @@ class FolderView(Gtk.ScrolledWindow):
     def load(self, folder_id) -> None:
         self.folder_id = folder_id
         self._generation += 1
+        self._cards = []
+        self._selected = set()
         while (child := self.flow.get_first_child()) is not None:
             self.flow.remove(child)
         node = self._find(self.catalog.tree(), folder_id)
@@ -194,10 +219,101 @@ class FolderView(Gtk.ScrolledWindow):
                             [f"{row['name']}, {detail}"])
 
         signal = {"folder": "open-folder", "smart": "open-smart"}.get(kind, "open-album")
+        key = (kind, int(row["id"]), row["name"])
+        box._card_key = key
+        self._cards.append((key, box))
         click = Gtk.GestureClick()
-        click.connect("released", lambda *_a, s=signal, i=row["id"]: self.emit(s, i))
+        click.connect("released", self._on_card_click, key, signal)
         box.add_controller(click)
         return box
+
+    # -- choosing cards --------------------------------------------------------
+    def _set_selected(self, keys):
+        self._selected = set(keys)
+        for key, card in self._cards:
+            if key in self._selected:
+                card.add_css_class("selected")
+            else:
+                card.remove_css_class("selected")
+
+    def _on_card_click(self, gesture, _n, _x, _y, key, signal):
+        state = gesture.get_current_event_state()
+        if state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK):
+            self._set_selected(self._selected ^ {key})   # Ctrl+click: choose it
+            return
+        self._set_selected(set())
+        self.emit(signal, key[1])
+
+    def _card_at(self, x, y):
+        w = self._overlay.pick(x, y, Gtk.PickFlags.DEFAULT)
+        while w is not None and w is not self._overlay:
+            key = getattr(w, "_card_key", None)
+            if key is not None:
+                return key
+            w = w.get_parent()
+        return None
+
+    def _on_right_click(self, gesture, _n, x, y):
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        key = self._card_at(x, y)
+        if key is None:
+            self.emit("background-menu", self._overlay, x, y)
+            return
+        if key not in self._selected:
+            self._set_selected({key})
+        order = [k for k, _card in self._cards if k in self._selected]
+        self.emit("cards-menu", order, x, y)
+
+    def _band_begin(self, gesture, x, y):
+        self._band = None
+        if self._card_at(x, y) is not None:
+            gesture.set_state(Gtk.EventSequenceState.DENIED)
+            return
+        state = gesture.get_current_event_state()
+        keep = bool(state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK))
+        self._band = {"x": x, "y": y, "dx": 0.0, "dy": 0.0, "moved": False,
+                      "base": set(self._selected) if keep else set()}
+
+    def _band_update(self, gesture, dx, dy):
+        b = self._band
+        if b is None:
+            return
+        b["dx"], b["dy"] = dx, dy
+        if not b["moved"] and (abs(dx) > 4 or abs(dy) > 4):
+            b["moved"] = True
+            gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        if not b["moved"]:
+            return
+        x0, x1 = sorted((b["x"], b["x"] + dx))
+        y0, y1 = sorted((b["y"], b["y"] + dy))
+        b["rect"] = (x0, y0, x1 - x0, y1 - y0)
+        hits = set()
+        for key, card in self._cards:
+            ok, r = card.compute_bounds(self._overlay)
+            if (ok and r.get_x() < x1 and r.get_x() + r.get_width() > x0
+                    and r.get_y() < y1 and r.get_y() + r.get_height() > y0):
+                hits.add(key)
+        self._set_selected(b["base"] | hits)
+        self._band_area.queue_draw()
+
+    def _band_end(self, _gesture, _dx, _dy):
+        b, self._band = self._band, None
+        self._band_area.queue_draw()
+        if b is not None and not b["moved"] and not b["base"]:
+            self._set_selected(set())
+
+    def _draw_band(self, _area, cr, _w, _h):
+        b = self._band
+        if not b or not b.get("moved") or "rect" not in b:
+            return
+        x, y, bw, bh = b["rect"]
+        cr.set_source_rgba(0.114, 0.114, 0.122, 0.10)
+        cr.rectangle(x, y, bw, bh)
+        cr.fill()
+        cr.set_source_rgba(0.114, 0.114, 0.122, 0.55)
+        cr.set_line_width(1.0)
+        cr.rectangle(x + 0.5, y + 0.5, max(0.0, bw - 1), max(0.0, bh - 1))
+        cr.stroke()
 
     def _thumb(self, path, tile):
         gen = self._generation

@@ -998,6 +998,9 @@ ES = {
     "Stop and Close": "Detener y cerrar",
 
     "Make Album Cover": "Usar como portada del álbum",
+    "Delete {count} Album…": ("Eliminar {count} álbum…", "Eliminar {count} álbumes…"),
+    "Delete {count} album?": ("¿Eliminar {count} álbum?", "¿Eliminar {count} álbumes?"),
+    "This deletes the albums. Your photos are not deleted.": "Esto elimina los álbumes. Tus fotos no se borran.",
     "Every hour, Piklin asks GitHub whether a new version is out, installs it by itself and reopens. Nothing about you or your photos is sent.":
         "Cada hora, Piklin pregunta a GitHub si hay una versión nueva, la instala sola y se vuelve a abrir. No se envía nada sobre ti ni sobre tus fotos.",
     "Smaller files save space. Videos are copied first and made smaller afterwards, in the background. Keep the originals if you want the best quality for editing later.":

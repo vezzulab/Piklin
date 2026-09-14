@@ -1720,3 +1720,9 @@ window.piklin button.pika-heading-back:hover image { color: #55555a; }
 
 /* An album's cover in the sidebar: a small rounded picture where the icon was. */
 .pika-sidebar-thumb { min-width: 22px; min-height: 22px; }
+
+/* A chosen album or folder card, inside a folder. */
+.pika-summary-card.selected .pika-summary-art {
+  outline: 3px solid @pika_accent;
+  outline-offset: 2px;
+}

@@ -69,6 +69,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.grid = PhotoGrid(self.catalog, self.thumbs, self.settings)
         self.grid.connect("activated", self._on_photo_activated)
         self.grid.connect("open-folder", lambda _g, fid: self._open_folder(fid))
+        self.grid.connect("background-menu", lambda _g, src, x, y: self._on_background_menu(src, x, y))
         self.grid.connect("selection-changed", self._on_selection_changed)
         self.grid.connect("context-menu", self._on_photo_context_menu)
 
@@ -1367,6 +1368,11 @@ class MainWindow(Adw.ApplicationWindow):
         # A click shows the folder's albums on screen and leaves the sidebar
         # as it is; a double click (or the triangle) opens it there.
         self._select_sidebar_key(f"folder:{folder_id}")
+        if not getattr(self, "_folder_menus", False):
+            self._folder_menus = True
+            self.folder_view.connect("background-menu",
+                                     lambda _f, src, x, y: self._on_background_menu(src, x, y))
+            self.folder_view.connect("cards-menu", self._on_cards_menu)
         self.folder_view.load(folder_id)
         self.content_stack.set_visible_child_name("folder")
         self._on_selection_changed(self.grid)
@@ -2566,6 +2572,8 @@ class MainWindow(Adw.ApplicationWindow):
                 if self._scope == "album" and self._album_id == album_id:
                     self._scope, self._album_id = "library", None
                     self.grid.load("library")
+                elif self._scope == "folder":
+                    self.folder_view.load(getattr(self, "_folder_id", None))
         dialog.connect("response", done)
         dialog.present(self)
 
@@ -2594,6 +2602,8 @@ class MainWindow(Adw.ApplicationWindow):
             self.catalog.create_folder(name, parent_id=parent_id)
             self.refresh_sidebar()
             self._mirror_state()
+            if self._scope == "folder":
+                self.folder_view.load(getattr(self, "_folder_id", None))
         dialog.connect("response", done)
         dialog.present(self)
 
@@ -2838,6 +2848,75 @@ class MainWindow(Adw.ApplicationWindow):
             [("delete", delete_label, "Delete",
               lambda: self._on_bulk_trash(None))],
         ])
+
+    def _folder_here(self):
+        """Where a new album or folder made from the view on screen goes: the
+        folder being shown, the folder of the album being shown, or the top."""
+        if self._scope == "folder":
+            return getattr(self, "_folder_id", None)
+        return self._current_album_folder()
+
+    def _new_here_items(self):
+        target = self._folder_here()
+        return [("new-album", _("New Album…"), "<Ctrl>n",
+                 lambda: self._on_new_album(None, folder_id=target)),
+                ("new-folder", _("New Folder…"), "<Ctrl><Shift>n",
+                 lambda: self._on_new_folder(target))]
+
+    def _on_background_menu(self, source, x, y):
+        """Right-click on empty space: make an album or a folder right here,
+        without going to the sidebar."""
+        self._show_context_menu(source, x, y, [self._new_here_items()])
+
+    def _on_cards_menu(self, _view, keys, x, y):
+        """Right-click on album or folder cards inside a folder."""
+        sections = []
+        if len(keys) == 1:
+            kind, item_id, _name = keys[0]
+            opener = {"folder": self._open_folder, "smart": self._open_smart}.get(
+                kind, self._open_album)
+            sections.append([("open", _("Open"), None, lambda: opener(item_id))])
+        albums = [(item_id, name) for kind, item_id, name in keys if kind == "album"]
+        if len(albums) == 1 and len(keys) == 1:
+            sections.append([("delete", _("Delete Album…"), None,
+                              lambda: self._on_delete_album(*albums[0]))])
+        elif albums:
+            sections.append([("delete", ngettext("Delete {count} Album…", "Delete {count} Albums…",
+                                                 len(albums)).format(count=len(albums)), None,
+                              lambda: self._delete_albums([a for a, _n in albums]))])
+        sections.append(self._new_here_items())
+        self._show_context_menu(self.folder_view._overlay, x, y, sections)
+
+    def _delete_albums(self, album_ids):
+        n = len(album_ids)
+        dialog = Adw.AlertDialog(
+            heading=ngettext("Delete {count} album?", "Delete {count} albums?", n).format(count=n),
+            body=_("This deletes the albums. Your photos are not deleted."))
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("delete", _("Delete"))
+        dialog.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_close_response("cancel")
+
+        def done(_d, response):
+            if response != "delete":
+                return
+            for album_id in album_ids:
+                row = self.catalog.q1("SELECT uuid FROM albums WHERE id=?", (album_id,))
+                self.catalog.delete_album(album_id)
+                if row is not None:
+                    self._delete_album_sidecar(row["uuid"])
+            self.refresh_sidebar()
+            if self._scope == "folder":
+                self.folder_view.load(getattr(self, "_folder_id", None))
+        dialog.connect("response", done)
+        dialog.present(self)
+
+    def _current_album_folder(self):
+        """The folder of the album on screen, or None outside an album."""
+        if self._scope != "album" or self._album_id is None:
+            return None
+        row = self.catalog.q1("SELECT folder_id FROM albums WHERE id=?", (self._album_id,))
+        return row["folder_id"] if row is not None else None
 
     def _make_album_cover(self, item):
         """Show this photo for the album in folders and wherever albums appear."""

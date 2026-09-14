@@ -19,6 +19,8 @@
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
 - An album shows its name and number of photos above its photos, with a soft grey back arrow on the same line as the name when the album is inside a folder; a folder inside another folder has one too
 - Each album in the sidebar shows a small picture of its cover
+- Right-click on empty space - in an album, in a folder or in any view - to make a New Album or New Folder right there, without going to the sidebar
+- Drag from empty space to draw a rectangle that chooses the photos it touches, or the album cards in a folder; Ctrl or Shift adds to what is chosen, and a click on empty space lets go. Chosen albums can be deleted together from their right-click menu
 - Counts say what they count: "12 videos" for videos, "3 photos and 2 videos" for both, in album headings, days and folder cards
 - Videos to be made smaller are copied as they are first, so an import no longer sits on one percentage while a long video converts; they are made smaller afterwards in the background, one at a time, with their progress under the sidebar, and carry on the next time Piklin opens. A video is only replaced when the smaller copy saves at least a tenth, and it keeps its albums, favourite and edits
 - Videos filmed upright on a phone play upright, in the viewer and when previewed in the grid, and their size is recorded the right way round

@@ -135,6 +135,8 @@ class PhotoGrid(Gtk.Box):
         "activated": (GObject.SignalFlags.RUN_FIRST, None, (object,)),
         # the back arrow beside an album's name: the folder it is in
         "open-folder": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
+        # a right-click on empty space: (widget, x, y) for a New Album menu
+        "background-menu": (GObject.SignalFlags.RUN_FIRST, None, (object, float, float)),
         "selection-changed": (GObject.SignalFlags.RUN_FIRST, None, ()),
         # right-click on a photo: (item, tile widget, x, y)
         "context-menu": (GObject.SignalFlags.RUN_FIRST, None,
@@ -183,7 +185,25 @@ class PhotoGrid(Gtk.Box):
         self._pending_rows = set()
         self._build_scheduled = False
         self.scroller.get_vadjustment().connect("value-changed", self._schedule_build)
-        self.append(self.scroller)
+        # Dragging from empty space draws a rectangle that chooses the photos
+        # it touches; the rectangle is painted on a layer above the photos.
+        overlay = Gtk.Overlay(vexpand=True)
+        overlay.set_child(self.scroller)
+        self._band = None
+        self._band_tick = 0
+        self._band_area = Gtk.DrawingArea(can_target=False)
+        self._band_area.set_draw_func(self._draw_band)
+        overlay.add_overlay(self._band_area)
+        band = Gtk.GestureDrag(button=Gdk.BUTTON_PRIMARY)
+        band.connect("drag-begin", self._band_begin)
+        band.connect("drag-update", self._band_update)
+        band.connect("drag-end", self._band_end)
+        self.scroller.add_controller(band)
+        menu = Gtk.GestureClick(button=Gdk.BUTTON_SECONDARY)
+        menu.connect("pressed", self._on_background_press, self.scroller)
+        self.scroller.add_controller(menu)
+        self.append(overlay)
+        self._overlay = overlay
 
         self.status = Adw.StatusPage(
             icon_name="image-x-generic-symbolic",
@@ -191,6 +211,10 @@ class PhotoGrid(Gtk.Box):
             description=_("Add a folder and Piklin will build your library."))
         self.status.set_vexpand(True)
         self.status.set_visible(False)
+        # an empty album or view offers New Album too, on a right-click
+        empty_menu = Gtk.GestureClick(button=Gdk.BUTTON_SECONDARY)
+        empty_menu.connect("pressed", self._on_background_press, self.status)
+        self.status.add_controller(empty_menu)
         self.append(self.status)
 
         self._scope = "library"
@@ -610,6 +634,111 @@ class PhotoGrid(Gtk.Box):
             threading.Thread(target=engine.unload, daemon=True).start()
             if item.texture is not None:
                 picture.set_paintable(item.texture)
+
+    # -- right-click on empty space, and choosing by dragging a rectangle -------
+    def _on_tile_at(self, x, y) -> bool:
+        """Whether the point (in the scroller) is on a photo."""
+        w = self.scroller.pick(x, y, Gtk.PickFlags.DEFAULT)
+        while w is not None and w is not self.scroller:
+            if w.has_css_class("pika-tile-button"):
+                return True
+            w = w.get_parent()
+        return False
+
+    def _on_background_press(self, gesture, _n, x, y, source):
+        if self._scope == "device":
+            return
+        if source is self.scroller and self._on_tile_at(x, y):
+            return                              # a photo has its own menu
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        self.emit("background-menu", source, x, y)
+
+    def _band_begin(self, gesture, x, y):
+        self._band = None
+        if self._on_tile_at(x, y):
+            # on a photo: its own click, double click and drag stay as they are
+            gesture.set_state(Gtk.EventSequenceState.DENIED)
+            return
+        state = gesture.get_current_event_state()
+        keep = bool(state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK))
+        top = self.scroller.get_vadjustment().get_value()
+        self._band = {"x": x, "sy": y, "y": y + top, "dx": 0.0, "dy": 0.0,
+                      "base": set(self._selected) if keep else set(),
+                      "hits": set(), "moved": False}
+        if not self._band_tick:
+            self._band_tick = GLib.timeout_add(40, self._band_autoscroll)
+
+    def _band_update(self, gesture, dx, dy):
+        b = self._band
+        if b is None:
+            return
+        b["dx"], b["dy"] = dx, dy
+        if not b["moved"] and (abs(dx) > 4 or abs(dy) > 4):
+            b["moved"] = True
+            gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        if b["moved"]:
+            self._band_apply()
+
+    def _band_apply(self):
+        b = self._band
+        top = self.scroller.get_vadjustment().get_value()
+        x0, x1 = sorted((b["x"], b["x"] + b["dx"]))
+        # the start stays with the photos it began on as the view scrolls
+        y0, y1 = sorted((b["y"] - top, b["sy"] + b["dy"]))
+        b["rect"] = (x0, y0, x1 - x0, y1 - y0)
+        on_screen, touched = set(), set()
+        for pid, containers in self._tile_containers.items():
+            for c in containers:
+                if not c.get_mapped():
+                    continue
+                on_screen.add(pid)
+                ok, r = c.compute_bounds(self.scroller)
+                if (ok and r.get_x() < x1 and r.get_x() + r.get_width() > x0
+                        and r.get_y() < y1 and r.get_y() + r.get_height() > y0):
+                    touched.add(pid)
+                    break
+        # photos scrolled out of sight while dragging stay chosen
+        b["hits"] = {p for p in b["hits"] if p not in on_screen} | touched
+        self._set_selection(b["base"] | b["hits"])
+        self._band_area.queue_draw()
+
+    def _band_autoscroll(self):
+        b = self._band
+        if b is None:
+            self._band_tick = 0
+            return GLib.SOURCE_REMOVE
+        if b["moved"]:
+            h = self.scroller.get_height()
+            py = b["sy"] + b["dy"]
+            step = -28 if py < 36 else (28 if py > h - 36 else 0)
+            if step:
+                adj = self.scroller.get_vadjustment()
+                adj.set_value(max(adj.get_lower(), min(adj.get_upper() - adj.get_page_size(),
+                                                        adj.get_value() + step)))
+                self._band_apply()
+        return GLib.SOURCE_CONTINUE
+
+    def _band_end(self, _gesture, _dx, _dy):
+        b, self._band = self._band, None
+        if self._band_tick:
+            GLib.source_remove(self._band_tick)
+            self._band_tick = 0
+        self._band_area.queue_draw()
+        if b is not None and not b["moved"] and not b["base"] and self._selected:
+            self._set_selection(set())          # a click on empty space lets go
+
+    def _draw_band(self, _area, cr, _w, _h):
+        b = self._band
+        if not b or not b.get("moved") or "rect" not in b:
+            return
+        x, y, bw, bh = b["rect"]
+        cr.set_source_rgba(0.114, 0.114, 0.122, 0.10)
+        cr.rectangle(x, y, bw, bh)
+        cr.fill()
+        cr.set_source_rgba(0.114, 0.114, 0.122, 0.55)
+        cr.set_line_width(1.0)
+        cr.rectangle(x + 0.5, y + 0.5, max(0.0, bw - 1), max(0.0, bh - 1))
+        cr.stroke()
 
     def repaint_items(self, ids) -> None:
         """Show these photos' current thumbnails in place, without reloading
