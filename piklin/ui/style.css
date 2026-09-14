@@ -248,6 +248,18 @@ button.pika-update-bell image { color: #ffffff; }
 button.pika-update-bell.ringing image {
   animation: pika-bell-ring 1.4s ease-in-out 3;
 }
+.pika-version-card {
+  border: 1px solid @pika_hairline;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.pika-version-card.new {
+  border: 2px solid #000000;
+}
+.pika-update-group {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
 .pika-log-frame {
   border: 1px solid @pika_hairline;
   border-radius: 8px;

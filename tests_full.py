@@ -1074,6 +1074,11 @@ check("update window lists what's new in English, without install or download st
       _en == [("heading", "Albums"), ("item", "Covers. Pick one. See LICENSE")], _en)
 check("update window lists what's new in Spanish, without install or download steps",
       _es == [("heading", "Álbumes"), ("item", "Portadas. Elige una.")], _es)
+_short = _bell_upd.highlights(_sample + "- Plain line. More words.\n", "en")
+check("update window says what's new in a few words: each change's title",
+      _bell_upd.highlights(_sample, "en") == [("heading", "Albums"), ("item", "Covers")]
+      and _bell_upd.highlights(_sample, "es") == [("heading", "Álbumes"), ("item", "Portadas")],
+      (_bell_upd.highlights(_sample, "en"), _bell_upd.highlights(_sample, "es")))
 _cfg_before = os.environ.get("XDG_CONFIG_HOME")
 os.environ["XDG_CONFIG_HOME"] = os.path.join(TMP, "cfg-bell")
 _bell_upd.save_state(enabled=False, last_check=0)

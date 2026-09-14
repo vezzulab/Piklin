@@ -165,7 +165,13 @@ def enabled() -> bool:
 CHECK_EVERY = 60 * 60     # an hour: a fix reaches people the same day it is out
 
 
-def notes_for(notes: str, language: str) -> list[tuple[str, str]]:
+def highlights(notes: str, language: str) -> list[tuple[str, str]]:
+    """What's new, in a few words each: the bold title of every change
+    ("Instant rotate") rather than its whole explanation."""
+    return notes_for(notes, language, short=True)
+
+
+def notes_for(notes: str, language: str, short: bool = False) -> list[tuple[str, str]]:
     """What a release changes, in the reader's language, as (kind, text)
     lines: kind is "heading" or "item". The published notes carry English
     first and Spanish after a "## Español" heading; install steps and
@@ -191,6 +197,12 @@ def notes_for(notes: str, language: str) -> list[tuple[str, str]]:
         keep = bool(keep_level)
         if keep and line.startswith(("- ", "* ")):
             item = line[2:]
+            if short:
+                bold = re.match(r"\*\*(.+?)\*\*", item)
+                if bold:
+                    item = bold.group(1).strip().rstrip(".").rstrip(",")
+                else:
+                    item = re.split(r"(?<=[.!?])\s", item, maxsplit=1)[0].rstrip(".")
             item = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", item)   # links: their words
             item = item.replace("**", "").replace("`", "")
             out.append(("item", item))
