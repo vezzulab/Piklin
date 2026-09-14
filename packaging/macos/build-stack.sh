@@ -293,6 +293,23 @@ if ! built python-bindings; then
     rm -f "$WHEELS"/rawpy-*.whl
     run_logged python-bindings "$PY" -m pip wheel --no-deps --no-cache-dir \
         --no-binary rawpy "rawpy==$RAWPY" -w "$WHEELS"
+    # Its LibRaw uses Little CMS, JasPer and libjpeg from Intel Homebrew:
+    # carried inside the wheel, as rawpy's own Apple Silicon wheel carries
+    # them - but only if they run on the oldest macOS Piklin supports.
+    for lib in /usr/local/opt/little-cms2/lib/liblcms2.2.dylib \
+               /usr/local/opt/jasper/lib/libjasper.7.dylib \
+               /usr/local/opt/jpeg-turbo/lib/libjpeg.8.dylib; do
+      minos="$(otool -l "$lib" | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print $2; exit}')"
+      if [ "$(printf '%s\n%s\n' "$minos" "$MIN_MACOS" | sort -V | tail -1)" != "$MIN_MACOS" ]; then
+        echo "$lib needs macOS $minos, newer than $MIN_MACOS - refusing to bundle it" >&2; exit 1
+      fi
+    done
+    run_logged python-bindings "$PY" -m pip install --quiet delocate
+    raw="$(ls "$WHEELS"/rawpy-*.whl)"
+    rm -rf "$WORK/rawpy-delocated"
+    run_logged python-bindings "$CACHE/$ARCH/buildpy/bin/delocate-wheel" \
+        --require-archs "$ARCH" -w "$WORK/rawpy-delocated" "$raw"
+    mv -f "$WORK"/rawpy-delocated/rawpy-*.whl "$raw"
   fi
   unset _PYTHON_HOST_PLATFORM
   done_ python-bindings
