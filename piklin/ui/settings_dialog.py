@@ -130,7 +130,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         from .. import updates
         check = Adw.SwitchRow(
             title=_("Keep Piklin up to date"),
-            subtitle=_("Once a day, Piklin asks GitHub whether a new version is "
+            subtitle=_("Every hour, Piklin asks GitHub whether a new version is "
                        "out, installs it by itself and reopens. Nothing about "
                        "you or your photos is sent."),
             active=updates.enabled())
@@ -265,8 +265,9 @@ class SettingsDialog(Adw.PreferencesDialog):
         video_ids = ["original", "h264"]
         video_row = Adw.ComboRow(
             title=_("Videos when importing"),
-            subtitle=_("Smaller files save space. Keep the originals if you want the best "
-                       "quality for editing later."),
+            subtitle=_("Smaller files save space. Videos are copied first and made smaller "
+                       "afterwards, in the background. Keep the originals if you want the "
+                       "best quality for editing later."),
             model=Gtk.StringList.new([_("Keep Original Files"),
                                       _("Smaller Files")]))
         current_video = self.settings.get("storage_video_profile", "original")

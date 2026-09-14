@@ -22,6 +22,10 @@ DEFAULTS: dict[str, Any] = {
     # Videos from a camera: kept as they are unless the user asks for
     # smaller files (re-encoding a video always costs some detail).
     "storage_video_profile": "original",   # original | h264
+    # Videos copied in as they are, still to be made smaller (paths).
+    "videos_to_shrink": [],
+    # Sizes of upright phone videos measured again once (see the window).
+    "video_sizes_checked_v2": False,
     "export_profile": "visually_lossless",
     "export_format": "keep",           # keep | jpeg | webp | avif | png
     "export_strip_metadata": False,

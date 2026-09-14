@@ -1128,13 +1128,32 @@ with _av2.open(_camclip, "w", format="mov") as _o:
         for _p in _st.encode(_fr): _o.mux(_p)
     for _p in _st.encode(): _o.mux(_p)
 _camlib = _L(os.path.join(TMP, "SmallVideos.piklin")).ensure()
+_t0 = time.perf_counter()
 _r1 = devmod.import_photos(_camlib, [iio.probe(_camclip)], video_profile="h264")
-_small = Path(_r1["copied"][0]) if _r1["copied"] else None
-check("camera video stored smaller as H.264 when chosen",
-      _small is not None and _small.suffix == ".mp4"
+_copy_s = time.perf_counter() - _t0
+_copied = Path(_r1["copied"][0]) if _r1["copied"] else None
+check("a video to be made smaller is copied as it is first, and listed to shrink",
+      _copied is not None and _copied.suffix == ".MOV"
+      and _copied.stat().st_size == os.path.getsize(_camclip)
+      and [Path(p) for p in _r1["to_shrink"]] == [_copied],
+      (_copied, _r1.get("to_shrink"), round(_copy_s, 2)))
+from piklin.indexer import Indexer as _IxS
+_scat = Catalog(_camlib.db); _IxS(_scat, None, library_root=_camlib.root).add_files([str(_copied)])
+_vrow = _scat.photo_by_path(str(_copied))
+_valb = _scat.create_album("Clips"); _scat.album_add(_valb, [_vrow["id"]])
+with _scat.write() as _cur:
+    _cur.execute("UPDATE photos SET favorite=1 WHERE id=?", (_vrow["id"],))
+_seen_p = []
+_out = devmod.shrink_video(_camlib, _scat, _vrow["id"], on_progress=_seen_p.append)
+_after = _scat.photo(_vrow["id"])
+_small = Path(_after["path"])
+check("afterwards it is made smaller as H.264, in place of the copy",
+      _out == "smaller" and _small.suffix == ".mp4" and _small.exists() and not _copied.exists()
       and _small.stat().st_size < os.path.getsize(_camclip) * 0.9
-      and devmod._source_size_of(_small) == os.path.getsize(_camclip),
-      f"{os.path.getsize(_camclip)//1024} KB -> {(_small.stat().st_size//1024) if _small else '?'} KB")
+      and devmod._source_size_of(_small) == os.path.getsize(_camclip) and _seen_p,
+      (_out, _after["path"], _small.stat().st_size if _small.exists() else None))
+check("the smaller video keeps its album and favourite",
+      _scat.album_photo_paths(_valb) == [str(_small)] and _after["favorite"] == 1)
 _r2 = devmod.import_photos(_camlib, [iio.probe(_camclip)], video_profile="h264")
 check("importing the card again does not duplicate the smaller copy",
       _r2["skipped"] == 1 and not _r2["copied"])
@@ -1388,6 +1407,13 @@ check("folders and albums share one A to Z order",
       == ["Aniella", "Maternos", "Paternos", "Trip 1", "Trip 2", "Trip 10"],
       [n["row"]["name"] for n in _tc2.tree()])
 
+# -- counts say photos or videos, whichever they are ----------------------------
+from piklin.ui.grid import count_label as _cl
+check("counts say photos, videos, or both - never videos as photos",
+      _cl(12, 0) == "12 photos" and _cl(0, 12) == "12 videos" and _cl(1, 0) == "1 photo"
+      and _cl(0, 1) == "1 video" and _cl(3, 2) == "3 photos and 2 videos",
+      (_cl(0, 12), _cl(3, 2)))
+
 # -- album cover chosen by the user ---------------------------------------------
 _cc = Catalog(os.path.join(TMP, "cover.db"))
 _cids = []
@@ -1453,6 +1479,20 @@ check("only a version number is accepted", _hu.main(["../../etc"]) == 2
 from piklin import updates as _upd
 check("running from source points to the download instead of installing",
       not _upd.can_install_itself())
+_saved_cfg_u = os.environ.get("XDG_CONFIG_HOME"); os.environ["XDG_CONFIG_HOME"] = os.path.join(TMP, "updcfg")
+try:
+    _now = 1_800_000_000.0
+    _upd.save_state(enabled=True, last_check=_now - 30 * 60)
+    _half = _upd.due(_now)
+    _upd.save_state(last_check=_now - 61 * 60)
+    _hour = _upd.due(_now)
+    _upd.save_state(enabled=False)
+    _off = _upd.due(_now)
+    check("automatic updates are looked for every hour, not more often, and never when off",
+          not _half and _hour and not _off, (_half, _hour, _off))
+finally:
+    if _saved_cfg_u is None: os.environ.pop("XDG_CONFIG_HOME", None)
+    else: os.environ["XDG_CONFIG_HOME"] = _saved_cfg_u
 # The same version published again with fixes is still an update
 check("a new build of the same version is installed; the same build or an older version is not",
       _hu.decide("1.0.4", "1.0.4", "abc-2", "abc-1") == "reinstall"

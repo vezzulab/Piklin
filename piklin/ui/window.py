@@ -232,6 +232,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.footer_backup.add_css_class("pika-footer-space")
         self.footer_backup.add_css_class("pika-footer-backup")
         self.footer.append(self.footer_backup)
+        # "Making videos smaller — 1 of 3 (42%)", while that runs
+        self.footer_videos = Gtk.Label(xalign=0.0, ellipsize=3, visible=False)
+        self.footer_videos.add_css_class("pika-footer-space")
+        self.footer.append(self.footer_videos)
         # Supporting Piklin: one quiet button, never a pop-up or a nag.
         from ..paths import SUPPORT_URL
         if SUPPORT_URL:
@@ -981,6 +985,7 @@ class MainWindow(Adw.ApplicationWindow):
                     self._write_album_sidecar(album_id)
                 done_cb(result)
                 self._backup_soon()
+                self._queue_video_shrink(result.get("to_shrink") or [])
                 return False
             GLib.idle_add(finish)
         threading.Thread(target=work, daemon=True).start()
@@ -1859,7 +1864,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     # -- updates ------------------------------------------------------------
     def _check_updates(self, quiet=True):
-        """Ask whether a newer Piklin is out. Quiet: once a day, silent unless
+        """Ask whether a newer Piklin is out. Quiet: once an hour, silent unless
         there is one. Otherwise (Check for Updates…): always say the result."""
         from .. import updates
         from ..app import VERSION
@@ -2914,6 +2919,76 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.indexer.start(roots, progress, with_thumbnails=True)
 
+    # -- videos made smaller after they are copied --------------------------
+    def _queue_video_shrink(self, paths):
+        """Videos just copied in as they are, to make smaller one at a time
+        in the background. The list is kept with the library, so what is
+        left carries on the next time Piklin opens."""
+        if paths:
+            queue = list(self.settings.get("videos_to_shrink") or [])
+            for p in map(str, paths):
+                if p not in queue:
+                    queue.append(p)
+            self.settings.set("videos_to_shrink", queue)
+        if self.settings.get("videos_to_shrink") and not getattr(self, "_shrinking", False):
+            self._shrinking = True
+            threading.Thread(target=self._shrink_videos, daemon=True).start()
+
+    def _shrink_videos(self):
+        total = len(self.settings.get("videos_to_shrink") or [])
+        done = 0
+        while True:
+            # never while photos are still being copied: that comes first
+            while getattr(self, "_copy_cancel", None) is not None:
+                time.sleep(2)
+            queue = list(self.settings.get("videos_to_shrink") or [])
+            if not queue:
+                break
+            total = max(total, done + len(queue))
+            path = queue[0]
+            row = self.catalog.photo_by_path(path)
+
+            def progress(fraction, d=done, t=total):
+                GLib.idle_add(self._video_shrink_status, d + 1, t, fraction)
+            outcome = "gone"
+            if row is not None:
+                progress(0.0)
+                outcome = devicemod.shrink_video(self.library, self.catalog, row["id"],
+                                                 on_progress=progress)
+            remaining = [p for p in (self.settings.get("videos_to_shrink") or []) if p != path]
+            GLib.idle_add(self.settings.set, "videos_to_shrink", remaining)
+            done += 1
+            if outcome == "smaller":
+                GLib.idle_add(self._video_shrunk, row["id"])
+            time.sleep(0.5)                 # let the setting land before the next round
+        GLib.idle_add(self._video_shrink_done)
+
+    def _video_shrink_status(self, done, total, fraction):
+        self.footer_videos.set_text(
+            _("Making videos smaller — {done} of {total} ({percent}%)").format(
+                done=done, total=total, percent=int(max(0.0, min(1.0, fraction)) * 100)))
+        self.footer_videos.set_visible(True)
+        return False
+
+    def _video_shrunk(self, photo_id):
+        """A video now smaller: its tile follows the new file at once."""
+        row = self.catalog.photo(photo_id)
+        item = getattr(self.grid, "_by_id", {}).get(photo_id)
+        if row is not None and item is not None:
+            item.path = row["path"]
+            item.filename = row["filename"]
+            item.bytes = row["bytes"]
+            self.grid.repaint_items([photo_id])
+        self._backup_soon()
+        return False
+
+    def _video_shrink_done(self):
+        self._shrinking = False
+        self.footer_videos.set_visible(False)
+        if self.settings.get("videos_to_shrink"):
+            self._queue_video_shrink([])    # added while the last one ran
+        return False
+
     def _repair_video_sizes(self):
         """Once per library: upright phone videos were recorded as wide
         (1280x720 for a 720x1280 video) before the size came from a decoded
@@ -2943,9 +3018,14 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _first_run(self):
         GLib.timeout_add_seconds(20, lambda: (self._repair_video_sizes(), False)[1])
+        # videos left to make smaller when Piklin was last closed
+        GLib.timeout_add_seconds(30, lambda: (self._queue_video_shrink([]), False)[1])
         self.refresh_sidebar()
         # A few seconds in, so opening Piklin is never slowed by the network.
         GLib.timeout_add_seconds(8, lambda: (self._check_updates(quiet=True), False)[1])
+        # and every hour after that while Piklin stays open (only when
+        # updates are on, and never more than once an hour - see updates.due)
+        GLib.timeout_add_seconds(60 * 60, lambda: (self._check_updates(quiet=True), True)[1])
         self.grid.load("library")
         if not self.catalog.roots():
             self._show_welcome()

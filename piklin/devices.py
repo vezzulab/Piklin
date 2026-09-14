@@ -341,6 +341,7 @@ def import_photos(library, records: list[dict], on_progress=None,
 
     lock = threading.Lock()
     reserved: set[Path] = set()
+    to_shrink: list[Path] = []          # videos copied as they are, to make smaller later
 
     def claim(dest_dir: Path, src: Path) -> tuple[Path, bool]:
         """A free name for src in dest_dir, or (existing copy, True)."""
@@ -418,16 +419,13 @@ def import_photos(library, records: list[dict], on_progress=None,
                 except (OSError, AttributeError):
                     pass
             elif is_video(src) and video_profile == "h264":
-                smaller = _compress_video(src, dest, rec)
-                if smaller is None:
-                    _copy_whole(src, dest)
-                else:
-                    dest = smaller
-                    try:
-                        os.setxattr(dest, _SOURCE_SIZE_XATTR,
-                                    str(src.stat().st_size).encode())
-                    except (OSError, AttributeError):
-                        pass
+                # Copied as it is first - quick, and the video is in the
+                # library at once. Making it smaller takes minutes for a long
+                # video; done during the copy it held the whole import at
+                # one percentage. The window shrinks it afterwards.
+                _copy_whole(src, dest)
+                with lock:
+                    to_shrink.append(dest)
             else:
                 _copy_whole(src, dest)
             return ("copied", src, dest)
@@ -472,9 +470,80 @@ def import_photos(library, records: list[dict], on_progress=None,
                         on_placed(dest)
             if on_progress:
                 on_progress(done, total)
+    placed_set = set(placed)
     return {"copied": copied, "skipped": skipped, "failed": failed,
             "sources": done_sources, "placed": placed,
+            "to_shrink": [p for p in to_shrink if p in placed_set],
             "cancelled": bool(cancel is not None and cancel.is_set())}
+
+
+def shrink_video(library, catalog, photo_id: int, on_progress=None,
+                 cancel: threading.Event | None = None) -> str:
+    """Make a video already in the library smaller (H.264), in place.
+
+    Returns "smaller", "kept" (it would not save a tenth, so the file is
+    left as it is), "cancelled", "failed" or "gone". The original is only
+    removed once the smaller copy is complete and the catalog points at it,
+    so the video is never lost; albums, favourites and edits stay with it.
+    """
+    from . import video_edit as ve
+    from .photo_rename import repoint_photo
+    from .video import stream_info
+    row = catalog.photo(photo_id)
+    if row is None:
+        return "gone"
+    src = Path(row["path"])
+    if not src.is_file():
+        return "gone"
+    work = src.with_name(f"{src.stem}.smaller.mp4")
+    Path(work.with_name(f".{work.name}.part")).unlink(missing_ok=True)   # left by a closed app
+    try:
+        duration = float(row["duration"] or 0.0) or \
+            float((stream_info(src) or {}).get("duration") or 0.0)
+        keys = row.keys()
+        location = ((row["gps_lat"], row["gps_lon"])
+                    if "gps_lat" in keys and row["gps_lat"] is not None else None)
+        out = ve.export(src, work, ve.VideoEdit(duration=duration), fmt="mp4",
+                        keep_location=True,
+                        meta={"taken_at": row["taken_at"], "location": location},
+                        on_progress=on_progress, cancel=cancel)
+    except ve.Cancelled:
+        work.unlink(missing_ok=True)
+        return "cancelled"
+    except Exception:
+        work.unlink(missing_ok=True)
+        return "failed"
+    st = src.stat()
+    if out.stat().st_size >= st.st_size * 0.9:
+        out.unlink(missing_ok=True)
+        return "kept"
+    os.utime(out, (st.st_atime, st.st_mtime))
+    try:
+        # the size of the camera file, so importing it again is recognised
+        os.setxattr(out, _SOURCE_SIZE_XATTR,
+                    str(_source_size_of(src) or st.st_size).encode())
+    except (OSError, AttributeError):
+        pass
+    final = src.with_suffix(".mp4")
+    if final != src:
+        n = 2
+        while final.exists():
+            final = src.with_name(f"{src.stem}-{n}.mp4")
+            n += 1
+    if final == src:
+        os.replace(out, final)                    # an .mp4 swapped in place
+        repoint_photo(library, catalog, photo_id, src, final,
+                      bytes=final.stat().st_size)
+        return "smaller"
+    os.replace(out, final)
+    try:
+        repoint_photo(library, catalog, photo_id, src, final,
+                      bytes=final.stat().st_size, ext="mp4")
+    except Exception:
+        final.unlink(missing_ok=True)             # the original stays, untouched
+        return "failed"
+    src.unlink(missing_ok=True)
+    return "smaller"
 
 
 def _copy_whole(src: Path, dest: Path) -> None:

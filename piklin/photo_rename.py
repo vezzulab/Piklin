@@ -103,7 +103,29 @@ def rename_photo(library, catalog, photo_id: int, new_name: str) -> Path:
         raise RenameError(_("The library couldn't be updated, so the file "
                           "keeps its old name."))
     catalog.reindex_text([photo_id])
+    _move_references(library, old, new)
+    return new
 
+
+def repoint_photo(library, catalog, photo_id: int, old: Path, new: Path,
+                  **columns) -> None:
+    """The photo's file is now at ``new`` (already there, ``old`` gone or
+    about to go): point the catalog row and everything that names the old
+    path at it. ``columns`` updates other fields too, such as bytes or ext."""
+    old, new = Path(old), Path(new)
+    sets = {"path": str(new), "filename": new.name, **columns}
+    names = ", ".join(f"{k}=?" for k in sets)
+    with catalog.write() as cur:
+        cur.execute(f"UPDATE photos SET {names}, "
+                    "thumb_state=CASE WHEN thumb_state=1 THEN 0 ELSE thumb_state END "
+                    "WHERE id=?", (*sets.values(), photo_id))
+    catalog.reindex_text([photo_id])
+    if old != new:
+        _move_references(library, old, new)
+
+
+def _move_references(library, old: Path, new: Path) -> None:
+    """Everything that names a photo by path, moved from old to new."""
     # The edit sidecar mirrors the photo's path: move it, and point it at
     # the new file, or the edits would silently drop off the photo.
     old_sc, new_sc = library.edit_sidecar(old), library.edit_sidecar(new)
@@ -130,4 +152,3 @@ def rename_photo(library, catalog, photo_id: int, new_name: str) -> Path:
     for f in [*library.albums.glob("*.json"), library.root / "photo-state.json"]:
         if f.is_file():
             _rewrite_json(f, str(old), str(new))
-    return new

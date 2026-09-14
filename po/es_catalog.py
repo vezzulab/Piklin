@@ -998,6 +998,11 @@ ES = {
     "Stop and Close": "Detener y cerrar",
 
     "Make Album Cover": "Usar como portada del álbum",
+    "Every hour, Piklin asks GitHub whether a new version is out, installs it by itself and reopens. Nothing about you or your photos is sent.":
+        "Cada hora, Piklin pregunta a GitHub si hay una versión nueva, la instala sola y se vuelve a abrir. No se envía nada sobre ti ni sobre tus fotos.",
+    "Smaller files save space. Videos are copied first and made smaller afterwards, in the background. Keep the originals if you want the best quality for editing later.":
+        "Los archivos más pequeños ahorran espacio. Los videos se copian primero y se reducen después, en segundo plano. Guarda los originales si quieres la mejor calidad para editar más tarde.",
+    "Making videos smaller — {done} of {total} ({percent}%)": "Reduciendo videos — {done} de {total} ({percent}%)",
     "Back to {folder}": "Volver a {folder}",
     "For photos copied into the library: from a camera, a memory card, a USB drive or dragged in. Your folders are never changed.":
         "Para las fotos que se copian a la biblioteca: desde una cámara, una tarjeta de memoria, una unidad USB o arrastradas. Tus carpetas nunca se modifican.",

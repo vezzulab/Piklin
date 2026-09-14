@@ -1,6 +1,6 @@
 """Is there a newer Piklin, and installing it.
 
-Piklin asks GitHub for its latest release - at most once a day, a few
+Piklin asks GitHub for its latest release - at most once an hour, a few
 seconds after it opens, and only while updates are on in Preferences. The
 request carries nothing about the person or their photos: it is the same
 public page anyone can open in a browser.
@@ -162,9 +162,12 @@ def enabled() -> bool:
     return bool(load_state().get("enabled", True))
 
 
+CHECK_EVERY = 60 * 60     # an hour: a fix reaches people the same day it is out
+
+
 def due(now: float | None = None) -> bool:
-    """Checking is allowed and the last check was more than a day ago."""
+    """Checking is allowed and the last check was more than an hour ago."""
     state = load_state()
     if not state.get("enabled", True):
         return False
-    return (now or time.time()) - float(state.get("last_check") or 0) >= DAY
+    return (now or time.time()) - float(state.get("last_check") or 0) >= CHECK_EVERY

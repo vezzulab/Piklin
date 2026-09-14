@@ -169,11 +169,20 @@ class FolderView(Gtk.ScrolledWindow):
             n = self._count_albums(node)
             detail = ngettext("{count} album", "{count} albums", n).format(count=n)
         elif kind == "smart":
-            n = self.catalog.smart_album_count(row["id"])
-            detail = ngettext("{count} photo", "{count} photos", n).format(count=f"{n:,}")
+            from ..video import is_video
+            from .grid import count_label
+            found = self.catalog.browse(scope="smart", smart_id=row["id"], limit=None, offset=0)
+            videos = sum(1 for r in found if is_video(r["path"]))
+            detail = count_label(len(found) - videos, videos)
         else:
+            from ..catalog import VIDEO_SQL
+            from .grid import count_label
             n = int(row["n"] or 0)
-            detail = ngettext("{count} photo", "{count} photos", n).format(count=f"{n:,}")
+            videos = int(self.catalog.scalar(
+                f"SELECT COUNT(*) FROM album_items ai JOIN photos p ON p.id=ai.photo_id "
+                f"WHERE ai.album_id=? AND {VIDEO_SQL}", (row["id"],), 0))
+            # "12 videos", not "12 photos", when they are videos
+            detail = count_label(n - videos, videos)
         title = Gtk.Label(label=row["name"], xalign=0.0, ellipsize=3,
                           max_width_chars=1, hexpand=True)
         title.add_css_class("pika-summary-title")

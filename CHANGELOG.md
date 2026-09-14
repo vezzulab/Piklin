@@ -19,6 +19,8 @@
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
 - An album shows its name and number of photos above its photos, with a soft grey back arrow on the same line as the name when the album is inside a folder; a folder inside another folder has one too
 - Each album in the sidebar shows a small picture of its cover
+- Counts say what they count: "12 videos" for videos, "3 photos and 2 videos" for both, in album headings, days and folder cards
+- Videos to be made smaller are copied as they are first, so an import no longer sits on one percentage while a long video converts; they are made smaller afterwards in the background, one at a time, with their progress under the sidebar, and carry on the next time Piklin opens. A video is only replaced when the smaller copy saves at least a tenth, and it keeps its albums, favourite and edits
 - Videos filmed upright on a phone play upright, in the viewer and when previewed in the grid, and their size is recorded the right way round
 - Photos and videos dragged into Piklin are stored at the size chosen in Preferences › Storage, like those from a camera or a USB drive
 - Folders and albums share one A to Z order, instead of all folders first
@@ -37,6 +39,7 @@
 ### Updates
 - Piklin updates itself: when a new version is out it says so, installs it and reopens in it, without a password. It waits until nothing is copying and no editor is open. Only packages signed by Vezzu Studio are installed. Turn it off in Preferences › General
 
+- Automatic updates are looked for every hour while Piklin is open, instead of once a day
 - A version published again with fixes, under the same number, is installed too: Piklin compares the build and still installs only packages signed by Vezzu Studio
 
 ### License

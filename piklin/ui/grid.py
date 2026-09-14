@@ -55,6 +55,16 @@ _texture_bytes = 0
 _texture_lock = threading.Lock()
 
 
+def count_label(photos: int, videos: int) -> str:
+    """"12 photos", "12 videos", or "3 photos and 2 videos" - never calling
+    videos photos."""
+    p = ngettext("{count} photo", "{count} photos", photos).format(count=f"{photos:,}")
+    v = ngettext("{count} video", "{count} videos", videos).format(count=f"{videos:,}")
+    if photos and videos:
+        return _("{photos} and {videos}").format(photos=p, videos=v)
+    return v if videos else p
+
+
 def _cached_texture(photo_path):
     with _texture_lock:
         hit = _textures.get(photo_path)
@@ -266,7 +276,7 @@ class PhotoGrid(Gtk.Box):
         anchor = self._items[min(len(self._items) - 1,
                                  int(len(self._items) * adj.get_value() / upper))]
         self._tail = None
-        self._day_counts, self._day_heads = {}, {}
+        self._day_counts, self._day_heads, self._day_videos = {}, {}, {}
         self.sections.remove_all()
         heading = self._heading_section()
         if heading is not None:
@@ -965,6 +975,7 @@ class PhotoGrid(Gtk.Box):
         self._generation += 1
         self._tail = None
         self._day_counts = {}         # section key -> photos in that day so far
+        self._day_videos = {}         # section key -> how many of those are videos
         self._day_heads = {}          # section key -> the section with its title
         self._items = []
         self._by_id = {}
@@ -989,15 +1000,23 @@ class PhotoGrid(Gtk.Box):
         """An album's name and size, shown above its photos and scrolling
         away with them. None for views that are not an album."""
         try:
+            from ..catalog import VIDEO_SQL
+            from ..video import is_video
             if self._scope == "album" and self._album_id is not None:
                 row = self.catalog.q1("SELECT name, folder_id FROM albums WHERE id=?",
                                       (self._album_id,))
                 n = int(self.catalog.scalar(
                     "SELECT COUNT(*) FROM album_items WHERE album_id=?", (self._album_id,), 0))
+                videos = int(self.catalog.scalar(
+                    f"SELECT COUNT(*) FROM album_items ai JOIN photos p ON p.id=ai.photo_id "
+                    f"WHERE ai.album_id=? AND {VIDEO_SQL}", (self._album_id,), 0))
             elif self._scope == "smart" and self._smart_id is not None:
                 row = self.catalog.q1("SELECT name, folder_id FROM smart_albums WHERE id=?",
                                       (self._smart_id,))
-                n = int(self.catalog.smart_album_count(self._smart_id))
+                found = self.catalog.browse(scope="smart", smart_id=self._smart_id,
+                                            limit=None, offset=0)
+                n = len(found)
+                videos = sum(1 for r in found if is_video(r["path"]))
             elif self._scope == "duplicates":
                 # What the button below does, said before anyone has to guess.
                 return DaySection(
@@ -1013,8 +1032,7 @@ class PhotoGrid(Gtk.Box):
             return None
         if row is None:
             return None
-        count = ngettext("{count} photo", "{count} photos", n).format(count=f"{n:,}")
-        section = DaySection(row["name"], count, [], heading=True)
+        section = DaySection(row["name"], count_label(n - videos, videos), [], heading=True)
         # Inside a folder, a back arrow beside the name returns to it.
         if row["folder_id"] is not None:
             folder = self.catalog.q1("SELECT id, name FROM folders WHERE id=?",
@@ -1093,6 +1111,8 @@ class PhotoGrid(Gtk.Box):
         sort_by_date = self._order.startswith("taken")
         if not hasattr(self, "_day_counts"):
             self._day_counts, self._day_heads = {}, {}
+        if not hasattr(self, "_day_videos"):
+            self._day_videos = {}
         chunk = self._chunk_size()
         new_sections, new_ids = [], set()
         touched = set()
@@ -1108,6 +1128,8 @@ class PhotoGrid(Gtk.Box):
             else:
                 key, title, sub = _section_key(item.taken_at, mode)
             self._day_counts[key] = self._day_counts.get(key, 0) + 1
+            if getattr(item, "is_video", False):
+                self._day_videos[key] = self._day_videos.get(key, 0) + 1
             touched.add(key)
 
             if (tail is not None and tail[0] == key
@@ -1144,7 +1166,8 @@ class PhotoGrid(Gtk.Box):
                 head.subtitle = ngettext("{count} identical copy", "{count} identical copies",
                                          n).format(count=n)
             else:
-                head.subtitle = ngettext("{count} photo", "{count} photos", n).format(count=n)
+                videos = self._day_videos.get(key, 0)
+                head.subtitle = count_label(n - videos, videos)
             label = head.sub_label
             if label is not None:
                 label.set_text(head.subtitle)
