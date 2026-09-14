@@ -1236,6 +1236,53 @@ finally:
     if _saved_cfg is None: os.environ.pop("XDG_CONFIG_HOME", None)
     else: os.environ["XDG_CONFIG_HOME"] = _saved_cfg
 
+# -- self-update: only a signed, official, matching package is accepted ---------
+import importlib.machinery as _ilm, importlib.util as _ilu, subprocess as _sp2, hashlib
+_helper_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "packaging", "deb", "piklin-update")
+_spec = _ilu.spec_from_loader("piklin_update_helper", _ilm.SourceFileLoader("piklin_update_helper", _helper_path))
+_hu = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_hu)
+_ud = Path(TMP) / "update"; _ud.mkdir()
+_arch = _hu.architecture()
+def _make_deb(version, name_version=None, package="piklin"):
+    root = _ud / f"root-{package}-{version}"; (root / "DEBIAN").mkdir(parents=True)
+    (root / "DEBIAN" / "control").write_text(
+        f"Package: {package}\nVersion: {version}\nArchitecture: {_arch}\n"
+        "Maintainer: Test <t@example.com>\nDescription: test\n")
+    out = _ud / f"piklin_{name_version or version}_{_arch}.deb"
+    _sp2.run(["dpkg-deb", "--build", "--root-owner-group", str(root), str(out)],
+             check=True, capture_output=True)
+    return out
+def _sign(deb, key):
+    manifest = Path(str(deb) + ".sha256")
+    digest = hashlib.sha256(deb.read_bytes()).hexdigest()
+    manifest.write_text(f"{digest}  {deb.name}\n")
+    _sp2.run(["openssl", "pkeyutl", "-sign", "-inkey", str(key), "-rawin", "-in", str(manifest),
+              "-out", str(manifest) + ".sig"], check=True, capture_output=True)
+_key, _other = _ud / "key.pem", _ud / "other.pem"
+for k in (_key, _other):
+    _sp2.run(["openssl", "genpkey", "-algorithm", "ed25519", "-out", str(k)], check=True, capture_output=True)
+_pub = _ud / "key.pub.pem"
+_sp2.run(["openssl", "pkey", "-in", str(_key), "-pubout", "-out", str(_pub)], check=True, capture_output=True)
+_deb = _make_deb("9.9.9"); _sign(_deb, _key)
+check("a signed official package passes", _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 0)
+_sign(_deb, _other)
+check("a package signed with another key is refused",
+      _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
+_sign(_deb, _key)
+with open(_deb, "ab") as _f: _f.write(b"tampered")
+check("a changed package is refused", _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
+_deb = _make_deb("9.9.8", name_version="9.9.9"); _sign(_deb, _key)
+check("a package whose version is not the one asked for is refused",
+      _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
+_deb = _make_deb("9.9.9", package="notpiklin"); _sign(_deb, _key)
+check("a package that is not Piklin is refused",
+      _hu.main(["--verify-only", "9.9.9", str(_ud), str(_pub)]) == 5)
+check("only a version number is accepted", _hu.main(["../../etc"]) == 2
+      and _hu.main(["--verify-only", "1.0; rm", str(_ud)]) == 2)
+from piklin import updates as _upd
+check("running from source points to the download instead of installing",
+      not _upd.can_install_itself())
+
 # -- languages --------------------------------------------------------------
 import datetime as _dt, io as _io, contextlib as _ctx, subprocess as _sp
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "po"))

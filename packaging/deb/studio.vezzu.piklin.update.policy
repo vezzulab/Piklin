@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Lets the person at the computer update Piklin without a password.
+     The helper only installs a newer Piklin signed by Vezzu Studio. -->
+<policyconfig>
+  <vendor>Vezzu Studio</vendor>
+  <vendor_url>https://vezzu.studio</vendor_url>
+  <action id="studio.vezzu.piklin.update">
+    <description>Update Piklin</description>
+    <description xml:lang="es">Actualizar Piklin</description>
+    <message>Piklin needs permission to install its update</message>
+    <message xml:lang="es">Piklin necesita permiso para instalar su actualización</message>
+    <icon_name>piklin</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/piklin/piklin-update</annotate>
+  </action>
+</policyconfig>

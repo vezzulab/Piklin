@@ -102,6 +102,17 @@ for v in ${PYVERS#* }; do
   done
 done
 
+# ----------------------------------------------------------------- updates
+# Piklin updates itself through this helper, run by pkexec. It installs only
+# a newer Piklin signed with Vezzu Studio's release key (see
+# packaging/sign-release.sh); the polkit rule lets the person at the computer
+# run it without a password.
+say "Self-update helper"
+install -m 755 "$HERE/deb/piklin-update" "$LIB/piklin-update"
+install -m 644 "$HERE/deb/release-key.pem" "$LIB/release-key.pem"
+install -D -m 644 "$HERE/deb/studio.vezzu.piklin.update.policy" \
+    "$STAGE/usr/share/polkit-1/actions/studio.vezzu.piklin.update.policy"
+
 # ------------------------------------------------------------- desktop bits
 say "Desktop entry, icons and metadata"
 install -m 644 "$ROOT/data/piklin.desktop" "$STAGE/usr/share/applications/"
@@ -213,7 +224,7 @@ Maintainer: $MAINTAINER
 Installed-Size: $(du -sk --exclude=DEBIAN "$STAGE" | cut -f1)
 Depends: python3 (>= 3.12), python3 (<< 3.15), python3-gi (>= 3.42), python3-gi-cairo,
  gir1.2-glib-2.0, gir1.2-gtk-4.0 (>= 4.14), gir1.2-adw-1 (>= 1.5),
- gir1.2-secret-1
+ gir1.2-secret-1, pkexec | policykit-1, openssl
 Recommends: gvfs, gvfs-backends, fonts-dejavu-core
 Replaces: pikalicious
 Conflicts: pikalicious
@@ -232,6 +243,8 @@ CTRL
 find "$STAGE" -type d -exec chmod 755 {} +
 find "$STAGE" -type f ! -path '*/DEBIAN/*' ! -path '*/usr/bin/*' -exec chmod 644 {} +
 find "$LIB" -name '*.so*' -exec chmod 644 {} +
+# The update helper is run by pkexec, which needs it executable.
+chmod 755 "$LIB/piklin-update"
 
 mkdir -p "$ROOT/dist"
 OUT="$ROOT/dist/${PKG}_${VERSION}_${ARCH}.deb"

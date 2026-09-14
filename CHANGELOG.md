@@ -11,9 +11,17 @@
 - Rotating is instant: the photo turns in the grid straight away, even with many selected. Rotate buttons are now in the bar for chosen photos too
 - Photos of the same day run on without a line or gap, and days are separated only by space and their date
 - Edited photos show a green mark on a white disc
+- Double-clicking a photo right after clicking it opens it, instead of only showing the selection bar
+- The Left and Right arrow keys move between photos in the viewer
 
 ### Backups
 - When one destination can't be reached - a NAS at home while you travel - the others are still backed up, and the one that was missed catches up by itself once it can be reached again
+
+### Updates
+- Piklin updates itself: when a new version is out it says so, installs it and reopens in it, without a password. It waits until nothing is copying and no editor is open. Only packages signed by Vezzu Studio are installed. Turn it off in Preferences › General
+
+### License
+- Piklin is free to use for any purpose, at home or for work, including commercial use. Modifying, redistributing or selling it is not permitted. Your photos and everything you make with Piklin are yours
 
 ## 1.0.3
 

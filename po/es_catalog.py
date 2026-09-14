@@ -996,6 +996,16 @@ ES = {
     "Keep Copying": "Seguir copiando",
     "Stop and Close": "Detener y cerrar",
 
+    # -- updates -------------------------------------------------------------------------------
+    "Piklin {version} is available. Installing it…": "Piklin {version} está disponible. Instalándola…",
+    "Piklin {version} is installed. Piklin will reopen in a moment.":
+        "Piklin {version} está instalada. Piklin se volverá a abrir en un momento.",
+    "Piklin {version} couldn't be installed automatically.":
+        "No se pudo instalar Piklin {version} automáticamente.",
+    "Keep Piklin up to date": "Mantener Piklin actualizado",
+    "Once a day, Piklin asks GitHub whether a new version is out, installs it by itself and reopens. Nothing about you or your photos is sent.":
+        "Una vez al día, Piklin pregunta a GitHub si hay una versión nueva, la instala sola y se vuelve a abrir. No se envía nada sobre ti ni sobre tus fotos.",
+
     # -- help ----------------------------------------------------------------------------------
     "Help": "Ayuda",
     "How to Use Piklin": "Cómo usar Piklin",

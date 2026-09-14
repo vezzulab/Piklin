@@ -1642,6 +1642,14 @@ class MainWindow(Adw.ApplicationWindow):
                 return False
             self.grid.select_all()
             return True
+        # Left and Right move between photos in the viewer. Taken here, in
+        # capture phase: otherwise the focused toolbar button used the arrow
+        # to move focus to its neighbour and the photo never changed.
+        if (name in ("Left", "Right", "KP_Left", "KP_Right") and not mods
+                and self.stack.get_visible_child_name() == "viewer"
+                and not self._focus_takes_keys()):
+            self._on_navigate(self.viewer, -1 if name.endswith("Left") else 1)
+            return True
         if name not in self._CAPTURED:
             return False
         if name == "F11":
@@ -1830,6 +1838,9 @@ class MainWindow(Adw.ApplicationWindow):
 
         def show(release, error):
             if release is not None and updates.is_newer(release.version, VERSION):
+                if updates.can_install_itself():
+                    self._install_update(release)
+                    return False
                 if quiet and updates.load_state().get("dismissed") == release.version:
                     return False
                 toast = Adw.Toast(
@@ -1848,6 +1859,67 @@ class MainWindow(Adw.ApplicationWindow):
                     self._show_toast(_("Piklin is up to date ({version}).").format(version=VERSION))
             return False
         threading.Thread(target=work, daemon=True).start()
+
+    def _install_update(self, release):
+        """Say a new version is out, install it, then reopen Piklin in it."""
+        from .. import updates
+        if getattr(self, "_updating", False):
+            return
+        self._updating = True
+        working = Adw.Toast(
+            title=_("Piklin {version} is available. Installing it…").format(
+                version=release.version), timeout=0)
+        self.toasts.add_toast(working)
+
+        def work():
+            try:
+                updates.install(release.version)
+                error = None
+            except updates.UpdateError as exc:
+                error = exc
+            GLib.idle_add(done, error)
+
+        def done(error):
+            working.dismiss()
+            self._updating = False
+            if error is None or error.kind == "not-newer":
+                # "not-newer": that version is already installed, only this
+                # window is still the old one.
+                self.toasts.add_toast(Adw.Toast(
+                    title=_("Piklin {version} is installed. Piklin will reopen "
+                            "in a moment.").format(version=release.version),
+                    timeout=0))
+                self._reopen_when_idle()
+            else:
+                failed = Adw.Toast(
+                    title=_("Piklin {version} couldn't be installed "
+                            "automatically.").format(version=release.version),
+                    button_label=_("Download"), timeout=0)
+                failed.connect("button-clicked", lambda *_: Gtk.UriLauncher.new(
+                    release.url).launch(self, None, None, None))
+                self.toasts.add_toast(failed)
+            return False
+        threading.Thread(target=work, daemon=True).start()
+
+    def _reopen_when_idle(self):
+        """Reopen in the new version once nothing would be cut short: no
+        photos copying, no backup running, no editor or dialog open."""
+        def busy():
+            backup = getattr(self, "autobackup", None)
+            return (getattr(self, "_copy_cancel", None) is not None
+                    or self.stack.get_visible_child_name() in ("editor", "video-editor")
+                    or self.get_visible_dialog() is not None
+                    or (backup is not None and backup._running))
+
+        def attempt():
+            if busy():
+                return GLib.SOURCE_CONTINUE
+            app = self.get_application()
+            app.relaunch_update = True
+            app.relaunch_library = str(self.library.root)
+            app.quit()
+            return GLib.SOURCE_REMOVE
+        GLib.timeout_add_seconds(4, attempt)
 
     def _on_rotate(self, turns, ids=None):
         """A quarter turn without opening the editor. Nothing is lost: it is

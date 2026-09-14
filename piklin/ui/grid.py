@@ -93,6 +93,9 @@ class PhotoGrid(Gtk.Box):
         self._items: list[PhotoItem] = []
         self._by_id: dict[int, PhotoItem] = {}
         self._selected: set[int] = set()
+        # (photo id, time) of the last plain click, to recognise a double
+        # click that GTK counted as two single ones (see _on_tile_click).
+        self._last_click = None
         self._tile_widgets: dict[int, list] = {}
         # Separate from _tile_widgets (which holds the PhotoTile used
         # for painting thumbnails): this holds each tile's outer
@@ -517,7 +520,17 @@ class PhotoGrid(Gtk.Box):
         ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
         shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
 
-        if n_press >= 2 and not (ctrl or shift):
+        # A click on a photo, then a quick double click on it, opened nothing:
+        # the first click shows the selection bar, and GTK counted the
+        # presses after it as fresh single clicks - selecting, deselecting,
+        # never opening. Two presses on the same photo within the desktop's
+        # double-click time open it, however GTK counted them.
+        now = GLib.get_monotonic_time()
+        limit = (Gtk.Settings.get_default().get_property("gtk-double-click-time") or 400) * 1000
+        last, self._last_click = self._last_click, (item.id, now)
+        quick_again = last is not None and last[0] == item.id and now - last[1] <= limit
+        if (n_press >= 2 or quick_again) and not (ctrl or shift):
+            self._last_click = None
             self.emit("activated", item)
             return
         if ctrl:

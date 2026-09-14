@@ -1,17 +1,22 @@
-"""Is there a newer Piklin?
+"""Is there a newer Piklin, and installing it.
 
 Piklin asks GitHub for its latest release - at most once a day, a few
-seconds after it opens, and only while "Check for updates" is on in
-Preferences. The request carries nothing about the person or their photos:
-it is the same public page anyone can open in a browser. A .deb can't
-install itself without an administrator password, so Piklin points to the
-download instead.
+seconds after it opens, and only while updates are on in Preferences. The
+request carries nothing about the person or their photos: it is the same
+public page anyone can open in a browser.
+
+An installed .deb updates itself: /usr/lib/piklin/piklin-update, run through
+pkexec, downloads the new version, installs it only if it is signed with
+Vezzu Studio's release key, and Piklin then reopens. Anywhere that helper is
+missing (running from source, an old package) Piklin points to the download.
 """
 from __future__ import annotations
 
 import json
 import os
 import re
+import shutil
+import subprocess
 import time
 import urllib.request
 from dataclasses import dataclass
@@ -21,6 +26,40 @@ REPO = "vezzulab/Piklin"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases/latest"
 DAY = 24 * 60 * 60
+HELPER = "/usr/lib/piklin/piklin-update"
+INSTALLED_CODE = "/usr/share/piklin/"
+LAUNCHER = "/usr/bin/piklin"
+
+
+class UpdateError(Exception):
+    """Installing failed. ``kind``: cancelled, not-newer, download,
+    verification or install."""
+
+    def __init__(self, kind: str, detail: str = ""):
+        super().__init__(detail or kind)
+        self.kind = kind
+
+
+def can_install_itself() -> bool:
+    """True for Piklin installed from its .deb, carrying the update helper."""
+    here = str(Path(__file__).resolve())
+    return (here.startswith(INSTALLED_CODE) and os.access(HELPER, os.X_OK)
+            and shutil.which("pkexec") is not None)
+
+
+def install(version: str) -> None:
+    """Download, check and install ``version``. Blocks for a while: call it
+    off the UI thread. Raises UpdateError when it did not install."""
+    kinds = {3: "not-newer", 4: "download", 5: "verification", 6: "install",
+             126: "cancelled", 127: "cancelled"}
+    try:
+        proc = subprocess.run(["pkexec", HELPER, version], capture_output=True,
+                              text=True, timeout=45 * 60)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise UpdateError("install", str(exc))
+    if proc.returncode != 0:
+        raise UpdateError(kinds.get(proc.returncode, "install"),
+                          (proc.stderr or proc.stdout).strip())
 
 
 @dataclass

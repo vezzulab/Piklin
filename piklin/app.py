@@ -327,6 +327,11 @@ def main(argv=None):
     # library opens in a fresh process once this one has fully quit.
     target = getattr(app, "relaunch_library", None)
     if target:
+        from .updates import LAUNCHER
+        if getattr(app, "relaunch_update", False) and os.access(LAUNCHER, os.X_OK):
+            # Just updated: start through the new package's own launcher, which
+            # picks the libraries that version shipped.
+            os.execv(LAUNCHER, [LAUNCHER, "--library", target])
         os.execv(sys.executable, [sys.executable, "-s", "-m",
                                   "piklin.app", "--library", target])
     return status

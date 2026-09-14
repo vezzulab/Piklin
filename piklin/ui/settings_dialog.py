@@ -129,9 +129,10 @@ class SettingsDialog(Adw.PreferencesDialog):
         privacy.add(faces)
         from .. import updates
         check = Adw.SwitchRow(
-            title=_("Check for updates"),
+            title=_("Keep Piklin up to date"),
             subtitle=_("Once a day, Piklin asks GitHub whether a new version is "
-                       "out. Nothing about you or your photos is sent."),
+                       "out, installs it by itself and reopens. Nothing about "
+                       "you or your photos is sent."),
             active=updates.enabled())
         check.connect("notify::active",
                       lambda r, _p: updates.save_state(enabled=r.get_active()))
