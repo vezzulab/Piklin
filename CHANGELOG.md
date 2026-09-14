@@ -44,6 +44,7 @@
 
 ### Updates
 - When a new version is out, a black Update Available button with a ringing bell appears above Support on Ko-fi, and only then. It opens a window with the version you have, the version on offer and what it improves and fixes, in your language, with Accept and Cancel; after Cancel, Piklin says where to find the button again
+- After reopening from an update, the taskbar shows Piklin with its logo, instead of "app.py" with no icon
 - Piklin updates itself: when a new version is out it says so, installs it and reopens in it, without a password. It waits until nothing is copying and no editor is open. Only packages signed by Vezzu Studio are installed. Turn it off in Preferences › General
 
 - Automatic updates are looked for every hour while Piklin is open, instead of once a day

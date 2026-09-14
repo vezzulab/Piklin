@@ -99,6 +99,8 @@ class PikaliciousApp(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
+        # Piklin's logo on every window, however Piklin was started.
+        Gtk.Window.set_default_icon_name("piklin")
         _load_bundled_fonts()
         _load_css()
         quit_action = Gio.SimpleAction.new("quit", None)
@@ -307,6 +309,11 @@ def main(argv=None):
     parser.add_argument("--version", action="version",
                         version=f"Piklin {VERSION}")
     args = parser.parse_args(argv)
+    # The desktop matches the window to Piklin's name and icon by this
+    # name. Without it the name came from however Piklin was started - after
+    # reopening from an update the taskbar said "app.py" with no icon.
+    GLib.set_prgname("piklin")
+    GLib.set_application_name("Piklin")
 
     # The language comes first: every window and message is built in it.
     from . import i18n
