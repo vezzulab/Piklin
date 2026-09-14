@@ -1048,6 +1048,44 @@ check("rclone absence explained",
                              config={"remote":"pcloud"}).backend().test().message.lower())
 
 # ===================================================================
+from piklin import logs as _logs
+_s = _logs.scrub(f"webdav https://luser:pw@nas.local/dav 192.168.1.20:5005 a@b.com {os.path.expanduser('~')}/Pictures/Trip/IMG_1.jpg")
+check("the activity log hides addresses, user names, IPs, emails and photo paths",
+      "luser" not in _s and "192.168" not in _s and "a@b.com" not in _s
+      and "Trip" not in _s and ".jpg" in _s, _s)
+os.environ["XDG_STATE_HOME"] = os.path.join(TMP, "state")
+_logs.setup("test")
+for _i in range(9000):
+    _logs.get("test").info("line %d %s", _i, "x" * 120)
+check("the activity log never grows past its limit",
+      _logs.size_bytes() <= _logs.MAX_BYTES * (_logs.KEEP_OLD + 1) + 4096, _logs.size_bytes())
+check("the activity log reads back its newest lines", "line 8999" in _logs.read_all())
+_logs.clear()
+check("clearing the activity log empties it",
+      "line 8999" not in _logs.read_all() and _logs.size_bytes() < 1024)
+
+from piklin import updates as _bell_upd
+_sample = ("**English**\n\n## Install or update\n- run apt\n\n## What's new\n\n### Albums\n"
+           "- **Covers.** Pick one. See [LICENSE](https://x)\n\n## Verify your download\n- sha\n\n"
+           "---\n\n## Español\n\n### Instalar o actualizar\n- ejecuta apt\n\n### Novedades\n\n"
+           "#### Álbumes\n- **Portadas.** Elige una.\n\n### Verifica tu descarga\n- sha\n")
+_en, _es = _bell_upd.notes_for(_sample, "en"), _bell_upd.notes_for(_sample, "es")
+check("update window lists what's new in English, without install or download steps",
+      _en == [("heading", "Albums"), ("item", "Covers. Pick one. See LICENSE")], _en)
+check("update window lists what's new in Spanish, without install or download steps",
+      _es == [("heading", "Álbumes"), ("item", "Portadas. Elige una.")], _es)
+_cfg_before = os.environ.get("XDG_CONFIG_HOME")
+os.environ["XDG_CONFIG_HOME"] = os.path.join(TMP, "cfg-bell")
+_bell_upd.save_state(enabled=False, last_check=0)
+check("the update bell still looks for a new version when installing by itself is off",
+      _bell_upd.check_due() and not _bell_upd.due())
+_bell_upd.save_state(last_check=time.time())
+check("the update bell looks at most once an hour", not _bell_upd.check_due())
+if _cfg_before is None:
+    os.environ.pop("XDG_CONFIG_HOME", None)
+else:
+    os.environ["XDG_CONFIG_HOME"] = _cfg_before
+
 section("10. Settings")
 from piklin.settings import Settings
 s1 = Settings(os.path.join(TMP,"s.json"))

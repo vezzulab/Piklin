@@ -207,6 +207,7 @@ class MainWindow(Adw.ApplicationWindow):
         help_menu = Gio.Menu()
         help_menu.append(_("How to Use Piklin"), "win.help")
         help_menu.append(_("Check for Updates…"), "win.check-updates")
+        help_menu.append(_("Activity Log"), "win.activity-log")
         help_menu.append(_("About Piklin"), "win.about")
         end.append_submenu(_("Help"), help_menu)
         menu.append_section(None, end)
@@ -269,6 +270,20 @@ class MainWindow(Adw.ApplicationWindow):
         self.footer_videos = Gtk.Label(xalign=0.0, ellipsize=3, visible=False)
         self.footer_videos.add_css_class("pika-footer-space")
         self.footer.append(self.footer_videos)
+        # Update Available: a black button with a ringing bell, only there
+        # when a new Piklin is out. It opens what the update brings.
+        inner = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        inner.append(Gtk.Image(icon_name="preferences-system-notifications-symbolic",
+                               pixel_size=16))
+        inner.append(Gtk.Label(label=_("Update Available")))
+        self._update_bell = Gtk.Button(child=inner, visible=False, halign=Gtk.Align.FILL,
+                                       margin_top=10,
+                                       tooltip_text=_("A new version of Piklin is available"))
+        self._update_bell.add_css_class("pika-update-bell")
+        self._update_bell.connect("clicked", lambda *_: self._open_update_dialog())
+        self._bell_release = None
+        self._bell_installing = False
+        self.footer.append(self._update_bell)
         # Supporting Piklin: one quiet button, never a pop-up or a nag.
         from ..paths import SUPPORT_URL
         if SUPPORT_URL:
@@ -1481,6 +1496,7 @@ class MainWindow(Adw.ApplicationWindow):
             "remotes": lambda *_: self._open_settings("remotes"),
             "about": lambda *_: self._on_about(),
             "help": lambda *_: self._on_help(),
+            "activity-log": lambda *_: self._on_activity_log(),
             "select-all": lambda *_: self.grid.select_all(),
             "escape": lambda *_: self._on_escape(),
             "favorite": lambda *_: self._on_bulk_favorite(None),
@@ -1912,7 +1928,7 @@ class MainWindow(Adw.ApplicationWindow):
         there is one. Otherwise (Check for Updates…): always say the result."""
         from .. import updates
         from ..app import VERSION
-        if quiet and not updates.due():
+        if quiet and not updates.check_due():
             return
 
         def work():
@@ -1926,19 +1942,12 @@ class MainWindow(Adw.ApplicationWindow):
 
         def show(release, error):
             if release is not None and updates.update_available(release, VERSION):
-                if updates.can_install_itself():
+                if updates.enabled() and updates.can_install_itself():
                     self._install_update(release)
                     return False
-                if quiet and updates.load_state().get("dismissed") == release.version:
-                    return False
-                toast = Adw.Toast(
-                    title=_("Piklin {version} is available").format(version=release.version),
-                    button_label=_("Download"), timeout=0)
-                toast.connect("button-clicked", lambda *_: Gtk.UriLauncher.new(
-                    release.url).launch(self, None, None, None))
-                toast.connect("dismissed", lambda *_: updates.save_state(
-                    dismissed=release.version))
-                self.toasts.add_toast(toast)
+                # Installing by itself is off, or not possible: the bell says
+                # so, and opens straight away when asked from the menu.
+                self._ring_bell(release, open_popover=not quiet)
             elif not quiet:
                 if error is not None:
                     self._show_toast(_("Couldn't check for updates. Check your "
@@ -1948,12 +1957,39 @@ class MainWindow(Adw.ApplicationWindow):
             return False
         threading.Thread(target=work, daemon=True).start()
 
+    def _ring_bell(self, release, open_popover=False, installing=False):
+        """Show the update bell for this release - only ever when there is
+        one - and ring it unless it is already installing."""
+        bell = self._update_bell
+        self._bell_release = release
+        self._bell_installing = installing
+        bell.set_visible(True)
+        if not installing:
+            bell.remove_css_class("ringing")
+            GLib.idle_add(lambda: (bell.add_css_class("ringing"), False)[1])
+            GLib.timeout_add(4500, lambda: (bell.remove_css_class("ringing"), False)[1])
+        if open_popover:
+            GLib.idle_add(lambda: (self._open_update_dialog(), False)[1])
+
+    def _open_update_dialog(self):
+        from ..app import VERSION
+        from .update_dialog import UpdateDialog
+        if self._bell_release is None:
+            return
+        UpdateDialog(self._bell_release, VERSION, self._install_update,
+                     installing=self._bell_installing,
+                     on_cancel=lambda: self.toasts.add_toast(Adw.Toast(
+                         title=_("You can update whenever you like with Update "
+                                 "Available, at the bottom of the sidebar."),
+                         timeout=8))).present(self)
+
     def _install_update(self, release):
         """Say a new version is out, install it, then reopen Piklin in it."""
         from .. import updates
         if getattr(self, "_updating", False):
             return
         self._updating = True
+        self._ring_bell(release, installing=True)
         working = Adw.Toast(
             title=_("Piklin {version} is available. Installing it…").format(
                 version=release.version), timeout=0)
@@ -1970,8 +2006,17 @@ class MainWindow(Adw.ApplicationWindow):
         def done(error):
             working.dismiss()
             self._updating = False
+            from .. import logs
+            if error is None:
+                logs.get("update").info("Installed %s", release.version)
+            else:
+                logs.get("update").warning("Install of %s: %s (%s)", release.version,
+                                           error.kind, error)
             if error is not None and error.kind == "not-newer":
+                self._update_bell.set_visible(False)
                 return False            # this exact build is already installed
+            if error is not None:
+                self._ring_bell(release)    # offer it again, by hand
             if error is None:
                 self.toasts.add_toast(Adw.Toast(
                     title=_("Piklin {version} is installed. Piklin will reopen "
@@ -3252,6 +3297,10 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_help(self):
         from .help_dialog import HelpDialog
         HelpDialog().present(self)
+
+    def _on_activity_log(self):
+        from .log_dialog import LogDialog
+        LogDialog().present(self)
 
     def _on_about(self):
         from ..app import VERSION

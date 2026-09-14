@@ -250,6 +250,15 @@ class AutoBackup:
     def _finished(self, outcome: Outcome):
         self._running = False
         self._progress = ""
+        from . import logs
+        blog = logs.get("backup")
+        if outcome.ok:
+            blog.info("Automatic backup finished, %d file(s) uploaded", outcome.uploaded)
+        elif outcome.unreachable:
+            blog.warning("Automatic backup waiting, will retry (attempt %d): %s",
+                         self._retry + 1, outcome.message)
+        else:
+            blog.error("Automatic backup stopped: %s", outcome.message)
         if outcome.ok:
             self._retry = 0
             if outcome.uploaded or not self._state.get("last"):

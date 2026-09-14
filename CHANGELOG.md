@@ -43,10 +43,14 @@
 - When one destination can't be reached - a NAS at home while you travel - the others are still backed up, and the one that was missed catches up by itself once it can be reached again
 
 ### Updates
+- When a new version is out, a black Update Available button with a ringing bell appears above Support on Ko-fi, and only then. It opens a window with the version you have, the version on offer and what it improves and fixes, in your language, with Accept and Cancel; after Cancel, Piklin says where to find the button again
 - Piklin updates itself: when a new version is out it says so, installs it and reopens in it, without a password. It waits until nothing is copying and no editor is open. Only packages signed by Vezzu Studio are installed. Turn it off in Preferences › General
 
 - Automatic updates are looked for every hour while Piklin is open, instead of once a day
 - A version published again with fixes, under the same number, is installed too: Piklin compares the build and still installs only packages signed by Vezzu Studio
+
+### Activity log
+- Help › Activity Log shows what Piklin noted - backups, updates, errors, and the photos moving just after a click - to find the cause of a problem. It stays on this computer and is never sent anywhere, holds no passwords, addresses or photo names, and never grows past about 1.6 MB. Copy it and paste it into a problem report on GitHub with Report a Problem
 
 ### License
 - Piklin is free to use for any purpose, at home or for work, including commercial use. Modifying, redistributing or selling it is not permitted. Your photos and everything you make with Piklin are yours

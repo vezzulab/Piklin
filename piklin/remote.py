@@ -976,6 +976,9 @@ class WebDavBackend(Backend):
                               "your password stays private"))
         if self.remote.config.get("username") and not self._password():
             if not keyring_ready():
+                from . import logs
+                logs.get("backup").warning(
+                    "Password keyring still locked for destination %s", self.remote.id)
                 # Not a missing password: the keyring isn't open yet, as
                 # just after logging in. Waiting and trying again works.
                 return TestResult(False, _("The keyring is still locked"),

@@ -185,6 +185,10 @@ class PhotoGrid(Gtk.Box):
         self._pending_rows = set()
         self._build_scheduled = False
         self.scroller.get_vadjustment().connect("value-changed", self._schedule_build)
+        # Notes in the activity log when the photos jump soon after a click,
+        # with what was going on, to find the cause of a view that moves.
+        self._click_mark = None
+        self.scroller.get_vadjustment().connect("value-changed", self._watch_jump)
         # Dragging from empty space draws a rectangle that chooses the photos
         # it touches; the rectangle is painted on a layer above the photos.
         overlay = Gtk.Overlay(vexpand=True)
@@ -887,7 +891,30 @@ class PhotoGrid(Gtk.Box):
             pass
 
     # -- clicks ----------------------------------------------------------
+    def _watch_jump(self, adj):
+        mark = self._click_mark
+        if mark is None or self._band is not None:
+            return
+        elapsed = GLib.get_monotonic_time() - mark[0]
+        if elapsed > 1_500_000:
+            self._click_mark = None
+            return
+        moved = adj.get_value() - mark[1]
+        if abs(moved) > adj.get_page_size() / 2:
+            self._click_mark = None
+            from .. import logs
+            logs.get("grid").warning(
+                "View moved %+d px %.2f s after clicking photo %s (scope %s, "
+                "%d photos loaded, %s, tile %d px x %d columns, page %d of %d px, "
+                "window %d px wide)",
+                moved, elapsed / 1e6, mark[2], self._scope, len(self._items),
+                "all loaded" if self._exhausted else "still loading",
+                self.tile_px, self._columns, adj.get_page_size(), adj.get_upper(),
+                self.get_width())
+
     def _on_tile_click(self, gesture, n_press, x, y, button, item):
+        self._click_mark = (GLib.get_monotonic_time(),
+                            self.scroller.get_vadjustment().get_value(), item.id)
         self.grab_focus()
         state = gesture.get_current_event_state()
         ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)

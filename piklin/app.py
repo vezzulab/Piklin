@@ -311,6 +311,9 @@ def main(argv=None):
     # The language comes first: every window and message is built in it.
     from . import i18n
     i18n.setup()
+    # A small log, kept on this computer, to find the cause of a problem.
+    from . import logs
+    logs.setup(VERSION)
 
     library = Library(args.library).ensure()
 
