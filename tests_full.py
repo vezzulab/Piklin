@@ -672,10 +672,10 @@ gone_rel = gone.relative_to(lib.root).as_posix()
 gone.unlink()
 mine = lib.edits/"mine.json"; mine.write_text("new local")
 mine_rel = mine.relative_to(lib.root).as_posix()
-(Path(dest)/mine_rel).write_text("old backup")
+(Path(dest)/"Piklin"/mine_rel).write_text("old backup")
 deleted = lib.root/"Originals"/"deleted-on-purpose.jpg"
-(Path(dest)/"Originals").mkdir(exist_ok=True)
-(Path(dest)/"Originals"/"deleted-on-purpose.jpg").write_bytes(b"x" * 10)
+(Path(dest)/"Piklin"/"Originals").mkdir(exist_ok=True)
+(Path(dest)/"Piklin"/"Originals"/"deleted-on-purpose.jpg").write_bytes(b"x" * 10)
 pr = b.restore(lib.root, skip_paths=[str(deleted)])
 check("restore brings back a lost file", gone.exists() and pr.restored == 1,
       f"restored {pr.restored}, present {pr.present}")
@@ -720,13 +720,63 @@ _idx = _sd.listing()
 check("a backup folder shared with other things: only Piklin's part is read",
       _idx == {"a.json": (2, 0), "Originals/p.jpg": (5, 0)}
       and not any(a.startswith("Lightroom") for a in _sd.asked), (_idx, _sd.asked))
-_shared = Path(TMP) / "shared-nas"; (_shared / "Lightroom" / "Previews.lrdata" / "0").mkdir(parents=True)
+_shared = Path(TMP) / "shared-nas" / "Piklin"; (_shared / "Lightroom" / "Previews.lrdata" / "0").mkdir(parents=True)
 (_shared / "Lightroom" / "Previews.lrdata" / "0" / "x.lrprev").write_bytes(b"lr")
 (_shared / "Originals" / "2020").mkdir(parents=True); (_shared / "Originals" / "2020" / "p.jpg").write_bytes(b"12345")
 (_shared / "settings.json").write_text("{}"); (_shared / "notes.txt").write_text("mine")
 _lidx = rem.Remote(id="l", name="l", kind="local", config={"path": str(_shared)}).backend().listing()
 check("a shared folder or drive: other files are left out of the backup's listing",
       set(_lidx) == {"Originals/2020/p.jpg", "settings.json"}, sorted(_lidx))
+
+# Backups live in a Piklin folder inside the chosen one
+check("the backup folder is Piklin inside the chosen folder, never Piklin/Piklin",
+      rem._in_piklin("/Users/alex/Photos/") == "Users/alex/Photos/Piklin"
+      and rem._in_piklin("") == "Piklin" and rem._in_piklin("Backups/Piklin") == "Backups/Piklin")
+_fresh = Path(TMP) / "fresh-drive"; _fresh.mkdir()
+_fb = rem.Remote(id="f", name="f", kind="local", config={"path": str(_fresh)}).backend()
+_ft = _fb.test()
+check("a Piklin folder is made when it is missing", _ft.ok and (_fresh / "Piklin").is_dir(), _ft)
+(_fresh / "Piklin" / "keep.txt").write_text("x")
+_fb2 = rem.Remote(id="f", name="f", kind="local", config={"path": str(_fresh)}).backend()
+_fb2.test()
+check("an existing Piklin folder is used as it is", (_fresh / "Piklin" / "keep.txt").exists()
+      and not (_fresh / "Piklin" / "Piklin").exists())
+_olddrive = Path(TMP) / "old-layout"
+for _p in ("Originals/2020/p.jpg", "Edits/p.jpg.json", "Albums/Trip.json", ".piklin-versions/2026-01-01/x.json"):
+    (_olddrive / _p).parent.mkdir(parents=True, exist_ok=True); (_olddrive / _p).write_text("1")
+for _p in ("catalog.db", "settings.json", "README.txt", "Lightroom/cat.lrcat", "notes.txt", "Pictures/me.jpg"):
+    (_olddrive / _p).parent.mkdir(parents=True, exist_ok=True); (_olddrive / _p).write_text("1")
+_ob = rem.Remote(id="o", name="o", kind="local", config={"path": str(_olddrive)}).backend()
+_ob.prepare()
+_moved = sorted(p.name for p in (_olddrive / "Piklin").iterdir())
+_stayed = sorted(p.name for p in _olddrive.iterdir())
+check("a backup made before the Piklin folder is moved into it, and nothing else is",
+      _moved == [".piklin-versions", "Albums", "Edits", "Originals", "README.txt", "catalog.db", "settings.json"]
+      and _stayed == ["Lightroom", "Pictures", "Piklin", "notes.txt"], (_moved, _stayed))
+_old_nas = """<?xml version="1.0" encoding="utf-8"?><D:multistatus xmlns:D="DAV:">
+<D:response><D:href>/dav/Users/alex/Photos/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Users/alex/Photos/Originals/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Users/alex/Photos/Lightroom/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Users/alex/Photos/catalog.db</D:href><D:propstat><D:prop><D:resourcetype/><D:getcontentlength>10</D:getcontentlength></D:prop></D:propstat></D:response>
+<D:response><D:href>/dav/Users/alex/Photos/.DS_Store</D:href><D:propstat><D:prop><D:resourcetype/><D:getcontentlength>9</D:getcontentlength></D:prop></D:propstat></D:response>
+</D:multistatus>"""
+class _OldNas(rem.WebDavBackend):
+    calls = []
+    def _request_path(self, method, path, data=None, extra=None):
+        self.calls.append((method, path, (extra or {}).get("Destination")))
+        return io.BytesIO(_old_nas.encode() if method == "PROPFIND" else b"")
+_on = _OldNas(rem.Remote(id="n", name="n", kind="webdav",
+                         config={"url": "https://nas:5001/dav", "base": "/Users/alex/Photos"}))
+_on.prepare()
+_moves = [(p, d) for m, p, d in _OldNas.calls if m == "MOVE"]
+check("on a NAS, the Piklin folder is made and an old backup moved into it on the server",
+      ("MKCOL", "Users/alex/Photos/Piklin", None) in _OldNas.calls
+      and _moves == [("Users/alex/Photos/Originals/", "https://nas:5001/dav/Users/alex/Photos/Piklin/Originals/"),
+                     ("Users/alex/Photos/catalog.db", "https://nas:5001/dav/Users/alex/Photos/Piklin/catalog.db")]
+      and _on.base_path == "Users/alex/Photos/Piklin", _OldNas.calls)
+check("a folder that merely has a settings file is not taken for an old backup",
+      rem._old_backup({"settings.json": False, "Documents": True}) == []
+      and rem._old_backup({"catalog.db": False, "Originals": True, "Piklin": True}) == [])
 _qnap_reply = """<?xml version="1.0" encoding="utf-8"?><D:multistatus xmlns:D="DAV:">
 <D:response><D:href>/dav/Users/</D:href><D:propstat><D:prop><lp1:resourcetype><D:collection/></lp1:resourcetype></D:prop></D:propstat></D:response>
 <D:response><D:href>/dav/Users/alex/</D:href><D:propstat><D:prop><lp1:resourcetype><D:collection/></lp1:resourcetype></D:prop></D:propstat></D:response>
@@ -764,14 +814,14 @@ time.sleep(1.1)
 o3 = ab.run_backup(alib, [ar], keep_days=30)
 rem.LocalBackend.test, rem.LocalBackend.push = _ot, _op
 _today = _dt.date.today().isoformat()
-_kept = adest/".piklin-versions"/_today/"Edits"/"a.jpg.json"
+_kept = adest/"Piklin"/".piklin-versions"/_today/"Edits"/"a.jpg.json"
 check("only the changed file is uploaded",
       o3.ok and o3.uploaded == 1
-      and json.loads((adest/"Edits"/"a.jpg.json").read_text())["v"] == 2, o3)
+      and json.loads((adest/"Piklin"/"Edits"/"a.jpg.json").read_text())["v"] == 2, o3)
 check("the replaced copy is kept as a previous version",
       _kept.exists() and json.loads(_kept.read_text())["v"] == 1)
-_old = adest/".piklin-versions"/"2000-01-01"; _old.mkdir(parents=True); (_old/"x.json").write_text("{}")
-_recent = adest/".piklin-versions"/(_dt.date.today() - _dt.timedelta(days=3)).isoformat()
+_old = adest/"Piklin"/".piklin-versions"/"2000-01-01"; _old.mkdir(parents=True); (_old/"x.json").write_text("{}")
+_recent = adest/"Piklin"/".piklin-versions"/(_dt.date.today() - _dt.timedelta(days=3)).isoformat()
 _recent.mkdir(parents=True)
 time.sleep(1.1)
 (alib/"Edits"/"a.jpg.json").write_text('{"v": 3, "more": true, "x": 1}')
@@ -794,12 +844,12 @@ try:
 finally:
     rem.LocalBackend.test = _ot
 check("a destination that can't be reached doesn't stop the others",
-      not o4.ok and o4.unreachable and (_cloud_dir/"Edits"/"a.jpg.json").exists()
+      not o4.ok and o4.unreachable and (_cloud_dir/"Piklin"/"Edits"/"a.jpg.json").exists()
       and "QNAP" in o4.message, o4)
 (Path(TMP)/"auto"/"gone").mkdir()
 o5 = ab.run_backup(alib, [_away, _cloud], keep_days=30)
 check("back home, the NAS catches up and the cloud is not sent anything again",
-      o5.ok and (Path(TMP)/"auto"/"gone"/"Edits"/"a.jpg.json").exists(), o5)
+      o5.ok and (Path(TMP)/"auto"/"gone"/"Piklin"/"Edits"/"a.jpg.json").exists(), o5)
 
 # Photos dropped from the desktop, and USB drives
 from piklin import devices as _dv

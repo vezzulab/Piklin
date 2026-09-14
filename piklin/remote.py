@@ -212,6 +212,34 @@ NO_VERSIONS = {"catalog.db"}
 BACKUP_FOLDERS = ("Edits", "Albums", "Originals")
 
 
+# Backups go in a folder of their own inside the folder chosen for them,
+# made when it is missing, so they never mix with what else is kept there.
+BACKUP_SUBFOLDER = "Piklin"
+
+
+def _in_piklin(path: str) -> str:
+    """Where a backup lives for a chosen folder: its Piklin subfolder, or
+    the folder itself when that is already called Piklin."""
+    p = (path or "").strip().strip("/")
+    if p.rsplit("/", 1)[-1].lower() == BACKUP_SUBFOLDER.lower():
+        return p
+    return f"{p}/{BACKUP_SUBFOLDER}" if p else BACKUP_SUBFOLDER
+
+
+def _old_backup(names: dict) -> list[str]:
+    """Top-level names of a backup made before the Piklin folder existed -
+    straight in the chosen folder - or [] when it doesn't look like one.
+    ``names``: name -> is folder. Only Piklin's own items are listed."""
+    if names.get(BACKUP_SUBFOLDER) is True:
+        return []                           # already has its folder
+    if names.get("catalog.db") is not False or not any(
+            names.get(f) is True for f in BACKUP_FOLDERS):
+        return []                           # not a Piklin backup
+    return sorted(n for n, is_dir in names.items()
+                  if (is_dir and (n in BACKUP_FOLDERS or n == VERSIONS_DIR))
+                  or (not is_dir and _ours(n)))
+
+
 def _ours(rel: str) -> bool:
     """Whether a path at the destination is part of Piklin's backup."""
     first, sep, rest = rel.partition("/")
@@ -260,6 +288,23 @@ class Backend:
     def __init__(self, remote: Remote):
         self.remote = remote
         self.cancel = threading.Event()
+        self._prepared = False
+
+    def prepare(self) -> None:
+        """Make sure the Piklin folder is there before using it. A backup
+        made before there was one is first moved into it, on the destination
+        itself, so nothing is sent again; only Piklin's own files move.
+        Problems are left for the test or the backup to report."""
+        if self._prepared:
+            return
+        try:
+            self._prepare()
+            self._prepared = True
+        except Exception:
+            pass
+
+    def _prepare(self) -> None:
+        pass
 
     def test(self) -> TestResult:
         raise NotImplementedError
@@ -384,6 +429,7 @@ class Backend:
         p = SyncProgress(phase="listing")
         if on_progress:
             on_progress(p)
+        self.prepare()
         try:
             remote_index = self.listing()
         except Exception as exc:
@@ -463,6 +509,7 @@ class Backend:
         p = SyncProgress(phase="listing")
         if on_progress:
             on_progress(p)
+        self.prepare()
         try:
             index = self.listing()
         except Exception as exc:
@@ -561,13 +608,31 @@ class LocalBackend(Backend):
     """A mounted directory: NAS, external disk, or a cloud drive mount."""
 
     @property
-    def base(self) -> Path:
+    def chosen(self) -> Path:
+        """The folder picked for backups."""
         return Path(self.remote.config.get("path", "")).expanduser()
 
+    @property
+    def base(self) -> Path:
+        """Where the backup is: the Piklin folder inside the chosen one."""
+        c = self.chosen
+        return c if c.name.lower() == BACKUP_SUBFOLDER.lower() else c / BACKUP_SUBFOLDER
+
+    def _prepare(self) -> None:
+        chosen, base = self.chosen, self.base
+        if not chosen.is_dir() or base == chosen:
+            return
+        if not base.exists():
+            names = {p.name: p.is_dir() for p in chosen.iterdir()}
+            old = _old_backup(names)
+            base.mkdir()
+            for name in old:
+                (chosen / name).rename(base / name)
+
     def test(self) -> TestResult:
-        b = self.base
-        if not str(b):
+        if not self.remote.config.get("path", "").strip():
             return TestResult(False, _("No folder chosen"))
+        b = self.chosen
         if not b.exists():
             return TestResult(False, _("This folder can't be found"), str(b), unreachable=True)
         if not b.is_dir():
@@ -588,7 +653,8 @@ class LocalBackend(Backend):
         except OSError as exc:
             return TestResult(False, _("Piklin can't save files in this folder"), str(exc),
                               unreachable=True)
-        return TestResult(True, _("Connected"), str(b), free)
+        self.prepare()
+        return TestResult(True, _("Connected"), str(self.base), free)
 
     def listing(self) -> dict[str, tuple[int, float]]:
         out: dict[str, tuple[int, float]] = {}
@@ -759,8 +825,36 @@ class WebDavBackend(Backend):
         return self.remote.config.get("url", "").strip().rstrip("/")
 
     @property
-    def base_path(self) -> str:
+    def chosen_path(self) -> str:
+        """The folder picked on the server, relative to its address."""
         return self.remote.config.get("base", "").strip().strip("/")
+
+    @property
+    def base_path(self) -> str:
+        """Where the backup is: the Piklin folder inside the chosen one."""
+        return _in_piklin(self.chosen_path)
+
+    def _prepare(self) -> None:
+        chosen, base = self.chosen_path, self.base_path
+        if base == chosen:
+            return
+        body = self._request_path("PROPFIND", chosen, extra={"Depth": "1"}).read()
+        prefix = urllib.parse.urlparse(self.url).path.rstrip("/")
+        if chosen:
+            prefix += "/" + chosen
+        names = {rel: is_dir for rel, is_dir, _s, _t
+                 in _parse_multistatus(body.decode("utf-8", "replace"), prefix)
+                 if rel and "/" not in rel}
+        if names.get(BACKUP_SUBFOLDER) is True:
+            return
+        old = _old_backup(names)
+        self._ensure_folder(base)
+        for name in old:
+            src = f"{chosen}/{name}" if chosen else name
+            self._request_path("MOVE", src + ("/" if names[name] else ""), extra={
+                "Destination": f"{self.url}/{urllib.parse.quote(base + '/' + name)}"
+                               + ("/" if names[name] else ""),
+                "Overwrite": "F"})
 
     @property
     def pin(self) -> str:
@@ -835,6 +929,7 @@ class WebDavBackend(Backend):
         if self.remote.config.get("username") and not self._password():
             return TestResult(False, _("No password saved"),
                               _("Edit this backup and enter the password again"))
+        self.prepare()
         try:
             try:
                 self._request("PROPFIND", extra={"Depth": "0"})
@@ -1058,9 +1153,35 @@ class RcloneBackend(Backend):
 
     @property
     def target(self) -> str:
+        """rclone's name for where the backup is: the Piklin folder inside
+        the chosen one."""
         remote = self.remote.config.get("remote", "").rstrip(":")
-        path = self.remote.config.get("path", "").strip("/")
-        return f"{remote}:{path}" if path else f"{remote}:"
+        return f"{remote}:{self._base()}"
+
+    def _base(self) -> str:
+        return _in_piklin(self.remote.config.get("path", ""))
+
+    def _prepare(self) -> None:
+        exe = rclone_path()
+        remote = self.remote.config.get("remote", "").strip().rstrip(":")
+        if not exe or not remote:
+            return
+        chosen = self.remote.config.get("path", "").strip().strip("/")
+        if self._base() == chosen:
+            return
+        out = subprocess.run([exe, "lsjson", "--max-depth", "1", f"{remote}:{chosen}"],
+                             capture_output=True, text=True, timeout=60)
+        if out.returncode != 0:
+            return                              # nothing there yet, or unreachable
+        names = {it.get("Name", ""): bool(it.get("IsDir"))
+                 for it in json.loads(out.stdout or "[]") if it.get("Name")}
+        if names.get(BACKUP_SUBFOLDER) is True:
+            return
+        subprocess.run([exe, "mkdir", self.target], capture_output=True, text=True, timeout=60)
+        for name in _old_backup(names):
+            src = f"{remote}:{chosen}/{name}" if chosen else f"{remote}:{name}"
+            subprocess.run([exe, "moveto", src, f"{self.target}/{name}"],
+                           capture_output=True, text=True, timeout=1800)
 
     def test(self) -> TestResult:
         exe = rclone_path()
@@ -1074,6 +1195,7 @@ class RcloneBackend(Backend):
             return TestResult(False, _("Enter the name of the cloud service"),
                               _("Set up in rclone: {names}").format(
                                   names=", ".join(rclone_remotes()) or _("none")))
+        self.prepare()
         try:
             # The backup folder may not exist yet; mkdir is harmless if it does.
             made = subprocess.run([exe, "mkdir", self.target],
@@ -1209,13 +1331,11 @@ class RcloneBackend(Backend):
 
     def _sub(self, rel: str) -> str:
         remote = self.remote.config.get("remote", "").strip().rstrip(":")
-        base = self.remote.config.get("path", "").strip().strip("/")
-        return f"{remote}:{base}/{rel}" if base else f"{remote}:{rel}"
+        return f"{remote}:{self._base()}/{rel}"
 
     def _version_days(self) -> list[str]:
-        base = self.remote.config.get("path", "").strip().strip("/")
         try:
-            return self.list_folders(f"{base}/{VERSIONS_DIR}" if base else VERSIONS_DIR)
+            return self.list_folders(f"{self._base()}/{VERSIONS_DIR}")
         except RuntimeError as exc:
             if "not found" in str(exc).lower():
                 return []
@@ -1242,6 +1362,7 @@ class RcloneBackend(Backend):
         p = SyncProgress(phase="listing")
         if on_progress:
             on_progress(p)
+        self.prepare()
         try:
             remote_index = self.listing()
         except Exception as exc:

@@ -17,6 +17,7 @@
 - Albums and views open at once, however many photos they hold: the first photos appear in a few hundredths of a second, the rest load in the background, only the photos near the screen are drawn, and going back to a view shows its thumbnails straight away
 
 ### Backups
+- Backups go in a Piklin folder inside the folder you choose, made when it is missing. A backup already made straight in the chosen folder is moved into it on the destination itself, without sending anything again; nothing else there is touched
 - A backup folder shared with other files - such as a NAS photo share with a Lightroom catalog in it - is no longer searched through: Piklin reads only its own part, so a backup that stayed on "Connecting…" for many minutes now starts straight away, and a restore never brings those other files into the library
 - While Piklin checks what is already backed up, it says so
 - When one destination can't be reached - a NAS at home while you travel - the others are still backed up, and the one that was missed catches up by itself once it can be reached again
