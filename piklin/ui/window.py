@@ -2884,11 +2884,13 @@ class MainWindow(Adw.ApplicationWindow):
                     formats=len(iio_mod.supported_extensions()))),
             license_type=Gtk.License.CUSTOM,
             license=(
-                _("Piklin is proprietary software. © 2026 Vezzu Studio. "
-                "All rights reserved.\n\n"
-                "Your licence lets you install and use Piklin on your own "
-                "computers. You may not copy, redistribute, resell or "
-                "reverse-engineer it.")))
+                _("Piklin is free to use under the Piklin License 1.0. "
+                "© 2026 Vezzu Studio.\n\n"
+                "You may install and use Piklin on as many of your own "
+                "computers as you like, at home or for work, including "
+                "commercial use. You may not modify, redistribute or sell "
+                "it.\n\nYour photos, edits and everything you make with "
+                "Piklin are yours.")))
         # Libraries Piklin ships, each under its own licence (full texts in
         # /usr/share/doc/piklin/third-party).
         for title, licence in (

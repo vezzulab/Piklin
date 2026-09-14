@@ -4083,31 +4083,35 @@ msgstr ""
 
 #: piklin/ui/window.py:2887
 msgid ""
-"Piklin is proprietary software. © 2026 Vezzu Studio. All rights reserved.\n"
+"Piklin is free to use under the Piklin License 1.0. © 2026 Vezzu Studio.\n"
 "\n"
-"Your licence lets you install and use Piklin on your own computers. You may not copy, redistribute, resell or reverse-engineer it."
+"You may install and use Piklin on as many of your own computers as you like, at home or for work, including commercial use. You may not modify, redistribute or sell it.\n"
+"\n"
+"Your photos, edits and everything you make with Piklin are yours."
 msgstr ""
-"Piklin es software privativo. © 2026 Vezzu Studio. Todos los derechos reservados.\n"
+"Piklin es de uso gratuito bajo la Licencia de Piklin 1.0. © 2026 Vezzu Studio.\n"
 "\n"
-"Tu licencia te permite instalar y usar Piklin en tus propios ordenadores. No puedes copiarlo, redistribuirlo, revenderlo ni aplicarle ingeniería inversa."
+"Puedes instalar y usar Piklin en todos tus ordenadores, en casa o en el trabajo, incluido el uso comercial. No puedes modificarlo, redistribuirlo ni venderlo.\n"
+"\n"
+"Tus fotos, tus cambios y todo lo que hagas con Piklin son tuyos."
 
-#: piklin/ui/window.py:2900
+#: piklin/ui/window.py:2902
 msgid "Inter typeface"
 msgstr "Tipografía Inter"
 
-#: piklin/ui/window.py:2910
+#: piklin/ui/window.py:2912
 msgid "Photos Are Still Being Copied"
 msgstr "Todavía se están copiando fotos"
 
-#: piklin/ui/window.py:2911
+#: piklin/ui/window.py:2913
 msgid "If you close Piklin now, the copy stops. The photos already copied stay in your library."
 msgstr "Si cierras Piklin ahora, la copia se detiene. Las fotos ya copiadas se quedan en tu biblioteca."
 
-#: piklin/ui/window.py:2913
+#: piklin/ui/window.py:2915
 msgid "Keep Copying"
 msgstr "Seguir copiando"
 
-#: piklin/ui/window.py:2914
+#: piklin/ui/window.py:2916
 msgid "Stop and Close"
 msgstr "Detener y cerrar"
 

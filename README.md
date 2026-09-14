@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/vezzulab/Piklin/releases"><img src="https://img.shields.io/badge/download-.deb-0b0b0b?style=flat-square" alt="Download"></a>
   <img src="https://img.shields.io/badge/platform-Linux-0b0b0b?style=flat-square" alt="Platform: Linux">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Strict-0b0b0b?style=flat-square" alt="License: PolyForm Strict"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Piklin%20License-0b0b0b?style=flat-square" alt="License: Piklin License"></a>
   <a href="https://ko-fi.com/vezzustudio"><img src="https://img.shields.io/badge/support-Ko--fi-0b0b0b?style=flat-square" alt="Support on Ko-fi"></a>
 </p>
 
@@ -113,7 +113,7 @@ Your library is created in your Pictures folder the first time you open Piklin.
 
 ## Build from source
 
-The PolyForm Strict License lets you build Piklin for your own use; see [License](#license) for what it doesn't allow. On Ubuntu 24.04 or Linux Mint 22:
+You can build Piklin from source to run it on your own computers; see [License](#license) for what the license doesn't allow. On Ubuntu 24.04 or Linux Mint 22:
 
 ```bash
 sudo apt install python3-venv python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 \
@@ -134,10 +134,12 @@ Found a bug or have an idea? [Open an issue](https://github.com/vezzulab/Piklin/
 
 ## License
 
-Piklin is © 2026 [Vezzu Studio](https://vezzu.studio) and is source-available under the **[PolyForm Strict License 1.0.0](LICENSE)**.
+Piklin is © 2026 [Vezzu Studio](https://vezzu.studio) and is source-available under the **[Piklin License 1.0](LICENSE)**.
 
-- You may use Piklin for free and read its source code.
+- You may use Piklin for free, at home or for work, including commercial use, on as many of your own computers as you like.
+- You may read its source code.
 - You may not modify, redistribute or sell Piklin or works based on it.
+- Your photos, edits and everything you make with Piklin are yours.
 
 Third-party components keep their own licences; see [NOTICE.md](NOTICE.md).
 

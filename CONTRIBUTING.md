@@ -19,7 +19,7 @@ Use the **Feature request** form. Tell us what you are trying to do; the reason 
 
 ## Pull requests
 
-Piklin is source-available under the [PolyForm Strict License](LICENSE), which does not permit modified versions. We therefore can't accept pull requests. Bug reports and ideas are always welcome, and we read every one.
+Piklin is source-available under the [Piklin License](LICENSE), which does not permit modified versions. We therefore can't accept pull requests. Bug reports and ideas are always welcome, and we read every one.
 
 ## Security
 

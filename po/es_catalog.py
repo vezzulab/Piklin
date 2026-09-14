@@ -987,8 +987,8 @@ ES = {
     "© 2026 Vezzu Studio. All rights reserved.": "© 2026 Vezzu Studio. Todos los derechos reservados.",
     "Piklin was created by Vezzu Studio.\n\nA photo and video library and editor for Linux. {tools} editing tools · {formats} file formats · everything runs on this computer.":
         "Piklin fue creado por Vezzu Studio.\n\nUna biblioteca y editor de fotos y videos para Linux. {tools} herramientas de edición · {formats} formatos de archivo · todo funciona en este ordenador.",
-    "Piklin is proprietary software. © 2026 Vezzu Studio. All rights reserved.\n\nYour licence lets you install and use Piklin on your own computers. You may not copy, redistribute, resell or reverse-engineer it.":
-        "Piklin es software privativo. © 2026 Vezzu Studio. Todos los derechos reservados.\n\nTu licencia te permite instalar y usar Piklin en tus propios ordenadores. No puedes copiarlo, redistribuirlo, revenderlo ni aplicarle ingeniería inversa.",
+    "Piklin is free to use under the Piklin License 1.0. © 2026 Vezzu Studio.\n\nYou may install and use Piklin on as many of your own computers as you like, at home or for work, including commercial use. You may not modify, redistribute or sell it.\n\nYour photos, edits and everything you make with Piklin are yours.":
+        "Piklin es de uso gratuito bajo la Licencia de Piklin 1.0. © 2026 Vezzu Studio.\n\nPuedes instalar y usar Piklin en todos tus ordenadores, en casa o en el trabajo, incluido el uso comercial. No puedes modificarlo, redistribuirlo ni venderlo.\n\nTus fotos, tus cambios y todo lo que hagas con Piklin son tuyos.",
     "Inter typeface": "Tipografía Inter",
     "Photos Are Still Being Copied": "Todavía se están copiando fotos",
     "If you close Piklin now, the copy stops. The photos already copied stay in your library.":

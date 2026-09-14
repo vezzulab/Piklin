@@ -1,6 +1,6 @@
 # Third-party software
 
-Piklin is © 2026 Vezzu Studio and licensed under the [PolyForm Strict License 1.0.0](LICENSE).
+Piklin is © 2026 Vezzu Studio and licensed under the [Piklin License 1.0](LICENSE).
 
 The Piklin package includes the software below. Each part keeps its own licence, and those licences apply to that part only. The full licence texts are installed with Piklin in `/usr/share/doc/piklin/third-party/`.
 

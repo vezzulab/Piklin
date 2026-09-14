@@ -173,8 +173,10 @@ Upstream-Name: Piklin
 
 Files: *
 Copyright: $(date +%Y) Vezzu Studio
-License: proprietary
- All rights reserved. https://vezzu.studio
+License: LicenseRef-Piklin-1.0
+ Piklin License 1.0: free to install and use for any purpose, including
+ commercial use; modifying, redistributing or selling it is not permitted.
+ Full text: https://github.com/vezzulab/Piklin/blob/main/LICENSE
 
 Files: usr/lib/piklin/*
 Comment: Bundled Python libraries. Their licences are in third-party/.
