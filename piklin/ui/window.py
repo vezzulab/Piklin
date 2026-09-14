@@ -26,6 +26,9 @@ from .grid import PhotoGrid
 from .viewer import ViewerView
 from .chrome import IS_MAC, PRIMARY_MASK, key_name
 
+# How narrow and how wide the sidebar can be dragged.
+from .chrome import SIDEBAR_MIN_WIDTH as SIDEBAR_MIN  # wider on a Mac: window buttons
+SIDEBAR_MAX = 420
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app, library: Library):
@@ -135,14 +138,42 @@ class MainWindow(Adw.ApplicationWindow):
     # layout
     # ==================================================================
     def _build_library_page(self):
-        from .chrome import SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH
-        self.split = Adw.NavigationSplitView(
-            min_sidebar_width=SIDEBAR_MIN_WIDTH, max_sidebar_width=SIDEBAR_MAX_WIDTH)
-        self.split.set_sidebar(Adw.NavigationPage(
-            child=self._build_sidebar(), title=_("Library")))
-        self.split.set_content(Adw.NavigationPage(
-            child=self._build_content(), title=_("Photos")))
+        # Drag the sidebar's edge to make it wider, so the names of albums
+        # deep inside folders can be read; the width is remembered.
+        self.split = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL,
+                               wide_handle=False)
+        self.split.add_css_class("pika-split")
+        sidebar = self._build_sidebar()
+        sidebar.set_size_request(SIDEBAR_MIN, -1)
+        self.split.set_start_child(sidebar)
+        self.split.set_resize_start_child(False)
+        self.split.set_shrink_start_child(False)
+        self.split.set_end_child(self._build_content())
+        self.split.set_resize_end_child(True)
+        self.split.set_shrink_end_child(False)
+        width = int(self.settings.get("sidebar_width", 280) or 280)
+        self.split.set_position(max(SIDEBAR_MIN, min(SIDEBAR_MAX, width)))
+        self._sidebar_save = 0
+        self.split.connect("notify::position", self._on_sidebar_width)
         return self.split
+
+    def _on_sidebar_width(self, paned, _pspec):
+        pos = paned.get_position()
+        if pos > SIDEBAR_MAX:
+            paned.set_position(SIDEBAR_MAX)
+            return
+        if pos < SIDEBAR_MIN:
+            paned.set_position(SIDEBAR_MIN)
+            return
+        # saved once the dragging stops, not on every pixel
+        if self._sidebar_save:
+            GLib.source_remove(self._sidebar_save)
+
+        def save():
+            self._sidebar_save = 0
+            self.settings.set("sidebar_width", paned.get_position())
+            return False
+        self._sidebar_save = GLib.timeout_add(400, save)
 
     def _build_sidebar(self):
         toolbar = Adw.ToolbarView()
@@ -190,6 +221,7 @@ class MainWindow(Adw.ApplicationWindow):
         help_menu = Gio.Menu()
         help_menu.append(_("How to Use Piklin"), "win.help")
         help_menu.append(_("Check for Updates…"), "win.check-updates")
+        help_menu.append(_("Activity Log"), "win.activity-log")
         help_menu.append(_("About Piklin"), "win.about")
         end.append_submenu(_("Help"), help_menu)
         menu.append_section(None, end)
@@ -258,6 +290,19 @@ class MainWindow(Adw.ApplicationWindow):
         self.footer_videos = Gtk.Label(xalign=0.0, ellipsize=3, visible=False)
         self.footer_videos.add_css_class("pika-footer-space")
         self.footer.append(self.footer_videos)
+        # Update Available: a black button with a ringing bell, only there
+        # when a new Piklin is out. It opens what the update brings.
+        inner = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        inner.append(Gtk.Image(icon_name="preferences-system-notifications-symbolic",
+                               pixel_size=16))
+        inner.append(Gtk.Label(label=_("Update Available")))
+        self._update_bell = Gtk.Button(child=inner, visible=False, halign=Gtk.Align.FILL,
+                                       margin_top=10,
+                                       tooltip_text=_("A new version of Piklin is available"))
+        self._update_bell.add_css_class("pika-update-bell")
+        self._update_bell.connect("clicked", lambda *_: self._open_update_dialog())
+        self._bell_release = None
+        self.footer.append(self._update_bell)
         # Supporting Piklin: one quiet button, never a pop-up or a nag.
         from ..paths import SUPPORT_URL
         if SUPPORT_URL:
@@ -325,9 +370,11 @@ class MainWindow(Adw.ApplicationWindow):
         zoom.connect("value-changed", self._on_zoom)
         header.pack_start(zoom)
 
+        # Shown in the bar at the bottom, not up here: a label appearing in
+        # the header widened it, which narrowed the sidebar and resized
+        # every tile - the photos jumped as soon as one was chosen.
         self.select_label = Gtk.Label()
         self.select_label.add_css_class("pika-dim")
-        header.pack_start(self.select_label)
 
         header.pack_end(self.search)
 
@@ -430,6 +477,7 @@ class MainWindow(Adw.ApplicationWindow):
         clear.add_css_class("flat")
         clear.connect("clicked", lambda *_: self.grid.unselect_all())
         self.action_bar.pack_end(clear)
+        self.action_bar.pack_end(self.select_label)
 
         toolbar.add_top_bar(header)
         # In the library, Years and Months are summary cards; everywhere
@@ -453,6 +501,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.content_stack.add_named(self.folder_view, "folder")
         toolbar.set_content(self.content_stack)
         toolbar.add_bottom_bar(self.action_bar)
+        # The bar lies over the photos rather than taking their space: the
+        # view shrinking as it appeared moved the photos up under the pointer.
+        toolbar.set_extend_content_to_bottom_edge(True)
         return toolbar
 
     # ==================================================================
@@ -1466,6 +1517,7 @@ class MainWindow(Adw.ApplicationWindow):
             "remotes": lambda *_: self._open_settings("remotes"),
             "about": lambda *_: self._on_about(),
             "help": lambda *_: self._on_help(),
+            "activity-log": lambda *_: self._on_activity_log(),
             "select-all": lambda *_: self.grid.select_all(),
             "escape": lambda *_: self._on_escape(),
             "favorite": lambda *_: self._on_bulk_favorite(None),
@@ -1912,12 +1964,18 @@ class MainWindow(Adw.ApplicationWindow):
                                         timeout=3))
 
     # -- updates ------------------------------------------------------------
-    def _check_updates(self, quiet=True):
-        """Ask whether a newer Piklin is out. Quiet: once an hour, silent unless
-        there is one. Otherwise (Check for Updates…): always say the result."""
+    def _check_updates(self, quiet=True, on_open=False):
+        """Ask whether a newer Piklin is out. Nothing is ever installed without
+        asking: some people prefer to stay on the version they have.
+
+        on_open: Piklin just opened - look now, and ask with the update window.
+        Quiet (every hour while open): only show Update Available.
+        Otherwise (Check for Updates…): open the window, or say it is up to date."""
         from .. import updates
         from ..app import VERSION
-        if quiet and not updates.due():
+        if quiet and not updates.enabled():
+            return
+        if quiet and not on_open and not updates.check_due():
             return
 
         def work():
@@ -1931,19 +1989,9 @@ class MainWindow(Adw.ApplicationWindow):
 
         def show(release, error):
             if release is not None and updates.update_available(release, VERSION):
-                if updates.can_install_itself():
-                    self._install_update(release)
-                    return False
-                if quiet and updates.load_state().get("dismissed") == release.version:
-                    return False
-                toast = Adw.Toast(
-                    title=_("Piklin {version} is available").format(version=release.version),
-                    button_label=_("Download"), timeout=0)
-                toast.connect("button-clicked", lambda *_: Gtk.UriLauncher.new(
-                    release.url).launch(self, None, None, None))
-                toast.connect("dismissed", lambda *_: updates.save_state(
-                    dismissed=release.version))
-                self.toasts.add_toast(toast)
+                self._ring_bell(release)
+                if (on_open or not quiet) and not getattr(self, "_updating", False):
+                    self._open_update_dialog()
             elif not quiet:
                 if error is not None:
                     self._show_toast(_("Couldn't check for updates. Check your "
@@ -1953,16 +2001,44 @@ class MainWindow(Adw.ApplicationWindow):
             return False
         threading.Thread(target=work, daemon=True).start()
 
-    def _install_update(self, release):
-        """Say a new version is out, install it, then reopen Piklin in it."""
+    def _ring_bell(self, release):
+        """Show Update Available for this release - only ever when there is
+        one - and ring its bell."""
+        bell = self._update_bell
+        self._bell_release = release
+        bell.set_visible(True)
+        bell.remove_css_class("ringing")
+        GLib.idle_add(lambda: (bell.add_css_class("ringing"), False)[1])
+        GLib.timeout_add(4500, lambda: (bell.remove_css_class("ringing"), False)[1])
+
+    def _open_update_dialog(self):
+        """The update window, from Update Available or when Piklin opens."""
         from .. import updates
+        from ..app import VERSION
+        from .update_dialog import UpdateDialog
+        release = self._bell_release
+        if release is None:
+            return
+        current = getattr(self, "_update_dialog", None)
+        if current is not None:
+            current.present(self)
+            return
+        dialog = UpdateDialog(release, VERSION, updates.installed_build(),
+                              lambda: self._install_update(release, dialog))
+        if getattr(self, "_updating", False):
+            dialog.show_installing()
+        dialog.connect("closed", lambda *_: setattr(self, "_update_dialog", None))
+        self._update_dialog = dialog
+        dialog.present(self)
+
+    def _install_update(self, release, dialog):
+        """Install the update the person chose, showing how it goes in the
+        update window, then reopen Piklin in the new version."""
+        from .. import logs, updates
         if getattr(self, "_updating", False):
             return
         self._updating = True
-        working = Adw.Toast(
-            title=_("Piklin {version} is available. Installing it…").format(
-                version=release.version), timeout=0)
-        self.toasts.add_toast(working)
+        dialog.show_installing()
 
         def work():
             try:
@@ -1973,24 +2049,23 @@ class MainWindow(Adw.ApplicationWindow):
             GLib.idle_add(done, error)
 
         def done(error):
-            working.dismiss()
             self._updating = False
-            if error is not None and error.kind == "not-newer":
-                return False            # this exact build is already installed
             if error is None:
-                self.toasts.add_toast(Adw.Toast(
-                    title=_("Piklin {version} is installed. Piklin will reopen "
-                            "in a moment.").format(version=release.version),
-                    timeout=0))
+                logs.get("update").info("Installed %s", release.version)
+                self._update_bell.set_visible(False)
+                dialog.show_installed()
                 self._reopen_when_idle()
+            elif error.kind == "not-newer":
+                logs.get("update").info("%s is already installed", release.version)
+                self._update_bell.set_visible(False)
+                dialog.force_close()
+            elif error.kind == "cancelled":
+                logs.get("update").info("Install of %s cancelled", release.version)
+                dialog.show_offer()
             else:
-                failed = Adw.Toast(
-                    title=_("Piklin {version} couldn't be installed "
-                            "automatically.").format(version=release.version),
-                    button_label=_("Download"), timeout=0)
-                failed.connect("button-clicked", lambda *_: Gtk.UriLauncher.new(
-                    release.url).launch(self, None, None, None))
-                self.toasts.add_toast(failed)
+                logs.get("update").warning("Install of %s: %s (%s)", release.version,
+                                           error.kind, error)
+                dialog.show_failed()
             return False
         threading.Thread(target=work, daemon=True).start()
 
@@ -3144,7 +3219,9 @@ class MainWindow(Adw.ApplicationWindow):
         GLib.timeout_add_seconds(30, lambda: (self._queue_video_shrink([]), False)[1])
         self.refresh_sidebar()
         # A few seconds in, so opening Piklin is never slowed by the network.
-        GLib.timeout_add_seconds(8, lambda: (self._check_updates(quiet=True), False)[1])
+        # Every time Piklin opens it looks for a new version - a few seconds
+        # in, so opening is never slowed by the network - and asks.
+        GLib.timeout_add_seconds(4, lambda: (self._check_updates(quiet=True, on_open=True), False)[1])
         # and every hour after that while Piklin stays open (only when
         # updates are on, and never more than once an hour - see updates.due)
         GLib.timeout_add_seconds(60 * 60, lambda: (self._check_updates(quiet=True), True)[1])
@@ -3257,6 +3334,10 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_help(self):
         from .help_dialog import HelpDialog
         HelpDialog().present(self)
+
+    def _on_activity_log(self):
+        from .log_dialog import LogDialog
+        LogDialog().present(self)
 
     def _on_about(self):
         from ..app import VERSION

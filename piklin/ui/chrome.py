@@ -34,7 +34,6 @@ CONTENT_LAYOUT = ":" if IS_MAC else ":minimize,maximize,close"
 # The buttons take room at the start of the sidebar's bar on a Mac, so the
 # sidebar is wider there to keep the brand centred beside them.
 SIDEBAR_MIN_WIDTH = 230 if IS_MAC else 210
-SIDEBAR_MAX_WIDTH = 300 if IS_MAC else 280
 # On a Mac the brand leaves the bar to the buttons and sits at the top of
 # the sidebar instead, a little smaller.
 BRAND_IN_SIDEBAR = IS_MAC

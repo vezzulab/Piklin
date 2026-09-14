@@ -9,7 +9,7 @@
 - Backup passwords are kept in the Mac's Keychain
 - Piklin follows the Mac's language, as it follows the computer's language on Linux
 - USB drives and memory cards appear in the sidebar when they are connected
-- Piklin updates itself on a Mac too, installing only versions signed by Vezzu Studio
+- Updates work on a Mac as on Linux: Piklin asks first, then installs only versions signed by Vezzu Studio
 
 ### iPhones, iPads and cameras
 - Connect an iPhone or iPad and its photos appear under Devices, ready to browse and import, on Mac and on Linux. Unlock it and choose Trust when it asks
@@ -20,8 +20,24 @@
 - Piklin is available for 64-bit ARM computers as well (arm64), such as a Raspberry Pi 5 or an ARM laptop running Ubuntu 24.04 or newer
 - Video always plays with sound: the package now asks for the small library miniaudio needs, which some minimal installations lacked
 
-### Everywhere
+### Albums and photos
+- Drag the edge of the sidebar to make it wider, up to 420 pixels, so the names of albums and folders deep inside other folders can be read; Piklin remembers the width
+- Clicking a photo while the photos are still gliding after a touchpad flick stops them at once, so the photo you click stays under the pointer instead of sliding away
+- Choosing a photo keeps the photos where they are. Before, far down a big library the view jumped away as soon as one was clicked: the list took the photo's whole row as focused and scrolled it into view, and a row is taller than the window, so it was pulled up or centred. The activity log found it. Also, the count of chosen photos, shown at the top, narrowed the sidebar and resized every photo; it is now in the bar at the bottom, that bar lies over the photos, and photos changing size keep your place
 - A video is never refused when the image library cannot open it: Piklin reads it through its own video engine instead
+
+### Backups
+- Automatic backup no longer stops with "No password saved" when Piklin opens right after logging in, before the password keyring is unlocked: it waits and tries again a few minutes later
+
+### Updates
+- Every time Piklin opens it looks for a new version, and every hour while it stays open
+- When there is one, Piklin asks: a window shows the version you have next to the one you would get, what is new in a few words, and Install Now or Cancel. Nothing is installed without asking - some people prefer the version they have
+- A black Update Available button with a ringing bell stays above Support on Ko-fi while an update is waiting, and opens the same window
+- Installing happens inside that window, without a password and with only packages signed by Vezzu Studio; Piklin then reopens in the new version once nothing is copying and no editor is open
+- After reopening from an update, the taskbar shows Piklin with its logo, instead of "app.py" with no icon
+
+### Activity log
+- Help › Activity Log shows what Piklin noted - backups, updates, errors, and the photos moving just after a click - to find the cause of a problem. It stays on this computer and is never sent anywhere, holds no passwords, addresses or photo names, and never grows past about 1.6 MB. Copy it and paste it into a problem report on GitHub with Report a Problem
 
 ## 1.0.4
 

@@ -130,10 +130,17 @@ window.piklin .pika-content {
   background: @pika_wall;
   border-bottom: 1px solid @pika_hairline;
 }
+/* The sidebar's draggable edge is the hairline itself; GTK grabs a few
+   pixels either side of it. */
+paned.pika-split > separator {
+  min-width: 1px;
+  background: @pika_hairline;
+  border: none;
+  box-shadow: none;
+}
 /* The vertical divider starts below the bar, so it never interrupts it. */
 .pika-sidebar-pane {
   background: @pika_sidebar;
-  border-right: 1px solid @pika_hairline;
 }
 .pika-toolbar,
 .pika-toolbar revealer, .pika-toolbar box {
@@ -214,7 +221,58 @@ entry.pika-search > text { color: @pika_text; }
 .pika-sidebar row:selected .pika-count { color: alpha(#ffffff, 0.85); }
 
 /* -- grid -------------------------------------------------------------- */
+/* The update bell: only there when a new Piklin is out. It rings a few
+   times, then rests with a small dot until it is opened. */
+@keyframes pika-bell-ring {
+  0%   { -gtk-icon-transform: rotate(0deg); }
+  10%  { -gtk-icon-transform: rotate(16deg); }
+  20%  { -gtk-icon-transform: rotate(-14deg); }
+  30%  { -gtk-icon-transform: rotate(10deg); }
+  40%  { -gtk-icon-transform: rotate(-8deg); }
+  50%  { -gtk-icon-transform: rotate(4deg); }
+  60%  { -gtk-icon-transform: rotate(0deg); }
+  100% { -gtk-icon-transform: rotate(0deg); }
+}
+button.pika-update-bell {
+  background: #000000;
+  color: #ffffff;
+  border-radius: 999px;
+  min-height: 34px;
+  font-weight: 700;
+  box-shadow: none;
+}
+button.pika-update-bell:hover { background: #2a2a2a; }
+button.pika-update-bell:active { background: #444444; }
+button.pika-update-bell label,
+button.pika-update-bell image { color: #ffffff; }
+button.pika-update-bell.ringing image {
+  animation: pika-bell-ring 1.4s ease-in-out 3;
+}
+.pika-version-card {
+  border: 1px solid @pika_hairline;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.pika-version-card.new {
+  border: 2px solid #000000;
+}
+.pika-update-group {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.pika-log-frame {
+  border: 1px solid @pika_hairline;
+  border-radius: 8px;
+}
+.pika-log-text, .pika-log-text text {
+  font-size: 0.8rem;
+  background: #ffffff;
+  color: #000000;
+}
 .pika-grid { background: @pika_wall; }
+/* room at the end, so the bar for chosen photos, which lies over the grid,
+   never covers the last row */
+.pika-grid { padding-bottom: 48px; }
 .pika-grid > row,
 .pika-grid > row:selected { padding: 0; background: transparent; }
 
@@ -1725,4 +1783,33 @@ window.piklin button.pika-heading-back:hover image { color: #55555a; }
 .pika-summary-card.selected .pika-summary-art {
   outline: 3px solid @pika_accent;
   outline-offset: 2px;
+}
+
+/* Update Available, last in the file so no general sidebar or button rule
+   turns its words and bell black on its black background. */
+.pika-sidebar-pane button.pika-update-bell,
+.pika-sidebar-pane button.pika-update-bell:hover,
+.pika-sidebar-pane button.pika-update-bell:active {
+  color: #ffffff;
+}
+.pika-sidebar-pane button.pika-update-bell label,
+.pika-sidebar-pane button.pika-update-bell image,
+.pika-sidebar-pane button.pika-update-bell box label,
+.pika-sidebar-pane button.pika-update-bell box image {
+  color: #ffffff;
+  -gtk-icon-style: symbolic;
+}
+
+/* The sidebar's draggable edge stays a hairline: the theme otherwise draws
+   the pane handle as a wide grey bar. GTK still grabs a few pixels around it. */
+window.piklin paned.pika-split > separator,
+window.piklin paned.pika-split > separator:hover {
+  min-width: 1px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background-image: none;
+  background-color: @pika_hairline;
 }

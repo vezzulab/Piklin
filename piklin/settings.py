@@ -50,6 +50,7 @@ DEFAULTS: dict[str, Any] = {
     "show_filenames": False,
     "group_by": "day",                 # none | day | month | year
     "grid_aspect": "square",           # square | original (Aspect Ratio)
+    "sidebar_width": 280,              # px, dragged wider or narrower
     "sidebar_collapsed": [],           # sidebar sections folded away
     "sidebar_collapsed_folders": [],   # album folders folded away, by uuid
     # Where this library was when last opened; a different current

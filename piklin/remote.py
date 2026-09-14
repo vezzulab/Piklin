@@ -150,6 +150,22 @@ def keyring_available() -> bool:
     return _keyring() is not None
 
 
+def keyring_ready() -> bool:
+    """True when the keyring can be read: its service answers and the
+    default collection is unlocked. Right after logging in it is often not
+    yet, and a password that is there reads as missing."""
+    Secret = _keyring()
+    if Secret is None:
+        return False
+    try:
+        service = Secret.Service.get_sync(Secret.ServiceFlags.LOAD_COLLECTIONS, None)
+        default = Secret.Collection.for_alias_sync(
+            service, "default", Secret.CollectionFlags.NONE, None)
+        return default is not None and not default.get_locked()
+    except Exception:
+        return False
+
+
 # ==========================================================================
 # results
 # ==========================================================================
@@ -903,7 +919,8 @@ class WebDavBackend(Backend):
         return u.scheme == "https" or (u.scheme == "http" and _is_local_host(u.hostname))
 
     def _password(self) -> str:
-        if self._pw is None:
+        if not self._pw:
+            # not kept when empty: the keyring may simply not be open yet
             self._pw = (self.remote.config.get("password")
                         or load_secret(self.remote.id) or "")
         return self._pw
@@ -965,6 +982,15 @@ class WebDavBackend(Backend):
                               _("Use https:// for a server on the internet, so "
                               "your password stays private"))
         if self.remote.config.get("username") and not self._password():
+            if not keyring_ready():
+                from . import logs
+                logs.get("backup").warning(
+                    "Password keyring still locked for destination %s", self.remote.id)
+                # Not a missing password: the keyring isn't open yet, as
+                # just after logging in. Waiting and trying again works.
+                return TestResult(False, _("The keyring is still locked"),
+                                  _("Piklin will try again in a few minutes"),
+                                  unreachable=True)
             return TestResult(False, _("No password saved"),
                               _("Edit this backup and enter the password again"))
         self.prepare()

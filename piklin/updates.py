@@ -323,6 +323,57 @@ def enabled() -> bool:
 CHECK_EVERY = 60 * 60     # an hour: a fix reaches people the same day it is out
 
 
+def highlights(notes: str, language: str) -> list[tuple[str, str]]:
+    """What's new, in a few words each: the bold title of every change
+    ("Instant rotate") rather than its whole explanation."""
+    return notes_for(notes, language, short=True)
+
+
+def notes_for(notes: str, language: str, short: bool = False) -> list[tuple[str, str]]:
+    """What a release changes, in the reader's language, as (kind, text)
+    lines: kind is "heading" or "item". The published notes carry English
+    first and Spanish after a "## Español" heading; install steps and
+    download checks are left out, they mean nothing inside Piklin."""
+    text = notes or ""
+    marker = re.search(r"^##\s+Español\s*$", text, re.M)
+    if marker:
+        text = text[marker.end():] if language.startswith("es") else text[:marker.start()]
+    out: list[tuple[str, str]] = []
+    keep_level = 0                  # the level of the What's New heading, while inside it
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("#"):
+            title = line.lstrip("#").strip()
+            level = len(line) - len(line.lstrip("#"))
+            if title.lower() in ("what's new", "novedades"):
+                keep_level = level
+            elif keep_level and level <= keep_level:
+                keep_level = 0      # the next section, such as how to verify a download
+            elif keep_level:
+                out.append(("heading", title))
+            continue
+        keep = bool(keep_level)
+        if keep and line.startswith(("- ", "* ")):
+            item = line[2:]
+            if short:
+                bold = re.match(r"\*\*(.+?)\*\*", item)
+                if bold:
+                    item = bold.group(1).strip().rstrip(".").rstrip(",")
+                else:
+                    item = re.split(r"(?<=[.!?])\s", item, maxsplit=1)[0].rstrip(".")
+            item = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", item)   # links: their words
+            item = item.replace("**", "").replace("`", "")
+            out.append(("item", item))
+    return out
+
+
+def check_due(now: float | None = None) -> bool:
+    """An hour since the last look. Unlike due(), true even when installing
+    by itself is off: the update bell still says a new version is out."""
+    state = load_state()
+    return (now or time.time()) - float(state.get("last_check") or 0) >= CHECK_EVERY
+
+
 def due(now: float | None = None) -> bool:
     """Checking is allowed and the last check was more than an hour ago."""
     state = load_state()

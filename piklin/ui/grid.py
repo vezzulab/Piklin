@@ -186,6 +186,10 @@ class PhotoGrid(Gtk.Box):
         self._pending_rows = set()
         self._build_scheduled = False
         self.scroller.get_vadjustment().connect("value-changed", self._schedule_build)
+        # Notes in the activity log when the photos jump soon after a click,
+        # with what was going on, to find the cause of a view that moves.
+        self._click_mark = None
+        self.scroller.get_vadjustment().connect("value-changed", self._watch_jump)
         # Dragging from empty space draws a rectangle that chooses the photos
         # it touches; the rectangle is painted on a layer above the photos.
         overlay = Gtk.Overlay(vexpand=True)
@@ -195,6 +199,13 @@ class PhotoGrid(Gtk.Box):
         self._band_area = Gtk.DrawingArea(can_target=False)
         self._band_area.set_draw_func(self._draw_band)
         overlay.add_overlay(self._band_area)
+        # A touchpad flick keeps the photos gliding after the fingers lift,
+        # and a click did not stop it: the photo clicked slid away from
+        # under the pointer. Any press now stops the glide where it is.
+        halt = Gtk.GestureClick(button=0)
+        halt.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        halt.connect("pressed", self._halt_glide)
+        self.scroller.add_controller(halt)
         band = Gtk.GestureDrag(button=Gdk.BUTTON_PRIMARY)
         band.connect("drag-begin", self._band_begin)
         band.connect("drag-update", self._band_update)
@@ -274,6 +285,8 @@ class PhotoGrid(Gtk.Box):
         if px == self.tile_px and cols == self._columns:
             return
         old_cols = self._columns
+        if cols == old_cols:
+            self._keep_place()
         self.tile_px = px
         self._columns = cols
         for widgets in self._tile_widgets.values():
@@ -289,6 +302,41 @@ class PhotoGrid(Gtk.Box):
                 and not getattr(self, "_regroup_pending", False)):
             self._regroup_pending = True
             GLib.idle_add(self._regroup)
+
+    def _keep_place(self) -> None:
+        """Tiles are about to change size: keep the photo at the top of the
+        view where it is. Every row above it grows or shrinks a little, and
+        far down a big library that added up to a jump of whole screens -
+        when choosing a photo narrowed the sidebar, for one."""
+        if self._band is not None:
+            return
+        anchor = None
+        for pid, containers in self._tile_containers.items():
+            for c in containers:
+                if not c.get_mapped():
+                    continue
+                ok, r = c.compute_bounds(self.scroller)
+                if ok and r.get_y() + r.get_height() > 0 and (
+                        anchor is None or r.get_y() < anchor[1]):
+                    anchor = (c, r.get_y())
+        if anchor is None:
+            return
+        container, before = anchor
+        ticks = [0]
+
+        def settle(_widget, _clock):
+            ticks[0] += 1
+            ok, r = container.compute_bounds(self.scroller)
+            if not ok or not container.get_mapped():
+                return GLib.SOURCE_REMOVE
+            shift = r.get_y() - before
+            if abs(shift) >= 1:
+                adj = self.scroller.get_vadjustment()
+                adj.set_value(max(adj.get_lower(), min(
+                    adj.get_upper() - adj.get_page_size(), adj.get_value() + shift)))
+            # the new size takes a frame or two to be laid out
+            return GLib.SOURCE_CONTINUE if ticks[0] < 3 else GLib.SOURCE_REMOVE
+        self.add_tick_callback(settle)
 
     def _regroup(self):
         """Re-cut the list rows for a new number of columns, from the photos
@@ -338,7 +386,8 @@ class PhotoGrid(Gtk.Box):
                            homogeneous=False, row_spacing=0,
                            column_spacing=0, max_children_per_line=64,
                            min_children_per_line=1, valign=Gtk.Align.START,
-                           halign=Gtk.Align.START)
+                           halign=Gtk.Align.START, focusable=False,
+                           activate_on_single_click=False)
         # A heading's back arrow sits beside its title; hidden on day rows.
         head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         back = Gtk.Button(icon_name="go-previous-symbolic", visible=False,
@@ -352,6 +401,14 @@ class PhotoGrid(Gtk.Box):
         box.append(sub)
         box.append(flow)
         list_item.set_child(box)
+        # A click on a photo made the list focus the whole row, and the list
+        # scrolls a focused row into view. A row of six grid rows is taller
+        # than the window, so it was pulled to the top or centred: the activity
+        # log showed the photos jumping 1074 px (one row) or half a window
+        # right after a click. Rows never take focus now; the grid does.
+        list_item.set_focusable(False)
+        list_item.set_activatable(False)
+        list_item.set_selectable(False)
         list_item._back = back
         list_item._title = title
         list_item._sub = sub
@@ -427,6 +484,11 @@ class PhotoGrid(Gtk.Box):
             # not just the inner box, or every photo is an unnamed cell.
             cell = tile.get_parent()
             if cell is not None:
+                # Clicking a photo gave its FlowBox cell the focus, and the list
+                # scrolled that cell's whole row - taller than the window - into
+                # view: the photos jumped a row away. The activity log showed
+                # "focus on FlowBoxChild". Cells never take focus now.
+                cell.set_focusable(False)
                 cell.update_property([Gtk.AccessibleProperty.LABEL],
                                      [getattr(item, "filename", "") or _("Photo")])
         flow.set_size_request(-1, -1)
@@ -654,6 +716,14 @@ class PhotoGrid(Gtk.Box):
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)
         self.emit("background-menu", source, x, y)
 
+    def _halt_glide(self, gesture, *_args):
+        # Turning kinetic scrolling off cancels a glide in progress.
+        self.scroller.set_kinetic_scrolling(False)
+        self.scroller.set_kinetic_scrolling(True)
+        adj = self.scroller.get_vadjustment()
+        adj.set_value(adj.get_value())
+        gesture.set_state(Gtk.EventSequenceState.DENIED)
+
     def _band_begin(self, gesture, x, y):
         self._band = None
         if self._on_tile_at(x, y):
@@ -836,7 +906,32 @@ class PhotoGrid(Gtk.Box):
             pass
 
     # -- clicks ----------------------------------------------------------
+    def _watch_jump(self, adj):
+        mark = self._click_mark
+        if mark is None or self._band is not None:
+            return
+        elapsed = GLib.get_monotonic_time() - mark[0]
+        if elapsed > 1_500_000:
+            self._click_mark = None
+            return
+        moved = adj.get_value() - mark[1]
+        if abs(moved) > adj.get_page_size() / 2:
+            self._click_mark = None
+            from .. import logs
+            root = self.get_root()
+            focus = root.get_focus() if root is not None else None
+            logs.get("grid").warning(
+                "View moved %+d px %.2f s after clicking photo %s (scope %s, "
+                "%d photos loaded, %s, tile %d px x %d columns, page %d of %d px, "
+                "window %d px wide, focus on %s)",
+                moved, elapsed / 1e6, mark[2], self._scope, len(self._items),
+                "all loaded" if self._exhausted else "still loading",
+                self.tile_px, self._columns, adj.get_page_size(), adj.get_upper(),
+                self.get_width(), type(focus).__name__ if focus is not None else "nothing")
+
     def _on_tile_click(self, gesture, n_press, x, y, button, item):
+        self._click_mark = (GLib.get_monotonic_time(),
+                            self.scroller.get_vadjustment().get_value(), item.id)
         self.grab_focus()
         state = gesture.get_current_event_state()
         ctrl = bool(state & PRIMARY_MASK)
