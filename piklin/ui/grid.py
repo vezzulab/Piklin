@@ -307,7 +307,7 @@ class PhotoGrid(Gtk.Box):
         # A heading's back arrow sits beside its title; hidden on day rows.
         head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         back = Gtk.Button(icon_name="go-previous-symbolic", visible=False,
-                          valign=Gtk.Align.END)
+                          valign=Gtk.Align.CENTER)
         back.add_css_class("flat")
         back.add_css_class("pika-heading-back")
         back.connect("clicked", self._on_heading_back, list_item)

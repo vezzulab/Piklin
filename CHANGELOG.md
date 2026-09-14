@@ -17,7 +17,8 @@
 - Double-clicking a photo right after clicking it opens it, instead of only showing the selection bar
 - The Left and Right arrow keys move between photos in the viewer
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
-- An album shows its name and number of photos above its photos, with a back arrow beside the name when the album is inside a folder; a folder inside another folder has one too
+- An album shows its name and number of photos above its photos, with a soft grey back arrow on the same line as the name when the album is inside a folder; a folder inside another folder has one too
+- Each album in the sidebar shows a small picture of its cover
 - Videos filmed upright on a phone play upright, in the viewer and when previewed in the grid, and their size is recorded the right way round
 - Photos and videos dragged into Piklin are stored at the size chosen in Preferences › Storage, like those from a camera or a USB drive
 - Folders and albums share one A to Z order, instead of all folders first

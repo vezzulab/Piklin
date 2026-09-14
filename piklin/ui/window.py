@@ -476,7 +476,7 @@ class MainWindow(Adw.ApplicationWindow):
         section_state = {"collapsed": False}
 
         def add(key, label, icon, count=None, album_id=None, indent=0,
-                folder_id=None, smart_id=None):
+                folder_id=None, smart_id=None, cover=None):
             if section_state["collapsed"]:
                 return None
             # A folder in the tree is purely organisational - there is no
@@ -519,7 +519,11 @@ class MainWindow(Adw.ApplicationWindow):
                 spacer = Gtk.Box()
                 spacer.set_size_request(12, -1)
                 box.append(spacer)
-            box.append(Gtk.Image(icon_name=icon))
+            if cover:
+                # An album shows a small picture of its cover, not an icon.
+                box.append(self._sidebar_thumb(cover))
+            else:
+                box.append(Gtk.Image(icon_name=icon))
             box.append(Gtk.Label(label=label, xalign=0.0, hexpand=True,
                                  ellipsize=3))
             if count:
@@ -1280,6 +1284,33 @@ class MainWindow(Adw.ApplicationWindow):
         target.connect("leave", lambda *_: row.remove_css_class("pika-drop-into"))
         row.add_controller(target)
 
+    def _sidebar_thumb(self, path):
+        """A tiny rounded picture of an album's cover for its sidebar row.
+        Shown from the thumbnails already decoded when there is one, else
+        fetched and decoded off the UI thread, so the sidebar never waits."""
+        from .grid import _cached_texture, _remember_texture
+        from .tile import PhotoTile
+        from ..thumbs import GRID_SIZE
+        tile = PhotoTile(22, radius=5.0)
+        tile.add_css_class("pika-sidebar-thumb")
+        tile.set_valign(Gtk.Align.CENTER)
+        hit = _cached_texture(path)
+        if hit is not None:
+            tile.set_paintable(hit[1])
+            return tile
+
+        def done(thumb):
+            if thumb is None:
+                return
+            try:
+                texture = Gdk.Texture.new_from_filename(str(thumb))
+            except Exception:
+                return
+            _remember_texture(path, str(thumb), texture)
+            GLib.idle_add(lambda: (tile.set_paintable(texture), False)[1])
+        self.thumbs.request(path, GRID_SIZE, done)
+        return tile
+
     def _add_tree_rows(self, nodes, add_fn, depth):
         """Render the folders/albums tree, respecting collapsed state.
 
@@ -1310,7 +1341,8 @@ class MainWindow(Adw.ApplicationWindow):
                 album = node["row"]
                 add_fn(f"album:{album['id']}", album["name"],
                       "folder-pictures-symbolic", album["n"],
-                      album_id=album["id"], indent=indent)
+                      album_id=album["id"], indent=indent,
+                      cover=album["cover_path"])
 
     def _toggle_folder(self, folder_id):
         """The triangle beside a folder shows or hides what is inside it."""

@@ -1698,3 +1698,25 @@ window.piklin .pika-badge.pika-edited-badge {
   margin-top: 2px;
   margin-bottom: 4px;
 }
+
+/* The back arrow beside an album's or folder's name: on the same line as
+ * the name, centred on it, and a soft grey rather than black, so the name
+ * stays the first thing you read. */
+.pika-section.pika-view-heading .pika-heading-back { margin-top: 18px; }
+window.piklin button.pika-heading-back {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+}
+window.piklin button.pika-heading-back image { color: #9a9aa0; -gtk-icon-size: 18px; }
+window.piklin button.pika-heading-back:hover { background: alpha(#000000, 0.05); }
+window.piklin button.pika-heading-back:hover image { color: #55555a; }
+
+/* A folder's name above its cards, the same size as an album's name. */
+.pika-folder-heading { font-size: 1.75rem; font-weight: 800; margin-top: 0; }
+
+/* An album's cover in the sidebar: a small rounded picture where the icon was. */
+.pika-sidebar-thumb { min-width: 22px; min-height: 22px; }

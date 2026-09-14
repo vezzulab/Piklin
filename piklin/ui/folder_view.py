@@ -37,18 +37,20 @@ class FolderView(Gtk.ScrolledWindow):
         self._generation = 0
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.title = Gtk.Label(xalign=0.0, ellipsize=3, margin_top=22,
-                               margin_end=24, hexpand=True)
+        self.title = Gtk.Label(xalign=0.0, ellipsize=3, margin_end=24, hexpand=True,
+                               valign=Gtk.Align.CENTER)
         self.title.add_css_class("pika-section-title")
+        self.title.add_css_class("pika-folder-heading")
         # A folder inside another folder: a back arrow beside its name.
         self.back = Gtk.Button(icon_name="go-previous-symbolic", visible=False,
-                               valign=Gtk.Align.END, margin_start=16)
+                               valign=Gtk.Align.CENTER, margin_start=16)
         self.back.add_css_class("flat")
         self.back.add_css_class("pika-heading-back")
         self.back.connect("clicked", lambda *_: self._parent is not None
                           and self.emit("open-folder", self._parent))
         self._parent = None
-        title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        # the space above sits on the row, so the arrow and the name stay centred together
+        title_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4, margin_top=22)
         title_row.append(self.back)
         title_row.append(self.title)
         self.subtitle = Gtk.Label(xalign=0.0, ellipsize=3, margin_top=2,
