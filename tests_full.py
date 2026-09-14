@@ -1323,6 +1323,21 @@ finally:
     if _saved_cfg is None: os.environ.pop("XDG_CONFIG_HOME", None)
     else: os.environ["XDG_CONFIG_HOME"] = _saved_cfg
 
+# -- albums and folders are listed the way people count -------------------------
+from piklin.catalog import natural_key as _nk
+_names = ["Cumpleanios 10 - Aniella", "Cumpleanios 2 - Aniella", "Cumpleanios 1 - Aniella",
+          "cumpleanios 12 - Aniella", "Cumpleanios 9 - Aniella", "Paternos - 2025", "Paternos 2011+"]
+check("album names sort 1, 2, 9, 10, 12 - not 1, 10, 12, 2",
+      sorted(_names, key=_nk) == ["Cumpleanios 1 - Aniella", "Cumpleanios 2 - Aniella",
+                                  "Cumpleanios 9 - Aniella", "Cumpleanios 10 - Aniella",
+                                  "cumpleanios 12 - Aniella", "Paternos 2011+", "Paternos - 2025"],
+      sorted(_names, key=_nk))
+_tc2 = Catalog(os.path.join(TMP, "natural.db"))
+for _n in ("Trip 10", "Trip 2", "Trip 1"):
+    _tc2.create_album(_n)
+check("the sidebar tree lists albums in that order", [n["row"]["name"] for n in _tc2.tree()]
+      == ["Trip 1", "Trip 2", "Trip 10"], [n["row"]["name"] for n in _tc2.tree()])
+
 # -- album cover chosen by the user ---------------------------------------------
 _cc = Catalog(os.path.join(TMP, "cover.db"))
 _cids = []

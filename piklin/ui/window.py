@@ -1166,7 +1166,8 @@ class MainWindow(Adw.ApplicationWindow):
                 if r.get("fingerprint") not in already]
 
     def _fill_import_albums(self):
-        albums = self.catalog.albums()
+        from ..catalog import natural_key
+        albums = sorted(self.catalog.albums(), key=lambda a: natural_key(a["name"]))
         self._import_album_ids = [None] + [a["id"] for a in albums]
         self._import_album.set_model(Gtk.StringList.new(
             [_("Library")] + [a["name"] for a in albums]))
@@ -2250,7 +2251,8 @@ class MainWindow(Adw.ApplicationWindow):
         ids = self.grid.selected_ids()
         if not ids:
             return
-        albums = self.catalog.albums()
+        from ..catalog import natural_key
+        albums = sorted(self.catalog.albums(), key=lambda a: natural_key(a["name"]))
         dialog = Adw.AlertDialog(heading=_("Add to Album"),
                                  body=ngettext("{count} photo", "{count} photos",
                                                len(ids)).format(count=len(ids)))

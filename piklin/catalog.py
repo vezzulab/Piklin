@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -167,6 +168,17 @@ GRID_FIELDS = ("id", "uuid", "path", "filename", "width", "height",
                "edit_version", "thumb_state", "bytes", "duration", "has_live",
                "fingerprint")
 GRID_COLUMNS = ", ".join(GRID_FIELDS)
+
+
+def natural_key(text: str) -> tuple:
+    """Sort names the way people count: "Birthday 2" before "Birthday 10".
+
+    Runs of digits compare as numbers and the rest ignoring case, so a
+    folder of "Trip 1" to "Trip 12" reads 1, 2, 3 ... 12 instead of
+    1, 10, 11, 12, 2."""
+    parts = re.split(r"(\d+)", text or "")
+    return tuple((0, int(p), "") if p.isdigit() else (1, 0, p.casefold())
+                 for p in parts if p != "")
 
 
 def search_text(rec: dict) -> str:
@@ -1081,7 +1093,7 @@ class Catalog:
         def build(parent_id):
             items = by_parent.get(parent_id, [])
             items.sort(key=lambda n: (n["kind"] != "folder",
-                                      n["row"]["name"].lower()))
+                                      natural_key(n["row"]["name"])))
             for n in items:
                 if n["kind"] == "folder":
                     n["children"] = build(n["row"]["id"])

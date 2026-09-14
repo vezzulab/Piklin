@@ -15,6 +15,7 @@
 - The Left and Right arrow keys move between photos in the viewer
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
 - An album shows its name and number of photos above its photos
+- Albums and folders are listed the way people count: "Birthday 2" comes before "Birthday 10", in the sidebar, in folders and in the Add to Album list
 - Duplicates shows each set of identical copies as its own group, says at the top what the button does, and the button says exactly what goes: Keep One of Each, or Remove 2 Extra Copies for the groups you select
 - One click on a folder in the sidebar shows its albums on screen without opening it in the sidebar; a double click opens or closes it there
 - Albums and views open at once, however many photos they hold: the first photos appear in a few hundredths of a second, the rest load in the background, only the photos near the screen are drawn, and going back to a view shows its thumbnails straight away
