@@ -50,6 +50,20 @@ def dependencies(path: str) -> list[str]:
     return seen
 
 
+def rpaths(path: str) -> list[str]:
+    """The run-path search folders (LC_RPATH) the binary names."""
+    found: list[str] = []
+    lines = _tool("otool", "-l", path)
+    for i, line in enumerate(lines):
+        if line.strip() == "cmd LC_RPATH" and i + 2 < len(lines):
+            entry = lines[i + 2].strip()
+            if entry.startswith("path "):
+                value = entry[len("path "):].rsplit(" (offset", 1)[0]
+                if value not in found:
+                    found.append(value)
+    return found
+
+
 def install_id(path: str) -> str | None:
     for line in _tool("otool", "-D", path)[1:]:
         line = line.strip()
@@ -99,6 +113,17 @@ def main(argv: list[str]) -> int:
             new = rewrite(ident, mapping)
             if new:
                 args += ["-id", new]
+        # Run-path folders: one on the build machine points at the matching
+        # folder in the app; any other absolute one (a wheel's CI machine,
+        # /usr/local) goes, so a library is never looked for outside the app.
+        for rp in rpaths(path):
+            if rp.startswith("@"):
+                continue
+            new = rewrite(rp.rstrip("/") + "/", mapping)
+            if new:
+                args += ["-rpath", rp, new.rstrip("/")]
+            else:
+                args += ["-delete_rpath", rp]
         if args:
             os.chmod(path, os.stat(path).st_mode | 0o200)
             subprocess.run(["install_name_tool", *args, path], check=True,
@@ -112,6 +137,9 @@ def main(argv: list[str]) -> int:
             if dep == ident or dep.startswith("@") or dep.startswith(SYSTEM):
                 continue
             stray.append(f"{os.path.relpath(path, contents)} -> {dep}")
+        for rp in rpaths(path):
+            if not rp.startswith("@"):
+                stray.append(f"{os.path.relpath(path, contents)} searches {rp}")
     print(f"relocated {changed} binaries")
     if stray:
         print("still refers to files outside the app:", *stray[:40], sep="\n  ", file=sys.stderr)

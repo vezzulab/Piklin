@@ -76,7 +76,7 @@ STDLIB="$PV/lib/python$PYVER"
 # What a photo app never runs: the test suite, Tk, IDLE, pip's bootstrap.
 rm -rf "$STDLIB"/{test,idlelib,tkinter,turtledemo,ensurepip,__phello__} "$STDLIB"/site-packages/* \
        "$STDLIB"/config-* "$STDLIB"/lib-dynload/_tkinter* "$PV"/lib/{libtcl*,libtk*,tcl*,tk*,itcl*,pkgconfig} \
-       "$PV/share" "$PV/Resources/Python.app" "$PV/bin"
+       "$PV/share" "$PV/Resources/Python.app" "$PV/bin" "$PV/Frameworks"
 
 # ------------------------------------------------------------- launcher
 say "Universal launcher"
@@ -109,6 +109,31 @@ for a in $ARCHS; do
 
   cp -a "$P"/lib/*.dylib "$R/lib/"
   cp -a "$P/lib/girepository-1.0" "$R/lib/"
+  # GLib's typelibs name their libraries by full path in the build prefix
+  # (the others by file name only), which exists on no other Mac. The names
+  # are NUL-terminated strings: the folder is cut out in place and the rest
+  # padded with NULs, so the file keeps its size and every offset in it.
+  "$HOST_PY" - "$P/lib/" "$R"/lib/girepository-1.0/*.typelib <<'PY'
+import sys
+prefix = sys.argv[1].encode()
+for name in sys.argv[2:]:
+    data = bytearray(open(name, "rb").read())
+    changed = False
+    at = data.find(prefix)
+    while at != -1:
+        start = data.rfind(b"\0", 0, at) + 1
+        end = data.index(b"\0", at)
+        old = bytes(data[start:end])
+        new = old.replace(prefix, b"")
+        data[start:end] = new + b"\0" * (len(old) - len(new))
+        changed = True
+        at = data.find(prefix, start)
+    if changed:
+        open(name, "wb").write(data)
+PY
+  if strings "$R"/lib/girepository-1.0/*.typelib | grep -q "$CACHE"; then
+    echo "a typelib still names the build folder - refusing to package" >&2; exit 1
+  fi
   mkdir -p "$R/lib/gio/modules"
   # Image loaders, and their list with the location left for boot.py to fill in.
   LOADERS="lib/gdk-pixbuf-2.0/2.10.0"
@@ -240,6 +265,9 @@ for p in relocate.machos('$C'):
     if not p.endswith('/MacOS/Piklin'):
         print(p)
 " | while IFS= read -r f; do codesign --force --sign "$SIGN_ID" "$f" >/dev/null 2>&1 || { echo "could not sign $f" >&2; exit 1; }; done
+# The Python framework came sealed by python.org; the parts removed above
+# broke that seal, so it is sealed again as a bundle of its own.
+codesign --force --sign "$SIGN_ID" "$PV"
 codesign --force --sign "$SIGN_ID" "$APP"
 codesign --verify --deep --strict "$APP"
 
