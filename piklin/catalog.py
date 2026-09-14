@@ -1128,6 +1128,18 @@ class Catalog:
             GROUP BY a.id ORDER BY a.folder_id, a.position, a.name COLLATE NOCASE""")
 
     def album_add(self, album_id: int, photo_ids: Sequence[int]) -> None:
+        # Only photos the library has: one without a row - still on a camera
+        # or phone (a negative id), or removed meanwhile - failed the whole
+        # add on the foreign key, and nothing went into the album.
+        wanted = [int(p) for p in photo_ids if int(p) > 0]
+        known: set[int] = set()
+        for i in range(0, len(wanted), 400):
+            part = wanted[i:i + 400]
+            known.update(r["id"] for r in self.q(
+                f"SELECT id FROM photos WHERE id IN ({','.join('?' * len(part))})", part))
+        photo_ids = [p for p in wanted if p in known]
+        if not photo_ids:
+            return
         base = int(self.scalar(
             "SELECT COALESCE(MAX(position),-1) FROM album_items WHERE album_id=?",
             (album_id,), -1)) + 1

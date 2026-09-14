@@ -56,15 +56,19 @@ class Device:
         return self.path is not None and self.path.is_dir()
 
 
+def _is_dir(path: Path) -> bool:
+    """A folder that is there. A camera or phone mounted by gvfs over
+    gphoto2 (an iPhone on Linux) answers a name that is not there with an
+    I/O error instead of "not found"; that is not there either."""
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
 def _looks_like_camera(root: Path) -> bool:
     """A volume is a camera if it carries a picture folder."""
-    try:
-        for name in PHOTO_DIRS:
-            if (root / name).is_dir():
-                return True
-    except OSError:
-        pass
-    return False
+    return any(_is_dir(root / name) for name in PHOTO_DIRS)
 
 
 def _is_external(mount, path: Path) -> bool:
@@ -199,7 +203,7 @@ def photo_dirs(device: Device) -> list[Path]:
     if device.path is None:
         return []
     found = [device.path / name for name in PHOTO_DIRS
-             if (device.path / name).is_dir()]
+             if _is_dir(device.path / name)]
     # Some cameras write straight to the root of the card.
     return found or [device.path]
 

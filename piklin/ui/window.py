@@ -1334,8 +1334,10 @@ class MainWindow(Adw.ApplicationWindow):
                     # photo on one has no meaning, so refuse it rather
                     # than silently doing nothing surprising.
                     return False
+                # Library photos only: a photo still on a device has a
+                # negative id and no row, and adding it failed the whole drop.
                 ids = [int(i) for i in
-                       value[len(PhotoGrid.DRAG_PREFIX):].split(",") if i]
+                       value[len(PhotoGrid.DRAG_PREFIX):].split(",") if i and int(i) > 0]
                 if not ids:
                     return False
                 self.catalog.album_add(album_id, ids)

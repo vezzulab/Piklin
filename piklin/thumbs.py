@@ -48,11 +48,23 @@ class ThumbCache:
         # pickling the results than they save.
         self._pool = ThreadPoolExecutor(max_workers=n,
                                         thread_name_prefix="thumb")
+        # Photos read through gvfs - a phone or camera over gphoto2 or MTP -
+        # arrive a whole file at a time over USB, seconds each. They get
+        # workers of their own, so they can never hold up the library's
+        # thumbnails behind them.
+        self._slow_pool = ThreadPoolExecutor(max_workers=2,
+                                             thread_name_prefix="thumb-device")
         self._inflight: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
 
     def shutdown(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
+        self._slow_pool.shutdown(wait=False, cancel_futures=True)
+
+    @staticmethod
+    def _slow(src: Path | str) -> bool:
+        """A file reached through gvfs's own mounts (/run/user/<uid>/gvfs)."""
+        return "/gvfs/" in str(src)
 
     def path_for(self, key: str) -> Path:
         # Two-level fan-out: a single directory with 100k entries is slow
@@ -225,7 +237,7 @@ class ThumbCache:
                 callback(self.generate(src, size, mtime))
             except Exception:
                 callback(None)
-        self._pool.submit(work)
+        (self._slow_pool if self._slow(src) else self._pool).submit(work)
 
     def size_on_disk(self) -> int:
         total = 0

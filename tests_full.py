@@ -1505,6 +1505,28 @@ _cc.album_remove(_caid, [_cids[2]])
 check("an album shows the cover you choose, and its first photo again if that one leaves",
       _first == "/c/p0.jpg" and _chosen == "/c/p2.jpg" and _cover() == "/c/p0.jpg",
       (_first, _chosen, _cover()))
+# A photo still on a phone (negative id) or already gone must not fail the
+# whole drop onto an album: the real photos go in, the rest are left out.
+_fk_album = _cc.create_album("Drop")
+try:
+    _cc.album_add(_fk_album, [-1, _cids[0], 999999, _cids[1]])
+    _fk_ok = True
+except Exception as _e:
+    _fk_ok = repr(_e)
+check("dropping photos that are not in the library onto an album adds the real ones and fails nothing",
+      _fk_ok is True and _cc.scalar("SELECT COUNT(*) FROM album_items WHERE album_id=?", (_fk_album,), 0) == 2,
+      _fk_ok)
+from piklin.thumbs import ThumbCache as _TC
+check("photos read through gvfs (a phone over gphoto2) get thumbnail workers of their own",
+      _TC._slow("/run/user/1000/gvfs/gphoto2:host=Apple_Inc._iPhone_1/202308__/IMG_1.JPG")
+      and not _TC._slow("/home/me/Pictures/IMG_1.JPG"))
+import errno as _errno
+from unittest import mock as _mock
+from piklin import devices as _dv
+with _mock.patch("pathlib.Path.is_dir", side_effect=OSError(_errno.EIO, "Input/output error")):
+    _eio = (_dv._is_dir(Path("/gvfs/phone/CAMERA")), _dv._looks_like_camera(Path("/gvfs/phone")))
+check("a phone that answers a missing folder with an I/O error is read, not abandoned",
+      _eio == (False, False), _eio)
 
 # -- self-update: only a signed, official, matching package is accepted ---------
 import importlib.machinery as _ilm, importlib.util as _ilu, subprocess as _sp2, hashlib
