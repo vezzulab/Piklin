@@ -16,7 +16,7 @@
 - Edits are kept: moving a slider in the editor is saved as you go, and leaving the editor by any way - Back, Esc or Return - saves the last change. Before, a tool could be kept with all its values at zero
 - Drag the edge of the sidebar to make it wider, up to 420 pixels, so the names of albums and folders deep inside other folders can be read; Piklin remembers the width
 - Clicking a photo while the photos are still gliding after a touchpad flick stops them at once, so the photo you click stays under the pointer instead of sliding away
-- Choosing a photo keeps the photos where they are. Before, far down a big library the view jumped away as soon as one was chosen: the count of chosen photos, shown at the top, narrowed the sidebar and resized every photo. The count is now in the bar at the bottom, that bar lies over the photos, and photos changing size keep your place
+- Choosing a photo keeps the photos where they are. Before, far down a big library the view jumped away as soon as one was clicked: the list took the photo's whole row as focused and scrolled it into view, and a row is taller than the window, so it was pulled up or centred. The activity log found it. Also, the count of chosen photos, shown at the top, narrowed the sidebar and resized every photo; it is now in the bar at the bottom, that bar lies over the photos, and photos changing size keep your place
 - Double-clicking a photo right after clicking it opens it, instead of only showing the selection bar
 - The Left and Right arrow keys move between photos in the viewer
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover

@@ -385,7 +385,8 @@ class PhotoGrid(Gtk.Box):
                            homogeneous=False, row_spacing=0,
                            column_spacing=0, max_children_per_line=64,
                            min_children_per_line=1, valign=Gtk.Align.START,
-                           halign=Gtk.Align.START)
+                           halign=Gtk.Align.START, focusable=False,
+                           activate_on_single_click=False)
         # A heading's back arrow sits beside its title; hidden on day rows.
         head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         back = Gtk.Button(icon_name="go-previous-symbolic", visible=False,
@@ -399,6 +400,14 @@ class PhotoGrid(Gtk.Box):
         box.append(sub)
         box.append(flow)
         list_item.set_child(box)
+        # A click on a photo made the list focus the whole row, and the list
+        # scrolls a focused row into view. A row of six grid rows is taller
+        # than the window, so it was pulled to the top or centred: the activity
+        # log showed the photos jumping 1074 px (one row) or half a window
+        # right after a click. Rows never take focus now; the grid does.
+        list_item.set_focusable(False)
+        list_item.set_activatable(False)
+        list_item.set_selectable(False)
         list_item._back = back
         list_item._title = title
         list_item._sub = sub
@@ -474,6 +483,11 @@ class PhotoGrid(Gtk.Box):
             # not just the inner box, or every photo is an unnamed cell.
             cell = tile.get_parent()
             if cell is not None:
+                # Clicking a photo gave its FlowBox cell the focus, and the list
+                # scrolled that cell's whole row - taller than the window - into
+                # view: the photos jumped a row away. The activity log showed
+                # "focus on FlowBoxChild". Cells never take focus now.
+                cell.set_focusable(False)
                 cell.update_property([Gtk.AccessibleProperty.LABEL],
                                      [getattr(item, "filename", "") or _("Photo")])
         flow.set_size_request(-1, -1)
@@ -903,14 +917,16 @@ class PhotoGrid(Gtk.Box):
         if abs(moved) > adj.get_page_size() / 2:
             self._click_mark = None
             from .. import logs
+            root = self.get_root()
+            focus = root.get_focus() if root is not None else None
             logs.get("grid").warning(
                 "View moved %+d px %.2f s after clicking photo %s (scope %s, "
                 "%d photos loaded, %s, tile %d px x %d columns, page %d of %d px, "
-                "window %d px wide)",
+                "window %d px wide, focus on %s)",
                 moved, elapsed / 1e6, mark[2], self._scope, len(self._items),
                 "all loaded" if self._exhausted else "still loading",
                 self.tile_px, self._columns, adj.get_page_size(), adj.get_upper(),
-                self.get_width())
+                self.get_width(), type(focus).__name__ if focus is not None else "nothing")
 
     def _on_tile_click(self, gesture, n_press, x, y, button, item):
         self._click_mark = (GLib.get_monotonic_time(),
