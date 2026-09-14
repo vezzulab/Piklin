@@ -15,6 +15,9 @@
 - Connect an iPhone or iPad and its photos appear under Devices, ready to browse and import, on Mac and on Linux. Unlock it and choose Trust when it asks
 - Cameras and Android phones set to "Transfer photos (PTP)" work on a Mac as they do on Linux
 - An iPhone shows once in the sidebar, not once for each way Linux can reach it
+- With an iPhone connected on Linux, the rest of the library keeps its photos: the phone's thumbnails, read slowly over USB, no longer hold up every other thumbnail and leave the photos blank until the phone is unplugged
+- An iPhone on Linux is read to the end instead of staying on "Reading iPhone…"
+- Dropping photos on an album adds the photos it can, instead of failing and adding none
 
 ### Linux
 - Piklin is available for 64-bit ARM computers as well (arm64), such as a Raspberry Pi 5 or an ARM laptop running Ubuntu 24.04 or newer
