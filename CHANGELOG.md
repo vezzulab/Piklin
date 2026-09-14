@@ -20,24 +20,8 @@
 - Piklin is available for 64-bit ARM computers as well (arm64), such as a Raspberry Pi 5 or an ARM laptop running Ubuntu 24.04 or newer
 - Video always plays with sound: the package now asks for the small library miniaudio needs, which some minimal installations lacked
 
-### Albums and photos
-- Drag the edge of the sidebar to make it wider, up to 420 pixels, so the names of albums and folders deep inside other folders can be read; Piklin remembers the width
-- Clicking a photo while the photos are still gliding after a touchpad flick stops them at once, so the photo you click stays under the pointer instead of sliding away
-- Choosing a photo keeps the photos where they are. Before, far down a big library the view jumped away as soon as one was clicked: the list took the photo's whole row as focused and scrolled it into view, and a row is taller than the window, so it was pulled up or centred. The activity log found it. Also, the count of chosen photos, shown at the top, narrowed the sidebar and resized every photo; it is now in the bar at the bottom, that bar lies over the photos, and photos changing size keep your place
+### Everywhere
 - A video is never refused when the image library cannot open it: Piklin reads it through its own video engine instead
-
-### Backups
-- Automatic backup no longer stops with "No password saved" when Piklin opens right after logging in, before the password keyring is unlocked: it waits and tries again a few minutes later
-
-### Updates
-- Every time Piklin opens it looks for a new version, and every hour while it stays open
-- When there is one, Piklin asks: a window shows the version you have next to the one you would get, what is new in a few words, and Install Now or Cancel. Nothing is installed without asking - some people prefer the version they have
-- A black Update Available button with a ringing bell stays above Support on Ko-fi while an update is waiting, and opens the same window
-- Installing happens inside that window, without a password and with only packages signed by Vezzu Studio; Piklin then reopens in the new version once nothing is copying and no editor is open
-- After reopening from an update, the taskbar shows Piklin with its logo, instead of "app.py" with no icon
-
-### Activity log
-- Help › Activity Log shows what Piklin noted - backups, updates, errors, and the photos moving just after a click - to find the cause of a problem. It stays on this computer and is never sent anywhere, holds no passwords, addresses or photo names, and never grows past about 1.6 MB. Copy it and paste it into a problem report on GitHub with Report a Problem
 
 ## 1.0.4
 
@@ -53,6 +37,9 @@
 - Crop works as expected: the whole photo shows while you set the crop, dragging inside draws a new one, corners and edges can be pulled, and Square, 16:9 or Original reshape the rectangle at once. Before, each adjustment cropped the crop again and the rectangle jumped
 - Brush, Healing and Selective start clean: strokes and points painted in one layer no longer appear in the next one, on any photo
 - Edits are kept: moving a slider in the editor is saved as you go, and leaving the editor by any way - Back, Esc or Return - saves the last change. Before, a tool could be kept with all its values at zero
+- Drag the edge of the sidebar to make it wider, up to 420 pixels, so the names of albums and folders deep inside other folders can be read; Piklin remembers the width
+- Clicking a photo while the photos are still gliding after a touchpad flick stops them at once, so the photo you click stays under the pointer instead of sliding away
+- Choosing a photo keeps the photos where they are. Before, far down a big library the view jumped away as soon as one was clicked: the list took the photo's whole row as focused and scrolled it into view, and a row is taller than the window, so it was pulled up or centred. The activity log found it. Also, the count of chosen photos, shown at the top, narrowed the sidebar and resized every photo; it is now in the bar at the bottom, that bar lies over the photos, and photos changing size keep your place
 - Double-clicking a photo right after clicking it opens it, instead of only showing the selection bar
 - The Left and Right arrow keys move between photos in the viewer
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
@@ -73,15 +60,22 @@
 ### Backups
 - Backups go in a Piklin folder inside the folder you choose, made when it is missing. A backup already made straight in the chosen folder is moved into it on the destination itself, without sending anything again; nothing else there is touched
 - A backup folder shared with other files - such as a NAS photo share with a Lightroom catalog in it - is no longer searched through: Piklin reads only its own part, so a backup that stayed on "Connecting…" for many minutes now starts straight away, and a restore never brings those other files into the library
+- Automatic backup no longer stops with "No password saved" when Piklin opens right after logging in, before the password keyring is unlocked: it waits and tries again a few minutes later
 - While Piklin checks what is already backed up, it says so
 - The backup status shows how far along it is while a big video uploads, instead of staying on the same file number for minutes
 - When one destination can't be reached - a NAS at home while you travel - the others are still backed up, and the one that was missed catches up by itself once it can be reached again
 
 ### Updates
-- Piklin updates itself: when a new version is out it says so, installs it and reopens in it, without a password. It waits until nothing is copying and no editor is open. Only packages signed by Vezzu Studio are installed. Turn it off in Preferences › General
-
-- Automatic updates are looked for every hour while Piklin is open, instead of once a day
+- Every time Piklin opens it looks for a new version, and every hour while it stays open
+- When there is one, Piklin asks: a window shows the version you have next to the one you would get, what is new in a few words, and Install Now or Cancel. Nothing is installed without asking - some people prefer the version they have
+- A black Update Available button with a ringing bell stays above Support on Ko-fi while an update is waiting, and opens the same window
+- Installing happens inside that window, without a password and with only packages signed by Vezzu Studio; Piklin then reopens in the new version once nothing is copying and no editor is open
+- After reopening from an update, the taskbar shows Piklin with its logo, instead of "app.py" with no icon
+- Turn checking for updates off in Preferences › General
 - A version published again with fixes, under the same number, is installed too: Piklin compares the build and still installs only packages signed by Vezzu Studio
+
+### Activity log
+- Help › Activity Log shows what Piklin noted - backups, updates, errors, and the photos moving just after a click - to find the cause of a problem. It stays on this computer and is never sent anywhere, holds no passwords, addresses or photo names, and never grows past about 1.6 MB. Copy it and paste it into a problem report on GitHub with Report a Problem
 
 ### License
 - Piklin is free to use for any purpose, at home or for work, including commercial use. Modifying, redistributing or selling it is not permitted. Your photos and everything you make with Piklin are yours
