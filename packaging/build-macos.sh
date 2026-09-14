@@ -137,10 +137,15 @@ for a in $ARCHS; do
 CONF
 
   plat=($(platforms "$a"))
+  pins=("${PINNED[@]}")
+  if ls "$CACHE/$a"/wheels/opencv_python_headless-*.whl >/dev/null 2>&1; then
+    # Built by build-stack.sh (without FFmpeg): never the PyPI wheel.
+    pins=($(printf '%s\n' "${PINNED[@]}" | grep -v '^opencv-python-headless=='))
+  fi
   "$HOST_PY" -m pip install --quiet --no-deps --only-binary=:all: --implementation cp \
       --python-version "$PYVER" "${plat[@]}" --cache-dir "$CACHE/pip" \
       --find-links "$CACHE/$a/wheels" \
-      --target "$R/site-packages" "${PINNED[@]}" \
+      --target "$R/site-packages" "${pins[@]}" \
       "$CACHE/$a"/wheels/*.whl "$CACHE/$a"/media-wheels/av-*.whl
   find "$R/site-packages" -type d \( -name tests -o -name test -o -name __pycache__ \) \
        -exec rm -rf {} + 2>/dev/null || true

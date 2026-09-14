@@ -298,6 +298,37 @@ if ! built python-bindings; then
   done_ python-bindings
 fi
 
+# OpenCV's wheel for Apple Silicon Macs carries an FFmpeg built with x264 and
+# x265 (GPL), which Piklin cannot ship. Build it here without FFmpeg - video
+# goes through PyAV and Piklin's own LGPL FFmpeg, as on an Intel Mac, whose
+# OpenCV wheel has no FFmpeg at all - and without formats Piklin never asks
+# OpenCV to read, so it links to nothing but macOS.
+if [ "$ARCH" = arm64 ] && ! built opencv; then
+  say "OpenCV without FFmpeg"
+  : > "$LOGS/opencv.log"
+  OPENCV="$(sed -n 's/.*opencv-python-headless==\([0-9.]*\).*/\1/p' "$(dirname "$HERE")/build-deb.sh")"
+  rm -f "$WHEELS"/opencv_python_headless-*.whl
+  # In a bare environment - nothing of this script's compiler flags, search
+  # paths or tools - which is the only way OpenCV's build recognised this Mac
+  # as arm64 (with them it built Intel assembly). Homebrew stays out because
+  # every optional library it could offer is switched off.
+  run_logged opencv env -i HOME="$HOME" PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+      MACOSX_DEPLOYMENT_TARGET="$MIN_MACOS" _PYTHON_HOST_PLATFORM="macosx-$MIN_MACOS-$ARCH" \
+      ENABLE_HEADLESS=1 ENABLE_CONTRIB=0 \
+      CMAKE_ARGS="-DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_AVIF=OFF -DWITH_OPENEXR=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_TIFF=OFF -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF" \
+      "$PY" -m pip wheel --no-deps --no-cache-dir --no-binary opencv-python-headless \
+      "opencv-python-headless==$OPENCV" -w "$WHEELS"
+  # Nothing but macOS itself may be linked.
+  check="$(mktemp -d)"
+  unzip -q "$(ls "$WHEELS"/opencv_python_headless-*.whl | head -1)" -d "$check"
+  if otool -L "$check"/cv2/cv2*.so | tail -n +2 | grep -vqE "/usr/lib/|/System/|@loader_path" \
+      || find "$check" -iname '*x26*' -o -iname '*avcodec*' | grep -q .; then
+    echo "OpenCV links to libraries outside macOS, or to FFmpeg - refusing to use it" >&2; exit 1
+  fi
+  rm -rf "$check"
+  done_ opencv
+fi
+
 # ----------------------------------------------------------------- checks
 say "Checking the result"
 bad=0
