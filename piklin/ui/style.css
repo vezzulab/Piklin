@@ -130,10 +130,17 @@ window.piklin .pika-content {
   background: @pika_wall;
   border-bottom: 1px solid @pika_hairline;
 }
+/* The sidebar's draggable edge is the hairline itself; GTK grabs a few
+   pixels either side of it. */
+paned.pika-split > separator {
+  min-width: 1px;
+  background: @pika_hairline;
+  border: none;
+  box-shadow: none;
+}
 /* The vertical divider starts below the bar, so it never interrupts it. */
 .pika-sidebar-pane {
   background: @pika_sidebar;
-  border-right: 1px solid @pika_hairline;
 }
 .pika-toolbar,
 .pika-toolbar revealer, .pika-toolbar box {

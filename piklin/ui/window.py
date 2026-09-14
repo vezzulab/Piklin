@@ -25,6 +25,9 @@ from .editor import EditorView
 from .grid import PhotoGrid
 from .viewer import ViewerView
 
+# How narrow and how wide the sidebar can be dragged.
+SIDEBAR_MIN = 210
+SIDEBAR_MAX = 420
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app, library: Library):
@@ -129,13 +132,42 @@ class MainWindow(Adw.ApplicationWindow):
     # layout
     # ==================================================================
     def _build_library_page(self):
-        self.split = Adw.NavigationSplitView(
-            min_sidebar_width=210, max_sidebar_width=280)
-        self.split.set_sidebar(Adw.NavigationPage(
-            child=self._build_sidebar(), title=_("Library")))
-        self.split.set_content(Adw.NavigationPage(
-            child=self._build_content(), title=_("Photos")))
+        # Drag the sidebar's edge to make it wider, so the names of albums
+        # deep inside folders can be read; the width is remembered.
+        self.split = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL,
+                               wide_handle=False)
+        self.split.add_css_class("pika-split")
+        sidebar = self._build_sidebar()
+        sidebar.set_size_request(SIDEBAR_MIN, -1)
+        self.split.set_start_child(sidebar)
+        self.split.set_resize_start_child(False)
+        self.split.set_shrink_start_child(False)
+        self.split.set_end_child(self._build_content())
+        self.split.set_resize_end_child(True)
+        self.split.set_shrink_end_child(False)
+        width = int(self.settings.get("sidebar_width", 280) or 280)
+        self.split.set_position(max(SIDEBAR_MIN, min(SIDEBAR_MAX, width)))
+        self._sidebar_save = 0
+        self.split.connect("notify::position", self._on_sidebar_width)
         return self.split
+
+    def _on_sidebar_width(self, paned, _pspec):
+        pos = paned.get_position()
+        if pos > SIDEBAR_MAX:
+            paned.set_position(SIDEBAR_MAX)
+            return
+        if pos < SIDEBAR_MIN:
+            paned.set_position(SIDEBAR_MIN)
+            return
+        # saved once the dragging stops, not on every pixel
+        if self._sidebar_save:
+            GLib.source_remove(self._sidebar_save)
+
+        def save():
+            self._sidebar_save = 0
+            self.settings.set("sidebar_width", paned.get_position())
+            return False
+        self._sidebar_save = GLib.timeout_add(400, save)
 
     def _build_sidebar(self):
         toolbar = Adw.ToolbarView()

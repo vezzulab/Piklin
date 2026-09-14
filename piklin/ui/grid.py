@@ -194,6 +194,13 @@ class PhotoGrid(Gtk.Box):
         self._band_area = Gtk.DrawingArea(can_target=False)
         self._band_area.set_draw_func(self._draw_band)
         overlay.add_overlay(self._band_area)
+        # A touchpad flick keeps the photos gliding after the fingers lift,
+        # and a click did not stop it: the photo clicked slid away from
+        # under the pointer. Any press now stops the glide where it is.
+        halt = Gtk.GestureClick(button=0)
+        halt.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        halt.connect("pressed", self._halt_glide)
+        self.scroller.add_controller(halt)
         band = Gtk.GestureDrag(button=Gdk.BUTTON_PRIMARY)
         band.connect("drag-begin", self._band_begin)
         band.connect("drag-update", self._band_update)
@@ -689,6 +696,14 @@ class PhotoGrid(Gtk.Box):
             return                              # a photo has its own menu
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)
         self.emit("background-menu", source, x, y)
+
+    def _halt_glide(self, gesture, *_args):
+        # Turning kinetic scrolling off cancels a glide in progress.
+        self.scroller.set_kinetic_scrolling(False)
+        self.scroller.set_kinetic_scrolling(True)
+        adj = self.scroller.get_vadjustment()
+        adj.set_value(adj.get_value())
+        gesture.set_state(Gtk.EventSequenceState.DENIED)
 
     def _band_begin(self, gesture, x, y):
         self._band = None
