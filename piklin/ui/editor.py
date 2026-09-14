@@ -409,6 +409,11 @@ class EditorView(Gtk.Box):
         full = self.full_size
         drag_side = int(self.settings.get("drag_max_side", 900))
         preview_side = int(self.settings.get("preview_max_side", 1600))
+        # While the crop is being set, show the photo as it is before that
+        # crop, whole: drawing the rectangle over the already-cropped result
+        # made every drag crop the crop again, and the rectangle jumped.
+        upto = (self.active_index if self._canvas_mode == "crop"
+                and self.active_index is not None else None)
 
         def work():
             img = source
@@ -416,7 +421,7 @@ class EditorView(Gtk.Box):
                 img = ops.fit_within(img, drag_side)
             scale = (max(img.shape[:2]) / max(full)) if max(full) else 1.0
             return self.renderer.render(
-                img, stack, scale=scale, full_size=full, draft=draft,
+                img, stack, scale=scale, full_size=full, draft=draft, upto=upto,
                 face_detection=bool(self.settings.get("face_detection", True)))
 
         if not draft:
@@ -489,10 +494,14 @@ class EditorView(Gtk.Box):
             self.param_box.remove(child)
             child = nxt
 
+        was_crop = self._canvas_mode == "crop"
         self._canvas_mode = spec.id if spec.id in CANVAS_TOOLS else None
         if spec.id == "crop":
             r = layer.params.get("rect") or [0, 0, 1, 1]
             self._crop_rect = list(r)
+        if was_crop or self._canvas_mode == "crop":
+            # entering Crop shows the whole photo; leaving it shows the crop
+            self._request_render(draft=False)
 
         for param in spec.params:
             widget = self._widget_for(param, layer, index)
@@ -698,6 +707,13 @@ class EditorView(Gtk.Box):
             if pts:
                 self.stack.set_params(index, {"curves": {"rgb": list(pts)}})
                 self._show_params(index)
+        if layer.tool == "crop" and param.key == "aspect":
+            # choosing Square, 16:9... reshapes the rectangle at once
+            rect = layer.params.get("rect") or [0.0, 0.0, 1.0, 1.0]
+            fitted = self._fit_crop_aspect(rect, value)
+            self.stack.set_params(index, {"rect": fitted})
+            self._crop_rect = list(fitted)
+            self.overlay_area.queue_draw()
         self._request_render(draft=False)
         self._autosave()
 
@@ -799,10 +815,13 @@ class EditorView(Gtk.Box):
             self._on_layer_delete(None, self.active_index)
 
     def _close_params(self):
+        was_crop = self._canvas_mode == "crop"
         self.active_index = None
         self._canvas_mode = None
         self.panel_stack.set_visible_child_name("browse")
         self.overlay_area.queue_draw()
+        if was_crop:
+            self._request_render(draft=False)       # show the crop applied again
 
     # ==================================================================
     # history / compare / revert
@@ -933,17 +952,67 @@ class EditorView(Gtk.Box):
             self._request_render(draft=True)
         self.overlay_area.queue_draw()
 
+    def _fit_crop_aspect(self, r, aspect):
+        """Shape a crop rectangle to an aspect, keeping it inside what was
+        drawn and centred on it. "Original" is the photo's own shape.
+
+        Measured on the photo as it arrives at the crop - turned, if a
+        Rotate came first - which is what is on screen while cropping."""
+        ratio = tools.CROP_ASPECTS.get(aspect)
+        if ratio is None:
+            return list(r)
+        if self.rendered is not None:
+            ih, iw = self.rendered.shape[:2]
+        else:
+            iw, ih = self.full_size
+        iw, ih = max(iw, 1), max(ih, 1)
+        if not ratio:
+            ratio = iw / ih
+        x, y, w, h = r
+        cur = (w * iw) / max(h * ih, 1e-6)
+        if cur > ratio:
+            nw, nh = h * ratio * ih / iw, h
+        else:
+            nw, nh = w, w / ratio * iw / ih
+        nx = min(max(0.0, x + (w - nw) / 2), 1.0 - nw)
+        ny = min(max(0.0, y + (h - nh) / 2), 1.0 - nh)
+        return [nx, ny, nw, nh]
+
     def _crop_hit(self, pt):
+        """What a press at ``pt`` grabs: a corner, an edge, the whole
+        rectangle to move it, or nothing (a new crop is drawn)."""
         if not self._crop_rect:
             return None
         x, y, w, h = self._crop_rect
-        tol = 0.035
-        corners = {"nw": (x, y), "ne": (x + w, y),
-                   "sw": (x, y + h), "se": (x + w, y + h)}
-        for name, (cx, cy) in corners.items():
-            if abs(pt[0] - cx) < tol and abs(pt[1] - cy) < tol:
-                return name
+        # About 14 screen pixels either way, however big the photo is shown.
+        rect = self._image_rect()
+        tx = 14.0 / rect[2] if rect and rect[2] else 0.02
+        ty = 14.0 / rect[3] if rect and rect[3] else 0.02
+        near_l, near_r = abs(pt[0] - x) < tx, abs(pt[0] - (x + w)) < tx
+        near_t, near_b = abs(pt[1] - y) < ty, abs(pt[1] - (y + h)) < ty
+        within_x = x - tx < pt[0] < x + w + tx
+        within_y = y - ty < pt[1] < y + h + ty
+        if near_t and near_l:
+            return "nw"
+        if near_t and near_r:
+            return "ne"
+        if near_b and near_l:
+            return "sw"
+        if near_b and near_r:
+            return "se"
+        if near_t and within_x:
+            return "n"
+        if near_b and within_x:
+            return "s"
+        if near_l and within_y:
+            return "w"
+        if near_r and within_y:
+            return "e"
         if x < pt[0] < x + w and y < pt[1] < y + h:
+            # A rectangle still covering the whole photo cannot be moved:
+            # dragging inside it draws the crop instead.
+            if w >= 0.98 and h >= 0.98:
+                return None
             return "move"
         return None
 
@@ -1005,19 +1074,7 @@ class EditorView(Gtk.Box):
         if mode == "crop" and self._crop_rect:
             r = [max(0.0, min(1.0, v)) for v in self._crop_rect]
             if r[2] > 0.02 and r[3] > 0.02:
-                aspect = layer.params.get("aspect", "Free")
-                ratio = tools.CROP_ASPECTS.get(aspect)
-                if ratio:
-                    # Lock the aspect by shrinking the longer dimension, so
-                    # the rectangle always stays inside what the user drew.
-                    cur = (r[2] * self.full_size[0]) / max(
-                        r[3] * self.full_size[1], 1e-6)
-                    if cur > ratio:
-                        r[2] = r[3] * ratio * self.full_size[1] / max(
-                            self.full_size[0], 1)
-                    else:
-                        r[3] = r[2] / ratio * self.full_size[0] / max(
-                            self.full_size[1], 1)
+                r = self._fit_crop_aspect(r, layer.params.get("aspect", "Free"))
                 layer.params["rect"] = r
                 self._crop_rect = r
                 self._request_render(draft=False)

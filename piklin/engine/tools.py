@@ -66,7 +66,11 @@ class Tool:
     description: str = ""
 
     def defaults(self) -> dict:
-        return {p.key: p.default for p in self.params}
+        # A fresh copy every time: the defaults of strokes and points are
+        # lists, and sharing one list meant a stroke painted in one Brush
+        # layer showed up in every Brush added after it, on any photo.
+        import copy
+        return {p.key: copy.deepcopy(p.default) for p in self.params}
 
 
 @dataclass

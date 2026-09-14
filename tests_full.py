@@ -92,6 +92,51 @@ for tid, tool in tools.REGISTRY.items():
                 style_bad.append(f"{tid}/{c}:{type(e).__name__}")
 check(f"all {styles} style presets render", not style_bad, "; ".join(style_bad[:3]))
 
+# A new layer starts clean: strokes or points never carry over from another
+_st1 = EditStack(); _b1 = _st1.add("brush"); _b1.params["strokes"].append({"points": [[.1, .1]]})
+_s1 = _st1.add("selective"); _s1.params["points"].append({"x": .5, "y": .5})
+_st2 = EditStack(); _b2 = _st2.add("brush"); _s2 = _st2.add("selective"); _h2 = _st2.add("healing")
+check("a new Brush, Healing or Selective layer starts with nothing painted, whatever came before",
+      _b2.params["strokes"] == [] and _s2.params["points"] == [] and _h2.params["strokes"] == []
+      and tools.REGISTRY["brush"].defaults()["strokes"] == [],
+      (_b2.params["strokes"], _s2.params["points"]))
+
+# Every slider of every tool at its lowest and highest value
+extreme_bad = []
+for tid, tool in tools.REGISTRY.items():
+    for param in tool.params:
+        if param.kind != "slider":
+            continue
+        for v in (param.lo, param.hi):
+            d = tool.defaults(); d[param.key] = v
+            if tid == "text": d["text"] = "Hola"
+            if tid == "double_exposure": d["image"] = SRC[2]
+            if tid == "crop": d["rect"] = [.2, .2, .5, .5]
+            try:
+                r = tool.apply(face if tool.group == "Portrait" else test, d, ctx)
+                if not (np.isfinite(r).all() and r.min() >= -1e-3 and r.max() <= 1 + 1e-3
+                        and r.shape[0] > 1 and r.shape[1] > 1):
+                    extreme_bad.append(f"{tid}.{param.key}={v}")
+            except Exception as e:
+                extreme_bad.append(f"{tid}.{param.key}={v}:{type(e).__name__}")
+check("every slider of every tool works at its lowest and highest value",
+      not extreme_bad, "; ".join(extreme_bad[:5]))
+# Geometry tools change the size the way they should
+_g = np.zeros((300, 400, 3), np.float32) + 0.5
+_c = tools.REGISTRY["crop"].apply(_g, {"rect": [0.25, 0.1, 0.5, 0.8]}, ctx)
+_r = tools.REGISTRY["rotate"].apply(_g, dict(tools.REGISTRY["rotate"].defaults(), quarter_turns=1), ctx)
+_e = tools.REGISTRY["expand"].apply(_g, dict(tools.REGISTRY["expand"].defaults(), amount=50), ctx)
+check("crop, a quarter turn and expand give the sizes they should",
+      _c.shape[:2] == (240, 200) and _r.shape[:2] == (400, 300)
+      and _e.shape[0] >= 300 and _e.shape[1] >= 400 and (_e.shape[0] > 300 or _e.shape[1] > 400),
+      (_c.shape, _r.shape, _e.shape))
+_st = EditStack(); _st.add("rotate", dict(quarter_turns=1)); _st.add("crop", {"rect": [0, 0, 0.5, 1.0]})
+_rot_crop = Renderer().render(_g, _st, scale=1.0, full_size=(400, 300))
+_before_crop = Renderer().render(_g, _st, scale=1.0, full_size=(400, 300), upto=1)
+check("a crop after a quarter turn cuts the turned photo; the editor sees it whole while cropping",
+      _rot_crop.shape[:2] == (400, 150) and _before_crop.shape[:2] == (400, 300),
+      (_rot_crop.shape, _before_crop.shape))
+
 look_bad = []
 for name in looks.names():
     st = EditStack(); st.apply_look(name)
