@@ -46,6 +46,10 @@ mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/bin" "$SHARE/data" "$LIB/common" "$DOC" \
 # ---------------------------------------------------------------- app code
 say "Copying application"
 cp -r "$ROOT/piklin" "$SHARE/"
+# Which build this is. A version can be published again with fixes; the
+# updater compares this id (also uploaded as <deb>.build) to tell them apart.
+BUILD_ID="$(git -C "$ROOT" rev-parse --short=12 HEAD 2>/dev/null || echo local)-$(date -u +%Y%m%d%H%M%S)"
+printf '%s\n' "$BUILD_ID" > "$SHARE/piklin/BUILD_ID"
 find "$SHARE" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 for d in fonts icons models; do cp -r "$ROOT/data/$d" "$SHARE/data/"; done
 install -m 755 "$HERE/deb/piklin" "$STAGE/usr/bin/piklin"
@@ -250,4 +254,5 @@ mkdir -p "$ROOT/dist"
 OUT="$ROOT/dist/${PKG}_${VERSION}_${ARCH}.deb"
 say "Packing $OUT"
 dpkg-deb --root-owner-group -Zxz --build "$STAGE" "$OUT" >/dev/null
+printf '%s\n' "$BUILD_ID" > "$OUT.build"
 say "Done: $OUT ($(du -h "$OUT" | cut -f1), installs to $(du -sh --exclude=DEBIAN "$STAGE" | cut -f1))"

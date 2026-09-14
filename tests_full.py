@@ -774,6 +774,22 @@ check("on a NAS, the Piklin folder is made and an old backup moved into it on th
       and _moves == [("Users/alex/Photos/Originals/", "https://nas:5001/dav/Users/alex/Photos/Piklin/Originals/"),
                      ("Users/alex/Photos/catalog.db", "https://nas:5001/dav/Users/alex/Photos/Piklin/catalog.db")]
       and _on.base_path == "Users/alex/Photos/Piklin", _OldNas.calls)
+class _SlowNas(rem.WebDavBackend):
+    # a PUT that reads the upload in blocks, as http.client does
+    def _ensure_folder(self, path): pass
+    def listing(self): return {}
+    def _request(self, method, rel="", data=None, extra=None):
+        if method == "PUT":
+            while data.read(8192):
+                time.sleep(0.002)
+        return io.BytesIO(b"")
+_big = Path(TMP) / "bigvideo.mp4"; _big.write_bytes(b"\0" * (6 << 20))
+_seen = []
+_sn = _SlowNas(rem.Remote(id="v", name="v", kind="webdav", config={"url": "https://x"}))
+_sp = _sn.push(Path(TMP), [_big], on_progress=lambda p: _seen.append((p.phase, p.done_files, p.done_bytes)))
+_mid = [b for ph, n, b in _seen if ph == "uploading" and n == 0 and 0 < b < (6 << 20)]
+check("a big file's upload reports its progress while it goes up, not only at the end",
+      _sp.uploaded == 1 and len(_mid) >= 2 and _mid == sorted(_mid), (_sp.uploaded, _mid[:5]))
 check("a folder that merely has a settings file is not taken for an old backup",
       rem._old_backup({"settings.json": False, "Documents": True}) == []
       and rem._old_backup({"catalog.db": False, "Originals": True, "Piklin": True}) == [])
@@ -1372,6 +1388,33 @@ check("only a version number is accepted", _hu.main(["../../etc"]) == 2
 from piklin import updates as _upd
 check("running from source points to the download instead of installing",
       not _upd.can_install_itself())
+# The same version published again with fixes is still an update
+check("a new build of the same version is installed; the same build or an older version is not",
+      _hu.decide("1.0.4", "1.0.4", "abc-2", "abc-1") == "reinstall"
+      and _hu.decide("1.0.4", "1.0.4", "abc-1", "abc-1") == "no"
+      and _hu.decide("1.0.4", "1.0.4", "", "abc-1") == "no"
+      and _hu.decide("1.0.5", "1.0.4", "x", "y") == "install"
+      and _hu.decide("1.0.3", "1.0.4", "x", "y") == "no")
+_bid_root = _ud / "root-build"; (_bid_root / "DEBIAN").mkdir(parents=True)
+(_bid_root / "DEBIAN" / "control").write_text(
+    f"Package: piklin\nVersion: 9.9.9\nArchitecture: {_arch}\nMaintainer: T <t@example.com>\nDescription: t\n")
+(_bid_root / "usr/share/piklin/piklin").mkdir(parents=True)
+(_bid_root / "usr/share/piklin/piklin/BUILD_ID").write_text("c0ffee-20260913\n")
+_bid_deb = _ud / "build-id.deb"
+_sp2.run(["dpkg-deb", "--build", "--root-owner-group", str(_bid_root), str(_bid_deb)], check=True, capture_output=True)
+check("the build id is read from a package without installing it",
+      _hu.build_of(str(_bid_deb)) == "c0ffee-20260913", _hu.build_of(str(_bid_deb)))
+_orig_ib = _upd.installed_build
+try:
+    _upd.installed_build = lambda: "c0ffee-1"
+    check("the app sees a re-published build of its own version as an update",
+          _upd.update_available(_upd.Release("1.0.4", "u", build="c0ffee-2"), "1.0.4")
+          and not _upd.update_available(_upd.Release("1.0.4", "u", build="c0ffee-1"), "1.0.4")
+          and not _upd.update_available(_upd.Release("1.0.4", "u", build=""), "1.0.4")
+          and _upd.update_available(_upd.Release("1.0.5", "u"), "1.0.4")
+          and not _upd.update_available(_upd.Release("1.0.3", "u", build="z"), "1.0.4"))
+finally:
+    _upd.installed_build = _orig_ib
 
 # -- languages --------------------------------------------------------------
 import datetime as _dt, io as _io, contextlib as _ctx, subprocess as _sp

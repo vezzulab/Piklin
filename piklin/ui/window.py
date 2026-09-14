@@ -1843,7 +1843,7 @@ class MainWindow(Adw.ApplicationWindow):
             GLib.idle_add(show, release, error)
 
         def show(release, error):
-            if release is not None and updates.is_newer(release.version, VERSION):
+            if release is not None and updates.update_available(release, VERSION):
                 if updates.can_install_itself():
                     self._install_update(release)
                     return False
@@ -1888,9 +1888,9 @@ class MainWindow(Adw.ApplicationWindow):
         def done(error):
             working.dismiss()
             self._updating = False
-            if error is None or error.kind == "not-newer":
-                # "not-newer": that version is already installed, only this
-                # window is still the old one.
+            if error is not None and error.kind == "not-newer":
+                return False            # this exact build is already installed
+            if error is None:
                 self.toasts.add_toast(Adw.Toast(
                     title=_("Piklin {version} is installed. Piklin will reopen "
                             "in a moment.").format(version=release.version),
@@ -2030,8 +2030,17 @@ class MainWindow(Adw.ApplicationWindow):
         in_dupes = self._scope == "duplicates"
         self._merge_btn.set_visible(in_dupes and not on_device)
         if in_dupes:
-            n = len(self.grid.selected_ids())
-            self._merge_btn.set_label(_("Keep One of {count}").format(count=n))
+            # Say exactly what goes: the copies beyond one in each group.
+            extra = self._extra_copies(self.grid.selected_ids())
+            if not self.grid.selected_ids():
+                self._merge_btn.set_label(_("Keep One of Each"))
+                self._merge_btn.set_sensitive(True)
+            else:
+                self._merge_btn.set_label(ngettext(
+                    "Remove {count} Extra Copy", "Remove {count} Extra Copies",
+                    extra).format(count=extra))
+                self._merge_btn.set_sensitive(extra > 0)
+            self.action_bar.set_revealed(True)
         trash_btn = self._bar_buttons["trash"]
         trash_btn.set_icon_name("edit-undo-symbolic" if in_trash
                                 else "user-trash-symbolic")
@@ -2042,8 +2051,24 @@ class MainWindow(Adw.ApplicationWindow):
         for key in ("favorite", "album", "rotate-ccw", "rotate-cw"):
             self._bar_buttons[key].set_sensitive(not in_trash)
 
+    def _extra_copies(self, ids) -> int:
+        """How many copies Keep One would move away: all but one per group."""
+        groups: dict = {}
+        by_id = getattr(self.grid, "_by_id", {})
+        for pid in ids:
+            fp = getattr(by_id.get(pid), "fingerprint", None)
+            if fp:
+                groups[fp] = groups.get(fp, 0) + 1
+        return sum(n - 1 for n in groups.values() if n > 1)
+
     def _on_merge_duplicates(self, _btn):
         ids = self.grid.selected_ids()
+        if not ids:
+            # nothing selected: every group of copies
+            from ..catalog import DUPLICATE_SQL
+            ids = [r["id"] for r in self.catalog.q(
+                f"SELECT p.id FROM photos p WHERE p.trashed_at IS NULL AND p.hidden=0 "
+                f"AND p.paired_to IS NULL AND {DUPLICATE_SQL}")]
         if not ids:
             return
         result = self.catalog.merge_duplicates(ids)

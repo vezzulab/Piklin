@@ -16,6 +16,7 @@ ES = {
     # -- automatic backup -------------------------------------------------------
     "Connecting to {name}…": "Conectando con {name}…",
     "Backing up to {name} — {done} of {total}": "Copiando a {name} — {done} de {total}",
+    "Backing up to {name} — {done} of {total} ({percent}%)": "Copiando a {name} — {done} de {total} ({percent}%)",
     "{count} file couldn't be uploaded": ("{count} archivo no se pudo subir", "{count} archivos no se pudieron subir"),
     "just now": "hace un momento",
     "{count} minute ago": ("hace {count} minuto", "hace {count} minutos"),
@@ -997,6 +998,11 @@ ES = {
     "Stop and Close": "Detener y cerrar",
 
     "Make Album Cover": "Usar como portada del álbum",
+    "{count} identical copy": ("{count} copia idéntica", "{count} copias idénticas"),
+    "Keep One of Each": "Dejar una de cada",
+    "Remove {count} Extra Copy": ("Quitar {count} copia de más", "Quitar {count} copias de más"),
+    "Each group below is the same photo more than once. Keep One of Each keeps the best copy of every group - the favourite, edited or in albums - and moves the extra copies to Recently Deleted, where they stay for 30 days. Select some groups to do it for just those.":
+        "Cada grupo de abajo es la misma foto repetida. Dejar una de cada se queda con la mejor copia de cada grupo (la favorita, la editada o la que está en álbumes) y manda las copias de más a Eliminados recientemente, donde se quedan 30 días. Selecciona algunos grupos para hacerlo solo con esos.",
     "Album cover changed": "Portada del álbum cambiada",
 
     # -- updates -------------------------------------------------------------------------------

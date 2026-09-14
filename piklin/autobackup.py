@@ -67,8 +67,11 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
             if progress and p.phase == "listing":
                 progress(_("Checking what is already backed up"))
             elif progress and p.phase == "uploading" and p.total_files:
-                progress(_("Backing up to {name} — {done} of {total}").format(
-                    name=name, done=f"{p.done_files:,}", total=f"{p.total_files:,}"))
+                # the file number, and how far through all the bytes, which
+                # keeps moving while one big video goes up
+                progress(_("Backing up to {name} — {done} of {total} ({percent}%)").format(
+                    name=name, done=f"{min(p.done_files + 1, p.total_files):,}",
+                    total=f"{p.total_files:,}", percent=int(p.fraction * 100)))
 
         p = backend.push(root, files, on_progress=report,
                          keep_versions_days=keep_days)

@@ -31,6 +31,8 @@ class PhotoItem(GObject.Object):
         self.bytes = row["bytes"]
         self.duration = row["duration"] if "duration" in row.keys() else None
         self.has_live = bool(row["has_live"]) if "has_live" in row.keys() else False
+        # the content fingerprint: identical copies share it (Duplicates)
+        self.fingerprint = row["fingerprint"] if "fingerprint" in row.keys() else None
         self.texture = None            # cached Gdk.Texture once loaded
         self.selected = False
 

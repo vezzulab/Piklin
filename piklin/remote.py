@@ -282,6 +282,21 @@ class Remote:
                    last_sync=d.get("last_sync"))
 
 
+class _CountingReader:
+    """A file being uploaded, telling how much of it has been read so far."""
+
+    def __init__(self, fh, report: Callable[[int], None]):
+        self.fh = fh
+        self.report = report
+        self.sent = 0
+
+    def read(self, n: int = -1) -> bytes:
+        chunk = self.fh.read(n if n and n > 0 else 1 << 20)
+        self.sent += len(chunk)
+        self.report(self.sent)
+        return chunk
+
+
 class Backend:
     """What every destination must be able to do."""
 
@@ -289,6 +304,8 @@ class Backend:
         self.remote = remote
         self.cancel = threading.Event()
         self._prepared = False
+        # set by push while a file uploads: bytes of it sent so far
+        self._on_bytes: Callable[[int], None] | None = None
 
     def prepare(self) -> None:
         """Make sure the Piklin folder is there before using it. A backup
@@ -459,10 +476,24 @@ class Backend:
                     self._archive(rel, stamp)
                 except Exception:
                     pass        # the backup goes on; only this old copy is lost
+            # A big video takes minutes to go up: report its bytes as they
+            # go, a few times a second, so the progress never looks stuck.
+            before, last = p.done_bytes, [0.0]
+
+            def sent(n, before=before, last=last):
+                now = time.monotonic()
+                if on_progress and now - last[0] >= 0.5:
+                    last[0] = now
+                    p.done_bytes = before + n
+                    on_progress(p)
+            self._on_bytes = sent
             try:
                 ok = self.put(f, rel)
             except Exception:
                 ok = False
+            finally:
+                self._on_bytes = None
+                p.done_bytes = before
             if ok:
                 p.uploaded += 1
                 manifest[rel] = [size, mtime]
@@ -1106,8 +1137,9 @@ class WebDavBackend(Backend):
         st = local.stat()
         # Streamed from the file: a 4 GB video is not read into memory.
         with open(local, "rb") as fh:
+            body = _CountingReader(fh, self._on_bytes) if self._on_bytes else fh
             try:
-                self._request("PUT", rel, data=fh, extra={
+                self._request("PUT", rel, data=body, extra={
                     "Content-Type": "application/octet-stream",
                     "Content-Length": str(st.st_size),
                     # Nextcloud and ownCloud keep the file's own time

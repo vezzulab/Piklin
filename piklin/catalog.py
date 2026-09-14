@@ -164,7 +164,8 @@ CREATE TABLE IF NOT EXISTS removed (
 # the grid renders tens of thousands of rows and does not need EXIF.
 GRID_FIELDS = ("id", "uuid", "path", "filename", "width", "height",
                "orientation", "taken_at", "favorite", "rating",
-               "edit_version", "thumb_state", "bytes", "duration", "has_live")
+               "edit_version", "thumb_state", "bytes", "duration", "has_live",
+               "fingerprint")
 GRID_COLUMNS = ", ".join(GRID_FIELDS)
 
 

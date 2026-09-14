@@ -327,6 +327,11 @@ class PhotoGrid(Gtk.Box):
             box.add_css_class("pika-view-heading")
         else:
             box.remove_css_class("pika-view-heading")
+        # a heading's line under the title may be a sentence: let it wrap
+        heading = getattr(section, "heading", False)
+        list_item._sub.set_wrap(heading)
+        list_item._sub.set_ellipsize(0 if heading else 3)
+        list_item._sub.set_max_width_chars(90 if heading else -1)
         list_item._title.set_text(section.title or "")
         list_item._title.set_visible(bool(section.title))
         list_item._sub.set_text(section.subtitle or "")
@@ -967,6 +972,15 @@ class PhotoGrid(Gtk.Box):
             elif self._scope == "smart" and self._smart_id is not None:
                 row = self.catalog.q1("SELECT name FROM smart_albums WHERE id=?", (self._smart_id,))
                 n = int(self.catalog.smart_album_count(self._smart_id))
+            elif self._scope == "duplicates":
+                # What the button below does, said before anyone has to guess.
+                return DaySection(
+                    _("Duplicates"),
+                    _("Each group below is the same photo more than once. Keep One of "
+                      "Each keeps the best copy of every group - the favourite, edited "
+                      "or in albums - and moves the extra copies to Recently Deleted, "
+                      "where they stay for 30 days. Select some groups to do it for "
+                      "just those."), [], heading=True)
             else:
                 return None
         except Exception:
@@ -1051,8 +1065,12 @@ class PhotoGrid(Gtk.Box):
         touched = set()
         grown = None
         tail = self._tail
+        dupes = self._scope == "duplicates"
         for item in items:
-            if not sort_by_date or mode == "none":
+            if dupes:
+                # one set of identical copies per block, named after the photo
+                key, title, sub = (item.fingerprint or f"id{item.id}", item.filename, "")
+            elif not sort_by_date or mode == "none":
                 key, title, sub = ("all", "", "")
             else:
                 key, title, sub = _section_key(item.taken_at, mode)
@@ -1089,7 +1107,11 @@ class PhotoGrid(Gtk.Box):
             if head is None or not head.title:
                 continue
             n = self._day_counts[key]
-            head.subtitle = ngettext("{count} photo", "{count} photos", n).format(count=n)
+            if dupes:
+                head.subtitle = ngettext("{count} identical copy", "{count} identical copies",
+                                         n).format(count=n)
+            else:
+                head.subtitle = ngettext("{count} photo", "{count} photos", n).format(count=n)
             label = head.sub_label
             if label is not None:
                 label.set_text(head.subtitle)

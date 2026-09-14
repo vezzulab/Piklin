@@ -15,6 +15,7 @@
 - The Left and Right arrow keys move between photos in the viewer
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
 - An album shows its name and number of photos above its photos
+- Duplicates shows each set of identical copies as its own group, says at the top what the button does, and the button says exactly what goes: Keep One of Each, or Remove 2 Extra Copies for the groups you select
 - One click on a folder in the sidebar shows its albums on screen without opening it in the sidebar; a double click opens or closes it there
 - Albums and views open at once, however many photos they hold: the first photos appear in a few hundredths of a second, the rest load in the background, only the photos near the screen are drawn, and going back to a view shows its thumbnails straight away
 
@@ -22,10 +23,13 @@
 - Backups go in a Piklin folder inside the folder you choose, made when it is missing. A backup already made straight in the chosen folder is moved into it on the destination itself, without sending anything again; nothing else there is touched
 - A backup folder shared with other files - such as a NAS photo share with a Lightroom catalog in it - is no longer searched through: Piklin reads only its own part, so a backup that stayed on "Connecting…" for many minutes now starts straight away, and a restore never brings those other files into the library
 - While Piklin checks what is already backed up, it says so
+- The backup status shows how far along it is while a big video uploads, instead of staying on the same file number for minutes
 - When one destination can't be reached - a NAS at home while you travel - the others are still backed up, and the one that was missed catches up by itself once it can be reached again
 
 ### Updates
 - Piklin updates itself: when a new version is out it says so, installs it and reopens in it, without a password. It waits until nothing is copying and no editor is open. Only packages signed by Vezzu Studio are installed. Turn it off in Preferences › General
+
+- A version published again with fixes, under the same number, is installed too: Piklin compares the build and still installs only packages signed by Vezzu Studio
 
 ### License
 - Piklin is free to use for any purpose, at home or for work, including commercial use. Modifying, redistributing or selling it is not permitted. Your photos and everything you make with Piklin are yours

@@ -67,6 +67,31 @@ class Release:
     version: str
     url: str
     notes: str = ""
+    build: str = ""         # the build id published with the package, if any
+
+
+def installed_build() -> str:
+    """The build id of this Piklin ("" when running from source)."""
+    try:
+        return (Path(__file__).resolve().parent / "BUILD_ID").read_text().strip()
+    except OSError:
+        return ""
+
+
+def _arch() -> str:
+    import platform
+    return {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine(), platform.machine())
+
+
+def update_available(release: "Release", current: str) -> bool:
+    """A newer version, or the same version published again as a new build
+    (a fix released under the same number)."""
+    if is_newer(release.version, current):
+        return True
+    if is_newer(current, release.version):
+        return False
+    mine = installed_build()
+    return bool(release.build and mine and release.build != mine)
 
 
 def parse_version(text: str) -> tuple[int, ...]:
@@ -89,8 +114,21 @@ def latest_release(current: str, timeout: float = 10.0) -> Release:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         data = json.loads(resp.read().decode("utf-8", "replace"))
     tag = data.get("tag_name") or data.get("name") or ""
-    return Release(version=tag.lstrip("vV"), url=data.get("html_url") or RELEASES_PAGE,
-                   notes=data.get("body") or "")
+    version = tag.lstrip("vV")
+    build = ""
+    wanted = f"piklin_{version}_{_arch()}.deb.build"
+    for asset in data.get("assets") or []:
+        if asset.get("name") == wanted and asset.get("browser_download_url"):
+            try:
+                breq = urllib.request.Request(asset["browser_download_url"],
+                                              headers={"User-Agent": f"Piklin/{current}"})
+                with urllib.request.urlopen(breq, timeout=timeout) as bresp:
+                    build = bresp.read(200).decode("utf-8", "replace").strip()
+            except OSError:
+                build = ""
+            break
+    return Release(version=version, url=data.get("html_url") or RELEASES_PAGE,
+                   notes=data.get("body") or "", build=build)
 
 
 # -- remembered per person, not per library -----------------------------------

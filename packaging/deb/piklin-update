@@ -61,6 +61,49 @@ def installed_version():
     return out.stdout.strip() if out.returncode == 0 else ""
 
 
+BUILD_FILE = "usr/share/piklin/piklin/BUILD_ID"
+
+
+def installed_build():
+    """The build of the Piklin installed now ("" for one without an id)."""
+    try:
+        with open("/" + BUILD_FILE, encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def build_of(deb):
+    """The build id inside a package, read without installing it."""
+    import tarfile
+    proc = subprocess.Popen(["dpkg-deb", "--fsys-tarfile", deb], env=ENV,
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    found = ""
+    try:
+        with tarfile.open(fileobj=proc.stdout, mode="r|*") as tar:
+            for member in tar:
+                if member.name.lstrip("./") == BUILD_FILE and member.isfile():
+                    found = tar.extractfile(member).read(200).decode("utf-8", "replace").strip()
+                    break
+    except (tarfile.TarError, OSError):
+        found = ""
+    finally:
+        proc.stdout.close()
+        proc.kill()
+        proc.wait()
+    return found
+
+
+def decide(version, current, new_build, current_build):
+    """"install", "reinstall" (same version, a different official build) or
+    "no" (older, or exactly what is installed)."""
+    if not current or newer(version, current):
+        return "install"
+    if newer(current, version):
+        return "no"
+    return "reinstall" if new_build and new_build != current_build else "no"
+
+
 def newer(version, than):
     if not than:
         return True
@@ -119,18 +162,25 @@ def install(version):
         raise Refused(2, "must be run as root, through pkexec")
     arch = architecture()
     current = installed_version()
-    if not newer(version, current):
-        raise Refused(3, "Piklin %s is not newer than the installed %s" % (version, current))
+    if current and newer(current, version):
+        raise Refused(3, "Piklin %s is older than the installed %s" % (version, current))
     folder = tempfile.mkdtemp(prefix="piklin-update-", dir="/var/tmp")
     try:
         base = "https://github.com/%s/releases/download/v%s/" % (REPO, version)
         for name in names(version, arch):
             download(base + name, os.path.join(folder, name))
         deb = verify(folder, version, arch)
+        # The same version can be published again with fixes: it is installed
+        # when its build differs from the one installed, and only once it has
+        # passed the same signature check as any update.
+        how = decide(version, current, build_of(deb), installed_build())
+        if how == "no":
+            raise Refused(3, "this build of Piklin %s is already installed" % version)
         # apt reads local packages as its own unprivileged user.
         os.chmod(folder, 0o755)
         os.chmod(deb, 0o644)
-        result = run(["apt-get", "install", "-y", "-o", "DPkg::Lock::Timeout=300", deb])
+        result = run(["apt-get", "install", "-y", "-o", "DPkg::Lock::Timeout=300"]
+                     + (["--reinstall"] if how == "reinstall" else []) + [deb])
         if result.returncode != 0:
             raise Refused(6, (result.stderr or result.stdout).strip()[-2000:])
     finally:
