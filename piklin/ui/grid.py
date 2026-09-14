@@ -81,11 +81,13 @@ class DaySection(GObject.Object):
     """One dated band of photographs."""
     __gtype_name__ = "PikaDaySection"
 
-    def __init__(self, title, subtitle, items):
+    def __init__(self, title, subtitle, items, heading=False):
         super().__init__()
         self.title = title
         self.subtitle = subtitle
         self.items = items
+        # the name of the album at the top of the view, above its days
+        self.heading = heading
         # the subtitle label while this section is on screen, so a growing
         # photo count updates the text without rebuilding the tiles
         self.sub_label = None
@@ -262,6 +264,9 @@ class PhotoGrid(Gtk.Box):
         self._tail = None
         self._day_counts, self._day_heads = {}, {}
         self.sections.remove_all()
+        heading = self._heading_section()
+        if heading is not None:
+            self.sections.append(heading)
         self._group(list(self._items))
         for i in range(self.sections.get_n_items()):
             if anchor in self.sections.get_item(i).items:
@@ -318,6 +323,10 @@ class PhotoGrid(Gtk.Box):
             box.remove_css_class("pika-section-continued")
         else:
             box.add_css_class("pika-section-continued")
+        if getattr(section, "heading", False):
+            box.add_css_class("pika-view-heading")
+        else:
+            box.remove_css_class("pika-view-heading")
         list_item._title.set_text(section.title or "")
         list_item._title.set_visible(bool(section.title))
         list_item._sub.set_text(section.subtitle or "")
@@ -942,7 +951,30 @@ class PhotoGrid(Gtk.Box):
         self._tile_widgets = {}
         self._tile_containers = {}
         self.sections.remove_all()
+        heading = self._heading_section()
+        if heading is not None:
+            self.sections.append(heading)
         self._load_page()
+
+    def _heading_section(self):
+        """An album's name and size, shown above its photos and scrolling
+        away with them. None for views that are not an album."""
+        try:
+            if self._scope == "album" and self._album_id is not None:
+                row = self.catalog.q1("SELECT name FROM albums WHERE id=?", (self._album_id,))
+                n = int(self.catalog.scalar(
+                    "SELECT COUNT(*) FROM album_items WHERE album_id=?", (self._album_id,), 0))
+            elif self._scope == "smart" and self._smart_id is not None:
+                row = self.catalog.q1("SELECT name FROM smart_albums WHERE id=?", (self._smart_id,))
+                n = int(self.catalog.smart_album_count(self._smart_id))
+            else:
+                return None
+        except Exception:
+            return None
+        if row is None:
+            return None
+        count = ngettext("{count} photo", "{count} photos", n).format(count=f"{n:,}")
+        return DaySection(row["name"], count, [], heading=True)
 
     def refresh(self) -> None:
         if self._scope == "device":

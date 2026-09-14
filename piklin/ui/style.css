@@ -1684,3 +1684,17 @@ window.piklin .pika-badge.pika-edited-badge {
   padding: 4px;
   box-shadow: 0 1px 3px alpha(#000000, 0.30);
 }
+
+/* The album's name above its photos: large, with the number of photos
+ * under it, and the first day beneath with its usual spacing. */
+.pika-grid > row .pika-section.pika-view-heading { padding-top: 8px; padding-bottom: 6px; }
+.pika-section.pika-view-heading .pika-section-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  margin-top: 18px;
+}
+.pika-section.pika-view-heading .pika-section-sub {
+  font-size: 0.95rem;
+  margin-top: 2px;
+  margin-bottom: 4px;
+}

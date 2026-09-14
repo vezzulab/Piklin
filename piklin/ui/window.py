@@ -503,6 +503,15 @@ class MainWindow(Adw.ApplicationWindow):
                     self._toggle_folder(f)
                 fold.connect("pressed", on_fold)
                 arrow.add_controller(fold)
+                # Double-clicking the folder itself opens or closes it in
+                # the sidebar; a single click only shows its albums.
+                twice = Gtk.GestureClick()
+
+                def on_twice(gesture, n_press, *_a, f=folder_id):
+                    if n_press == 2:
+                        self._toggle_folder(f)
+                twice.connect("pressed", on_twice)
+                box.add_controller(twice)
             elif indent:
                 # Album rows nested under a folder line up with the
                 # label text of their folder's siblings, not its arrow.
@@ -1317,11 +1326,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._scope, self._album_id, self._smart_id = "folder", None, None
         self._folder_id = folder_id
         self.grid.unselect_all()
-        if folder_id in self._collapsed_folders:
-            # open it in the sidebar too, so its albums can be seen there
-            self._collapsed_folders.discard(folder_id)
-            self._save_folded_folders()
-            self.refresh_sidebar()
+        # A click shows the folder's albums on screen and leaves the sidebar
+        # as it is; a double click (or the triangle) opens it there.
         self._select_sidebar_key(f"folder:{folder_id}")
         self.folder_view.load(folder_id)
         self.content_stack.set_visible_child_name("folder")

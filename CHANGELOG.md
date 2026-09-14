@@ -14,6 +14,8 @@
 - Double-clicking a photo right after clicking it opens it, instead of only showing the selection bar
 - The Left and Right arrow keys move between photos in the viewer
 - Choose the photo shown for an album: right-click it inside the album and choose Make Album Cover
+- An album shows its name and number of photos above its photos
+- One click on a folder in the sidebar shows its albums on screen without opening it in the sidebar; a double click opens or closes it there
 - Albums and views open at once, however many photos they hold: the first photos appear in a few hundredths of a second, the rest load in the background, only the photos near the screen are drawn, and going back to a view shows its thumbnails straight away
 
 ### Backups
