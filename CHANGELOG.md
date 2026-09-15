@@ -32,6 +32,7 @@
 ### Look and feel
 - Edit, in the photo viewer, is a black pill with an icon
 - Alerts show their answers as rounded buttons, the suggested one in black
+- Animations on buttons and cards change only what they need to: Piklin could close on a Mac while photos were switched quickly
 - Tooltips are readable everywhere: over the photo viewer's buttons they were black text on black
 - A hairline of space between photos in the grid, and the same margin at both sides of the photos
 

@@ -1877,6 +1877,9 @@ window.piklin tooltip box label {
   color: #ffffff;
 }
 
+/* Transitions name the properties they animate, never "all": with "all",
+   GTK animates every property of the widget whenever its state changes, and
+   Piklin closed once on a Mac while computing styles as photos changed fast. */
 /* Edit in the photo viewer, Continue in the first steps: a black pill with a soft sheen along its top
    edge and a gentle shadow under it, lifting a little under the pointer.
    No colour - black, white and light, like the rest of Piklin. */
@@ -1892,7 +1895,7 @@ window.piklin button.suggested-action.pika-primary-pill {
               inset 0 -1px 0 alpha(#000000, 0.35),
               0 1px 2px alpha(#000000, 0.22),
               0 4px 12px alpha(#000000, 0.16);
-  transition: all 160ms ease-out;
+  transition: background-image 160ms ease-out, box-shadow 160ms ease-out;
 }
 window.piklin button.suggested-action.pika-primary-pill:hover {
   background-image: linear-gradient(to bottom, #4a4a4f 0%, #28282c 48%, #141416 100%);
@@ -1938,7 +1941,7 @@ window.piklin dialog.alert .response-area > button {
   background-image: none;
   box-shadow: none;
   font-weight: 600;
-  transition: all 140ms ease-out;
+  transition: background-color 140ms ease-out;
 }
 window.piklin dialog.alert .response-area > button:hover { background-color: alpha(#000000, 0.10); }
 window.piklin dialog.alert .response-area > button:active { background-color: alpha(#000000, 0.14); }
@@ -1965,7 +1968,7 @@ window.piklin .pika-step-dot {
   min-height: 28px;
   border-radius: 999px;
   background: alpha(#000000, 0.06);
-  transition: all 200ms ease-out;
+  transition: background-color 200ms ease-out, box-shadow 200ms ease-out;
 }
 window.piklin .pika-step-dot label { color: alpha(#000000, 0.45); font-size: 0.8rem; font-weight: 700; }
 window.piklin .pika-step-dot.current {
@@ -2023,7 +2026,7 @@ window.piklin button.pika-choice {
   background: #ffffff;
   background-image: none;
   box-shadow: 0 1px 2px alpha(#000000, 0.04);
-  transition: all 150ms ease-out;
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out, background-color 150ms ease-out;
 }
 window.piklin button.pika-choice:hover { border-color: alpha(#000000, 0.28); background: #fbfbfc; }
 window.piklin button.pika-choice:checked {
@@ -2036,7 +2039,7 @@ window.piklin button.pika-choice .pika-choice-icon {
   min-height: 40px;
   border-radius: 12px;
   background: alpha(#000000, 0.05);
-  transition: all 150ms ease-out;
+  transition: background-color 150ms ease-out;
 }
 window.piklin button.pika-choice .pika-choice-icon image { color: #000000; -gtk-icon-size: 20px; }
 window.piklin button.pika-choice:checked .pika-choice-icon {
