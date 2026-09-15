@@ -184,6 +184,8 @@ class SyncProgress:
     present: int = 0
     message: str = ""
     unreachable: bool = False       # the destination could not be reached
+    # Albums, edits or marks came back: the catalog must be rebuilt from them.
+    restored_state: bool = False
 
     @property
     def fraction(self) -> float:
@@ -634,15 +636,23 @@ class Backend:
             except Exception:
                 ok = False
             if ok:
-                tmp.replace(local)
-                sent = manifest.get(rel)
-                if sent and sent[0] == size:
-                    # the photo's own time, not the moment it came back
-                    os.utime(local, (sent[1], sent[1]))
-                st = local.stat()
+                # One file that can't be put in place (its temporary copy
+                # vanished) is one failed file, not the end of the restore.
+                try:
+                    tmp.replace(local)
+                    sent = manifest.get(rel)
+                    if sent and sent[0] == size:
+                        # the photo's own time, not the moment it came back
+                        os.utime(local, (sent[1], sent[1]))
+                    st = local.stat()
+                except OSError:
+                    ok = False
+            if ok:
                 # recorded as backed up: the next backup won't send it again
                 manifest[rel] = [st.st_size, st.st_mtime]
                 p.restored += 1
+                if rel in STATE_FILES or rel.startswith(("Albums/", "Edits/")):
+                    p.restored_state = True
             else:
                 p.errors += 1
                 try:

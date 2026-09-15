@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from pathlib import Path
 
-from .paths import LIBRARY_NAME, OLD_APP_NAME, pictures_dir
+from .paths import LIBRARY_EXT, LIBRARY_NAME, OLD_APP_NAME, pictures_dir
 
 LAST_ROOT_KEY = "library_root_last"
 
@@ -97,6 +98,110 @@ def relocate(library, catalog, settings) -> int:
         _rewrite_json(f, old, new)
     settings.set(LAST_ROOT_KEY, new)
     return moved
+
+
+# -- a library restored or copied onto another computer ------------------------
+# Albums, edits and marks name each photo by its full path, as the computer
+# that wrote them saw it: "/home/ana/Pictures/Piklin Library.piklin/Originals/…"
+# on Linux, "/Users/ana/Pictures/…" on a Mac, "C:\Users\Ana\Pictures\…" on
+# Windows. Restored anywhere else, none of those paths exist, and a rebuild
+# found no photo for any album. ``relocate`` only helps when the library still
+# records where it was; a restore never brings settings.json back.
+
+def _parts(text: str) -> list[str]:
+    return [p for p in re.split(r"[\\/]", text) if p]
+
+
+def _library_prefix(path: str) -> str | None:
+    """The library a stored photo path belongs to: everything before its
+    Originals folder, when that is a Piklin library package."""
+    match = re.match(r"^(.*?)[\\/]Originals(?:[\\/]|$)", path)
+    if not match:
+        return None
+    parts = _parts(match.group(1))
+    if parts and (parts[-1].endswith(LIBRARY_EXT) or parts[-1] == OLD_APP_NAME):
+        return match.group(1)
+    return None
+
+
+def _strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from _strings(item)
+
+
+def _adopt(value, olds: list[str], new: str):
+    """``value`` with every path inside one of ``olds`` moved into ``new``,
+    written the way this system writes paths."""
+    if isinstance(value, str):
+        for old in olds:
+            if value == old:
+                return new
+            if value.startswith(old) and value[len(old):len(old) + 1] in ("/", "\\"):
+                return os.path.join(new, *_parts(value[len(old):]))
+        return value
+    if isinstance(value, list):
+        return [_adopt(v, olds, new) for v in value]
+    if isinstance(value, dict):
+        return {_adopt(k, olds, new): _adopt(v, olds, new) for k, v in value.items()}
+    return value
+
+
+def _path_files(library) -> list[Path]:
+    """The library's own files that name photos by path."""
+    files = [f for f in library.root.glob("*.json") if f.name != library.settings.name]
+    files += list(library.albums.glob("*.json"))
+    files += list(library.edits.rglob("*.json"))
+    return files
+
+
+def adopt_restored_paths(library) -> int:
+    """Point the albums, edits and marks of a library restored or copied from
+    another computer - any system, any user name - at where it is now.
+
+    Run before the catalog is rebuilt from them. Returns the number of files
+    rewritten (0 when every path already points here).
+    """
+    from .settings import Settings
+    new = str(library.root)
+    files = _path_files(library)
+    olds: set[str] = set()
+    for f in files:
+        try:
+            data = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        for text in _strings(data):
+            prefix = _library_prefix(text)
+            if prefix is not None and prefix != new:
+                olds.add(prefix)
+    if not olds:
+        return 0
+    ordered = sorted(olds, key=len, reverse=True)      # the longest, most exact, first
+    changed = 0
+    for f in files:
+        try:
+            data = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        fixed = _adopt(data, ordered, new)
+        if fixed == data:
+            continue
+        tmp = f.with_name(f.name + ".tmp")
+        try:
+            tmp.write_text(json.dumps(fixed, indent=2))
+            tmp.replace(f)
+            changed += 1
+        except OSError:
+            pass
+    Settings(library.settings).set(LAST_ROOT_KEY, new)
+    return changed
 
 
 def migrate_legacy_library() -> Path | None:

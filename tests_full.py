@@ -1338,6 +1338,48 @@ check("moved library: watched folders rewritten",
       all(f["path"].startswith(str(libB.root)) for f in _sc.read_roots(libB)))
 check("moved library: reopening changes nothing", lm.relocate(libB, cB, stB) == 0)
 
+# Restored onto another computer: the library's files come back from a backup
+# without catalog.db or settings.json, under another path, perhaps written by
+# another system. Albums, their folder and the marks must find their photos.
+import contextlib as _ctxr
+from piklin.app import rebuild_index as _rebuild
+libS, cS, pidS, aidS = _library_with_photo(os.path.join(TMP, "Source Library.piklin"))
+_fidS = cS.create_folder("Family"); cS.move_album_to_folder(aidS, _fidS)
+_tripS = json.loads((libS.albums / "Trip.json").read_text())
+_tripS["folder_uuid"] = cS.q1("SELECT uuid FROM folders WHERE id=?", (_fidS,))["uuid"]
+(libS.albums / "Trip.json").write_text(json.dumps(_tripS))
+_sc.write_all(libS, cS)
+
+def _as_windows(value, src):
+    if isinstance(value, str):
+        if value.startswith(src + "/"):
+            return "C:\\Users\\Ana\\Pictures\\Piklin Library.piklin\\" + value[len(src) + 1:].replace("/", "\\")
+        return value
+    if isinstance(value, list):
+        return [_as_windows(v, src) for v in value]
+    if isinstance(value, dict):
+        return {_as_windows(k, src): _as_windows(v, src) for k, v in value.items()}
+    return value
+
+for _style in ("another Mac or Linux computer", "Windows"):
+    _dest = os.path.join(TMP, f"restored-{len(_style)}", "Pictures", "Piklin Library.piklin")
+    shutil.copytree(libS.root, _dest, ignore=shutil.ignore_patterns("catalog.db*", "settings.json", ".cache"))
+    libT = _L(_dest)
+    if _style == "Windows":
+        for _f in list(libT.root.glob("*.json")) + list(libT.albums.glob("*.json")):
+            _f.write_text(json.dumps(_as_windows(json.loads(_f.read_text()), str(libS.root))))
+    with _ctxr.redirect_stdout(io.StringIO()):
+        _status = _rebuild(libT)
+    cT = _C(libT.db)
+    _albumT = cT.q1("SELECT id, folder_id FROM albums WHERE uuid='u1'")
+    _photosT = cT.album_photo_paths(_albumT["id"]) if _albumT else []
+    _favT = cT.q1("SELECT favorite FROM photos WHERE path=?", (_photosT[0],))["favorite"] if _photosT else None
+    _folderT = cT.q1("SELECT name FROM folders WHERE id=?", (_albumT["folder_id"],)) if _albumT and _albumT["folder_id"] else None
+    check(f"restored on {_style}: albums, folders and favourites find their photos",
+          _status == 0 and len(_photosT) == 1 and _photosT[0].startswith(str(libT.root))
+          and os.path.exists(_photosT[0]) and _folderT is not None and _folderT["name"] == "Family" and _favT == 1,
+          (_status, _photosT, _folderT and _folderT["name"], _favT))
+
 # The default layout: the library package inside ~/Pictures, which is also
 # a watched folder. Imported photos must still count as present.
 _watched = os.path.join(TMP, "watched"); os.makedirs(_watched)

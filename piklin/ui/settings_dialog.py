@@ -882,7 +882,9 @@ class SettingsDialog(Adw.PreferencesDialog):
             if test is not None and test.fingerprint:
                 self._ask_trust(cfg, test, retry=self._run_restore)
             if p is not None and p.restored:
-                if empty:
+                # Albums, edits or marks that came back only take effect once
+                # the catalog is rebuilt from them - into an empty library or not.
+                if empty or p.restored_state:
                     self._offer_rebuild(p)
                 else:
                     self._toast(text)

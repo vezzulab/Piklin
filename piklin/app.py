@@ -186,6 +186,13 @@ def rebuild_index(library: Library) -> int:
     from .thumbs import ThumbCache
 
     print(f"Rebuilding index for {library.root}")
+    # A library restored or copied from another computer still names its
+    # photos by the paths they had there: point them here first, or no album,
+    # edit or mark finds its photo.
+    from . import library_move
+    adopted = library_move.adopt_restored_paths(library)
+    if adopted:
+        print(f"  pointed {adopted} files written on another computer at this library")
     if library.db.exists():
         backup = library.db.with_suffix(".db.bak")
         library.db.replace(backup)
