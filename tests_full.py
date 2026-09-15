@@ -1323,6 +1323,30 @@ if _tripB is not None and _beachB is not None:
     _rA2 = _sy.pull(_A, _cA, _shared())
     check("looking again with nothing new changes nothing", _rA2.ok and not _rA2.changed, _rA2)
 
+    # A quick look at the top of the backup decides whether to read it through.
+    _reads = []
+    _orig_listing = _rm.LocalBackend.listing
+    _rm.LocalBackend.listing = lambda self: _reads.append(1) or _orig_listing(self)
+    try:
+        _sy.pull(_A, _cA, _shared())
+        check("with nothing new at the NAS, the backup isn't read through", _reads == [], len(_reads))
+        _cat_there = _shared().base / "catalog.db"
+        _later = _cat_there.stat().st_mtime + 60
+        os.utime(_cat_there, (_later, _later))          # another computer sent a new catalog
+        _rA3 = _sy.pull(_A, _cA, _shared())
+        check("a new catalog from another computer makes it read the backup through",
+              _rA3.ok and len(_reads) == 1, len(_reads))
+        _look = _shared()._look_path(_A.root)
+        _state = json.loads(_look.read_text()); _state["full_at"] = time.time() - 7 * 3600
+        _look.write_text(json.dumps(_state))
+        _sy.pull(_A, _cA, _shared())
+        check("every few hours the backup is read through anyway", len(_reads) == 2, len(_reads))
+    finally:
+        _rm.LocalBackend.listing = _orig_listing
+    _order = _rm.library_files(_A.root)
+    check("a backup sends the catalog last", isinstance(_order[-1], tuple) and _order[-1][1] == "catalog.db",
+          _order[-1])
+
 # Heavy work takes only what the computer can spare, and gives way.
 from piklin import system as _sysm
 import threading as _thr
@@ -1330,6 +1354,17 @@ _budgets = {k: _sysm.work_budget(k) for k in ("thumbs", "probe", "images", "vide
 check("background work leaves a core free and fits in memory",
       all(1 <= n <= _sysm._CAPS[k] for k, n in _budgets.items())
       and all(n <= max(1, (os.cpu_count() or 2) - 1) for n in _budgets.values()), _budgets)
+_real_total = _sysm.total_memory
+try:
+    _sysm.total_memory = lambda: 7 * 1024 ** 3
+    _small = {k: _sysm.work_budget(k) for k in ("thumbs", "probe", "images", "video")}
+    _sysm.total_memory = lambda: 64 * 1024 ** 3
+    _big = {k: _sysm.work_budget(k) for k in ("thumbs", "probe", "images", "video")}
+finally:
+    _sysm.total_memory = _real_total
+check("a computer with little memory does fewer things at once",
+      _small["thumbs"] <= 2 and _small["images"] <= 2 and _small["video"] == 1
+      and all(_big[k] >= _small[k] for k in _small), (_small, _big))
 _lowered = []
 _t = _thr.Thread(target=lambda: (_sysm.lower_thread_priority(), _lowered.append(
     os.getpriority(os.PRIO_PROCESS, _thr.get_native_id()) if _sysm.IS_LINUX else True)))
@@ -1396,6 +1431,9 @@ check("new view and export options survive a restart",
       (_s2.get("grid_aspect"), _s2.get("export_size"), _s2.get("export_naming"),
        _s2.get("export_subfolder"), _s2.get("export_include_location")) ==
       ("original", 2, "title", "day", True))
+_s1.set("video_sizes_checked_v3", True)
+check("the one-time check of video sizes is remembered after a restart",
+      _S(_sp).get("video_sizes_checked_v3") is True)
 check("location is left out of exports by default",
       _S(os.path.join(TMP, "fresh-settings.json")).get("export_include_location") is False)
 

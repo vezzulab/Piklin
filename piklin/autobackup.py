@@ -91,9 +91,21 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
                     name=name, done=f"{min(p.done_files + 1, p.total_files):,}",
                     total=f"{p.total_files:,}", percent=int(p.fraction * 100)))
 
+        # Nothing changed there since this computer last looked: what it sent
+        # is what is there, and the whole backup needn't be read again.
+        try:
+            same, _top = backend.unchanged_since_last_look(root)
+        except Exception:
+            same = False
+        known = backend.sent_index(root) if same else None
         p = backend.push(root, files, on_progress=report,
-                         keep_versions_days=keep_days)
+                         keep_versions_days=keep_days, known=known)
         uploaded += p.uploaded
+        if p.phase == "done" and not p.errors:
+            try:
+                backend.remember_look(root, backend.top_listing(), full=known is None)
+            except Exception:
+                pass
         if p.phase != "done" or p.errors:
             message = p.message or ngettext("{count} file couldn't be uploaded",
                                             "{count} files couldn't be uploaded",

@@ -26,6 +26,10 @@ DEFAULTS: dict[str, Any] = {
     "videos_to_shrink": [],
     # Sizes of upright phone videos measured again once (see the window).
     "video_sizes_checked_v2": False,
+    # Measured again once more, for videos whose pixels aren't square. Missing
+    # from this list, the note was dropped at every launch and every video was
+    # measured again each time Piklin opened, with a jump in memory.
+    "video_sizes_checked_v3": False,
     "export_profile": "visually_lossless",
     "export_format": "keep",           # keep | jpeg | webp | avif | png
     "export_strip_metadata": False,

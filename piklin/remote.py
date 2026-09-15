@@ -439,6 +439,61 @@ class Backend:
         """Map of relative path -> (size, mtime) already on the remote."""
         raise NotImplementedError
 
+    # -- knowing what changed without reading everything ----------------------
+    # Whatever changes in a library - a photo, an album, a favourite, an edit -
+    # changes its catalog, and every Piklin sends the catalog with a backup, the
+    # older versions too. The files at the top of the backup (the catalog and the
+    # lists beside it) are a handful, so reading just those tells whether another
+    # computer sent anything since this one last looked. Only then is the whole
+    # backup read, file by file. Once every few hours it is read anyway, in case
+    # files there were changed by hand.
+    FULL_LOOK_SECONDS = 6 * 3600
+
+    def top_listing(self) -> dict[str, tuple[int, float]]:
+        """Only the files at the top of the backup: path -> (size, mtime)."""
+        return {rel: v for rel, v in self.listing().items() if "/" not in rel}
+
+    def _look_path(self, root: Path) -> Path:
+        return Path(root) / ".cache" / "backups" / f"{self.remote.id}-look.json"
+
+    def unchanged_since_last_look(self, root: Path) -> tuple[bool, dict]:
+        """(whether the backup is as this computer last saw or left it, the
+        top files now). Raises when the destination can't be read."""
+        import time as _time
+        top = self.top_listing()
+        try:
+            state = json.loads(self._look_path(root).read_text())
+        except (OSError, ValueError):
+            state = {}
+        now = {rel: [v[0], v[1]] for rel, v in top.items()}
+        recent = _time.time() - float(state.get("full_at") or 0) < self.FULL_LOOK_SECONDS
+        return bool(now) and state.get("top") == now and recent, top
+
+    def remember_look(self, root: Path, top: dict, full: bool) -> None:
+        """Note how the backup's top files look now that this computer has read
+        it through (``full``) or sent to it."""
+        import time as _time
+        path = self._look_path(root)
+        try:
+            state = json.loads(path.read_text())
+        except (OSError, ValueError):
+            state = {}
+        state["top"] = {rel: [v[0], v[1]] for rel, v in top.items()}
+        if full:
+            state["full_at"] = _time.time()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(state))
+            tmp.replace(path)
+        except OSError:
+            pass
+
+    def sent_index(self, root: Path) -> dict[str, tuple[int, float]]:
+        """What this computer knows it sent here, in the form of a listing."""
+        return {rel: (v[0], v[1]) for rel, v in self._load_manifest(root).items()
+                if isinstance(v, list) and len(v) >= 2}
+
     def list_folders(self, path: str) -> list[str]:
         """Subfolders of ``path`` on the destination, for choosing where
         backups go. Raises on failure; ``problem`` explains the error."""
@@ -541,8 +596,12 @@ class Backend:
     def push(self, root: Path, files: Iterable[Path],
              on_progress: Callable[[SyncProgress], None] | None = None,
              keep_versions_days: int = 0,
+             known: dict | None = None,
              ) -> SyncProgress:
         """Upload what is missing on the destination or changed since.
+
+        ``known``: what is already at the destination, when it is known without
+        reading it (see unchanged_since_last_look); otherwise it is read.
 
         A file already on the destination is never sent again unless it
         was modified. Size and modification time decide, as in every
@@ -555,7 +614,7 @@ class Backend:
             on_progress(p)
         self.prepare()
         try:
-            remote_index = self.listing()
+            remote_index = self.listing() if known is None else dict(known)
         except Exception as exc:
             p.phase = "error"
             p.message = _("Couldn't read the backup destination: {error}").format(error=exc)
@@ -857,6 +916,17 @@ class LocalBackend(Backend):
                     except OSError:
                         continue
                     out[rel] = (st.st_size, st.st_mtime)
+        return out
+
+    def top_listing(self) -> dict[str, tuple[int, float]]:
+        out: dict[str, tuple[int, float]] = {}
+        if not self.base.is_dir():
+            return out
+        with os.scandir(self.base) as entries:
+            for entry in entries:
+                if entry.is_file() and _ours(entry.name):
+                    st = entry.stat()
+                    out[entry.name] = (st.st_size, st.st_mtime)
         return out
 
     def put(self, local: Path, rel: str) -> bool:
@@ -1275,6 +1345,17 @@ class WebDavBackend(Backend):
             found.update(self._folder_listing(folder))
         return found
 
+    def top_listing(self) -> dict[str, tuple[int, float]]:
+        """One request for one folder level, not the whole backup."""
+        try:
+            top = self._entries("", "1")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                return {}
+            raise
+        return {r: (size, ts) for r, is_folder, size, ts in top
+                if r and "/" not in r and not is_folder and _ours(r)}
+
     def _folder_listing(self, folder: str) -> dict[str, tuple[int, float]]:
         try:
             entries = self._entries(folder, "infinity")
@@ -1633,16 +1714,24 @@ class RcloneBackend(Backend):
         return sorted((n for n in names if n and not _hidden_folder(n)), key=str.lower)
 
     def listing(self) -> dict[str, tuple[int, float]]:
-        exe = rclone_path()
-        if not exe:
-            return {}
         # Only the backup's own folders and files: rclone then never descends
         # into anything else kept in the same place.
         only = [a for f in BACKUP_FOLDERS for a in ("--include", f"/{f}/**")]
         only += ["--include", "/*.json", "--include", "/README.txt",
                  "--include", "/catalog.db"]
+        return self._lsjson(["-R", "--files-only", *only])
+
+    def top_listing(self) -> dict[str, tuple[int, float]]:
+        return self._lsjson(["--files-only", "--max-depth", "1",
+                             "--include", "/*.json", "--include", "/README.txt",
+                             "--include", "/catalog.db"])
+
+    def _lsjson(self, args: list) -> dict[str, tuple[int, float]]:
+        exe = rclone_path()
+        if not exe:
+            return {}
         out = subprocess.run(
-            [exe, "lsjson", "-R", "--files-only", *only, self.target],
+            [exe, "lsjson", *args, self.target],
             capture_output=True, text=True, timeout=300, env=self._env())
         if out.returncode != 0:
             if out.returncode == 3 or "not found" in out.stderr.lower():
@@ -1761,7 +1850,7 @@ class RcloneBackend(Backend):
             raise OSError((out.stderr or "rclone purge failed").strip().splitlines()[-1][:300])
 
     def push(self, root: Path, files, on_progress=None,
-             keep_versions_days: int = 0) -> SyncProgress:
+             keep_versions_days: int = 0, known: dict | None = None) -> SyncProgress:
         """Send what is missing or modified, in one rclone run.
 
         The same rule as every destination - a file already backed up is
@@ -1777,7 +1866,7 @@ class RcloneBackend(Backend):
             on_progress(p)
         self.prepare()
         try:
-            remote_index = self.listing()
+            remote_index = self.listing() if known is None else dict(known)
         except Exception as exc:
             p.phase = "error"
             p.message = _("Couldn't read the backup destination: {error}").format(error=exc)
@@ -2188,9 +2277,6 @@ def library_files(root: Path, include_originals: bool = True,
     for f in sorted(root.glob("*.json")) + [root / "README.txt"]:
         if f.is_file():
             ordered.append(f)
-    snapshot = snapshot_catalog(root) if include_catalog else None
-    if snapshot:
-        ordered.append((snapshot, "catalog.db"))
     if include_originals:
         d = root / "Originals"
         if d.is_dir():
@@ -2199,6 +2285,12 @@ def library_files(root: Path, include_originals: bool = True,
         d = root / ".cache"
         if d.is_dir():
             ordered += sorted(p for p in d.rglob("*") if p.is_file())
+    # The catalog last: another computer takes a new catalog as the sign that
+    # something was sent (see Backend.unchanged_since_last_look), so it arrives
+    # only once everything it describes is there.
+    snapshot = snapshot_catalog(root) if include_catalog else None
+    if snapshot:
+        ordered.append((snapshot, "catalog.db"))
     return ordered
 
 

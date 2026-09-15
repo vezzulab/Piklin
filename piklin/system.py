@@ -29,6 +29,12 @@ _MB = 1024 * 1024
 _PER_IMAGE = 600 * _MB
 _KEEP_FREE = 2048 * _MB            # for the system, Piklin's window and everything else
 _CAPS = {"thumbs": 6, "probe": 8, "images": 4, "video": 4}
+# A computer with little memory does fewer things at once: the background
+# work takes longer, and the computer keeps answering. Measured on a laptop
+# with 7 GB, six thumbnails and a video at once were what made Piklin's
+# memory jump when it opened.
+_CAPS_UP_TO_8_GB = {"thumbs": 2, "probe": 3, "images": 2, "video": 1}
+_CAPS_UP_TO_16_GB = {"thumbs": 3, "probe": 4, "images": 3, "video": 2}
 
 
 def total_memory() -> int:
@@ -95,7 +101,10 @@ def work_budget(kind: str = "images") -> int:
     spare_memory = max(1, (total_memory() - _KEEP_FREE) // _PER_IMAGE)
     if kind == "probe":
         spare_memory = max(spare_memory, 2)
-    return int(max(1, min(spare_cores, spare_memory, _CAPS.get(kind, 4))))
+    memory = total_memory()
+    caps = (_CAPS_UP_TO_8_GB if memory <= 8.5 * 1024 * _MB
+            else _CAPS_UP_TO_16_GB if memory <= 16.5 * 1024 * _MB else _CAPS)
+    return int(max(1, min(spare_cores, spare_memory, caps.get(kind, 2))))
 
 
 _QOS_CLASS_UTILITY = 0x11

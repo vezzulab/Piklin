@@ -280,6 +280,14 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
     in line with them (see apply)."""
     from . import sidecars
     root = Path(library.root)
+    # A handful of files first: when they are as this computer last saw them,
+    # nobody sent anything, and the backup isn't read through.
+    try:
+        same, top = backend.unchanged_since_last_look(root)
+    except Exception as exc:
+        return SyncResult(False, str(exc), unreachable=True)
+    if same:
+        return SyncResult()
     try:
         index = backend.listing()
     except Exception as exc:
@@ -409,6 +417,8 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
         if progress:
             progress("applying")
         apply(library, catalog, new_photos=bool(brought), edits=fresh_edits)
+    if result.ok:
+        backend.remember_look(root, top, full=True)
     return result
 
 

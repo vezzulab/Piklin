@@ -3299,6 +3299,7 @@ class MainWindow(Adw.ApplicationWindow):
             if fixed:
                 with self.catalog.write() as cur:
                     cur.executemany("UPDATE photos SET width=?, height=? WHERE id=?", fixed)
+            system.release_memory()
 
             def done():
                 from . import grid as grid_mod

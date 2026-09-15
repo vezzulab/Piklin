@@ -51,7 +51,14 @@ def format_duration(seconds: float | None) -> str:
 # -- stream properties (OpenCV / FFmpeg) ------------------------------------
 def _capture(path):
     import cv2
-    cap = cv2.VideoCapture(str(path), cv2.CAP_FFMPEG)
+    # One decoding thread. Measuring a video or taking one frame needs no
+    # more, and FFmpeg's default - a thread per core, each holding frames of
+    # its own - took Piklin from 290 to 870 MB while it measured the videos
+    # of a library on an eight-core laptop.
+    try:
+        cap = cv2.VideoCapture(str(path), cv2.CAP_FFMPEG, [cv2.CAP_PROP_N_THREADS, 1])
+    except Exception:
+        cap = cv2.VideoCapture(str(path), cv2.CAP_FFMPEG)
     return cap if cap.isOpened() else None
 
 

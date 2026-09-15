@@ -17,6 +17,15 @@
 - On Linux, the threads that make thumbnails, scan and back up no longer each keep a pool of memory after their work is done: with a library of 5,000 photos, Piklin went from 782 MB to 312 MB once it had settled
 - The graphics card is asked to let go of pictures that left the screen after 3 seconds instead of 15, and memory Piklin is done with goes back to the computer after thumbnails are made
 
+### Syncing between computers
+- Piklin knows what changed without reading the whole backup. Every change on any computer sends a new catalog, so looking at the handful of files at the top of the NAS or cloud folder is enough to tell whether another computer sent something; only then is the backup read file by file. Opening Piklin and the check every ten minutes no longer walk thousands of files on the NAS
+- A backup sends what changed using what this computer already knows it sent, instead of listing the whole destination first. The catalog goes last, so a backup cut short is picked up again. Once every six hours the whole backup is read anyway, in case files there were changed by hand
+
+### Light on computers with little memory
+- On a computer with 8 GB of memory or less, Piklin makes two thumbnails and reads one video at a time in the background, and a few more with 16 GB: it takes longer, and the computer keeps answering
+- Videos are measured with one decoding thread: measuring a library's videos made Piklin's memory jump by 600 MB on an eight-core laptop
+- The one-time check of video sizes really happens once: its note was dropped when Piklin closed, and every video was measured again each time Piklin opened
+
 ### First steps
 - The first time Piklin opens, a short guide asks one thing at a time, in five numbered steps: the language, where the library lives, where your photos are - or a backup to restore from - and where to keep a copy. The guide changes language as soon as you choose one, and nothing happens until the last step, so Back can change any answer
 
