@@ -990,6 +990,18 @@ ES = {
     "New Album Here…": "Nuevo álbum aquí…",
     "New Folder Here…": "Nueva carpeta aquí…",
     "Move Out of “{folder}”": "Sacar de “{folder}”",
+    "Cloud Service": "Servicio en la nube",
+    "Choose your cloud service and sign in: your browser opens so you can let Piklin use it. Then choose a folder for your backups.":
+        "Elige tu servicio en la nube e inicia sesión: se abre tu navegador para que le des permiso a Piklin. Luego elige una carpeta para tus copias.",
+    "Sign In…": "Iniciar sesión…",
+    "Account (filled in when you sign in)": "Cuenta (se completa al iniciar sesión)",
+    "Finish signing in to {service} in your browser…": "Termina de iniciar sesión en {service} en tu navegador…",
+    "Connected to {service}. Now choose a folder for your backups.": "Conectado a {service}. Ahora elige una carpeta para tus copias.",
+    "Signing in took too long. Try again.": "Iniciar sesión tardó demasiado. Inténtalo otra vez.",
+    "Signing in didn't finish": "No se terminó de iniciar sesión",
+    "Unknown cloud service": "Servicio en la nube desconocido",
+    "Google Drive, OneDrive, Dropbox, pCloud, Box and more. You sign in once, in your browser.":
+        "Google Drive, OneDrive, Dropbox, pCloud, Box y más. Inicias sesión una vez, en tu navegador.",
     "Move To…": "Mover a…",
     "Move “{name}” To": "Mover “{name}” a",
     "Move {count} Item To": ("Mover {count} elemento a", "Mover {count} elementos a"),

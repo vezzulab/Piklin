@@ -1148,6 +1148,18 @@ check("merging marks keeps this computer's and adds the backup's missing ones",
       and json.loads(_mine.read_text())["photos"] == {"/a.jpg": {"favorite": 1}, "/b.jpg": {"favorite": 1}}
       and not _rm.merge_state_file("photo-state.json", _mine, _theirs))
 
+# Cloud backups need rclone, which Piklin carries: its own copy is used
+# before one installed on the computer.
+_rt = Path(TMP) / "fake-runtime"; (_rt / "bin").mkdir(parents=True)
+(_rt / "bin" / "rclone").write_text("#!/bin/sh\n"); os.chmod(_rt / "bin" / "rclone", 0o755)
+_saved_rt = os.environ.get("PIKLIN_RUNTIME"); os.environ["PIKLIN_RUNTIME"] = str(_rt)
+try:
+    check("the rclone Piklin carries is used first", _rm.rclone_path() == str(_rt / "bin" / "rclone"),
+          _rm.rclone_path())
+finally:
+    if _saved_rt is None: os.environ.pop("PIKLIN_RUNTIME", None)
+    else: os.environ["PIKLIN_RUNTIME"] = _saved_rt
+
 section("10. Settings")
 from piklin.settings import Settings
 s1 = Settings(os.path.join(TMP,"s.json"))

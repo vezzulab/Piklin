@@ -3382,7 +3382,7 @@ class MainWindow(Adw.ApplicationWindow):
         # Stacked buttons read bottom-up, so "Not Now" is added first to end
         # up last, under the three choices.
         dialog.add_response("later", _("Not Now"))
-        dialog.add_response("rclone", _("Cloud Service (rclone)"))
+        dialog.add_response("rclone", _("Cloud Service"))
         dialog.add_response("webdav", _("NAS or WebDAV Server"))
         dialog.add_response("local", _("Folder or Drive"))
         dialog.set_close_response("later")

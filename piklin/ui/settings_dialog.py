@@ -487,15 +487,59 @@ class SettingsDialog(Adw.PreferencesDialog):
         webdav = kind == "webdav"
         dialog = Adw.AlertDialog(
             heading=(_("Edit Backup") if existing
-                     else _("NAS or Server (WebDAV)") if webdav else _("Cloud Service (rclone)")),
+                     else _("NAS or Server (WebDAV)") if webdav else _("Cloud Service")),
             body=(_("Enter your server's address (it starts with https://, or http:// at "
                     "home), your username and password. Then choose a folder with the "
                     "folder button.")
                   if webdav else
-                  _("Enter the name of a cloud service you set up in rclone, with the "
-                    "command rclone config.")))
+                  _("Choose your cloud service and sign in: your browser opens so you can "
+                    "let Piklin use it. Then choose a folder for your backups.")))
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         entries = {}
+        cancel_signin = None
+        if not webdav:
+            # Signing in happens here, in the browser: no rclone config in a terminal.
+            services = remote_mod.CLOUD_SERVICES
+            picker = Gtk.DropDown.new_from_strings([label for _key, label in services])
+            picker.set_hexpand(True)
+            sign_in = Gtk.Button(label=_("Sign In…"))
+            sign_in.add_css_class("suggested-action")
+            line = Gtk.Box(spacing=6)
+            line.append(picker)
+            line.append(sign_in)
+            box.append(line)
+            signin_status = Gtk.Label(xalign=0.0, wrap=True)
+            signin_status.add_css_class("pika-dim")
+            box.append(signin_status)
+            cancel_signin = threading.Event()
+
+            def signed_in(name, problem, label):
+                sign_in.set_sensitive(True)
+                picker.set_sensitive(True)
+                if name:
+                    entries["remote"].set_text(name)
+                    if not entries["name"].get_text().strip():
+                        entries["name"].set_text(label)
+                    signin_status.set_text(
+                        _("Connected to {service}. Now choose a folder for your backups.")
+                        .format(service=label))
+                else:
+                    signin_status.set_text(problem)
+                return False
+
+            def on_sign_in(_button):
+                key, label = services[picker.get_selected()]
+                sign_in.set_sensitive(False)
+                picker.set_sensitive(False)
+                signin_status.set_text(
+                    _("Finish signing in to {service} in your browser…").format(service=label))
+                cancel_signin.clear()
+
+                def work():
+                    name, problem = remote_mod.connect_cloud(key, cancel=cancel_signin)
+                    GLib.idle_add(signed_in, name, problem, label)
+                threading.Thread(target=work, daemon=True).start()
+            sign_in.connect("clicked", on_sign_in)
         if webdav:
             fields = [("name", _("Name")), ("url", _("Server address")),
                       ("base", _("Folder on the server")),
@@ -504,7 +548,7 @@ class SettingsDialog(Adw.PreferencesDialog):
                        if existing else _("Password"))]
         else:
             fields = [("name", _("Name")),
-                      ("remote", _("Name in rclone")),
+                      ("remote", _("Account (filled in when you sign in)")),
                       ("path", _("Folder in the cloud"))]
         folder_key = "base" if webdav else "path"
         # a server certificate trusted while browsing, saved with the destination
@@ -540,6 +584,8 @@ class SettingsDialog(Adw.PreferencesDialog):
         GLib.idle_add(_focus_name_field_once, priority=GLib.PRIORITY_HIGH)
 
         def done(d, response):
+            if cancel_signin is not None and response != "add":
+                cancel_signin.set()             # stops a sign-in still waiting in the browser
             if response != "add":
                 return
             values = {k: e.get_text().strip() for k, e in entries.items()}

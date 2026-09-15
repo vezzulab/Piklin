@@ -1308,6 +1308,18 @@ class WebDavBackend(Backend):
 # rclone
 # ==========================================================================
 def rclone_path() -> str | None:
+    """The rclone Piklin carries - in Piklin.app's runtime, or beside the
+    .deb's and the AppImage's libraries - else one installed on the system.
+    Cloud backups work out of the box, with nothing else to install."""
+    bundled = []
+    runtime = os.environ.get("PIKLIN_RUNTIME")
+    if runtime:
+        bundled.append(Path(runtime) / "bin" / "rclone")
+    # usr/share/piklin/piklin/remote.py -> usr/lib/piklin/rclone
+    bundled.append(Path(__file__).resolve().parents[3] / "lib" / "piklin" / "rclone")
+    for path in bundled:
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path)
     return shutil.which("rclone")
 
 
@@ -1322,6 +1334,68 @@ def rclone_remotes() -> list[str]:
         return [l.strip() for l in out.stdout.splitlines() if l.strip()]
     except Exception:
         return []
+
+
+# The cloud services Piklin connects by itself: (rclone's type, the name
+# people know). Each signs in through the browser; any other rclone remote
+# set up by hand can still be used by its name.
+CLOUD_SERVICES = (
+    ("drive", "Google Drive"),
+    ("onedrive", "OneDrive"),
+    ("dropbox", "Dropbox"),
+    ("pcloud", "pCloud"),
+    ("box", "Box"),
+)
+
+
+def connect_cloud(service: str, cancel: threading.Event | None = None,
+                  timeout: float = 15 * 60) -> tuple[str | None, str]:
+    """Sign in to a cloud service in the browser and set it up in rclone.
+
+    rclone opens the service's sign-in page and waits for the answer; nothing
+    is typed in a terminal. Returns (the rclone name, "") once connected, or
+    (None, why not) - an empty reason when it was cancelled. A sign-in that
+    does not finish leaves nothing half set up behind.
+    """
+    exe = rclone_path()
+    if not exe:
+        return None, _("rclone is not installed")
+    if service not in dict(CLOUD_SERVICES):
+        return None, _("Unknown cloud service")
+    taken = {r.rstrip(":") for r in rclone_remotes()}
+    name, n = f"piklin-{service}", 2
+    while name in taken:
+        name, n = f"piklin-{service}-{n}", n + 1
+
+    def forget():
+        try:
+            subprocess.run([exe, "config", "delete", name], capture_output=True, timeout=30)
+        except Exception:
+            pass
+    try:
+        proc = subprocess.Popen([exe, "config", "create", name, service, "config_is_local=true"],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
+    except OSError as exc:
+        return None, str(exc)
+    deadline = time.monotonic() + timeout
+    while proc.poll() is None:
+        stopped = cancel is not None and cancel.is_set()
+        if stopped or time.monotonic() > deadline:
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+            forget()
+            return None, "" if stopped else _("Signing in took too long. Try again.")
+        time.sleep(0.3)
+    out, err = proc.communicate()
+    if proc.returncode != 0 or name not in {r.rstrip(":") for r in rclone_remotes()}:
+        forget()
+        lines = (err or out or "").strip().splitlines()
+        return None, (lines[-1][:300] if lines else _("Signing in didn't finish"))
+    return name, ""
 
 
 class RcloneBackend(Backend):
@@ -1774,10 +1848,10 @@ def describe_providers() -> list[tuple[str, str, str]]:
         ("webdav", _("NAS or Server (WebDAV)"),
          _("For QNAP, Synology, Nextcloud and similar. You need the server "
            "address, your username and your password.")),
-        ("rclone", _("Cloud Service (rclone)") +
+        ("rclone", _("Cloud Service") +
          (" " + _("({count} set up)").format(count=len(configured)) if configured else ""),
-         (_("Google Drive, OneDrive, Dropbox, Backblaze and about seventy more, "
-            "through the free rclone app. For advanced users.")
+         (_("Google Drive, OneDrive, Dropbox, pCloud, Box and more. You sign in once, "
+            "in your browser.")
           if rc else
           _("Not installed yet. Install the free rclone app to use Google Drive, "
             "OneDrive, Dropbox and many more."))),

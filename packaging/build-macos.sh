@@ -182,6 +182,20 @@ CONF
   if find "$R/site-packages" -iname '*x264*' -o -iname '*x265*' | grep -q .; then
     echo "GPL codec library found in the $a runtime - refusing to package" >&2; exit 1
   fi
+
+  # Cloud backups: the rclone for this processor, fetched and checked by
+  # packaging/fetch-rclone.sh, so they work with nothing else to install.
+  RCLONE_VERSION="$(sed -n 's/^RCLONE_VERSION=//p' "$HERE/fetch-rclone.sh")"
+  RCLONE_ZIP="$HERE/rclone-cache/rclone-$RCLONE_VERSION-osx-$([ "$a" = x86_64 ] && echo amd64 || echo arm64).zip"
+  [ -f "$RCLONE_ZIP" ] || { echo "Run packaging/fetch-rclone.sh first ($RCLONE_ZIP is missing)" >&2; exit 1; }
+  mkdir -p "$R/bin"
+  "$HOST_PY" - "$RCLONE_ZIP" "$R/bin/rclone" <<'PY'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z:
+    name = next(n for n in z.namelist() if n.endswith("/rclone"))
+    open(sys.argv[2], "wb").write(z.read(name))
+PY
+  chmod 755 "$R/bin/rclone"
 done
 
 # ------------------------------------------------------------ Piklin itself

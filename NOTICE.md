@@ -21,6 +21,7 @@ The Piklin packages include the software below. Each part keeps its own licence,
 | [rawpy](https://github.com/letmaik/rawpy) with LibRaw | Camera RAW photos | MIT; LGPL-2.1 or CDDL-1.0 |
 | [Inter](https://rsms.me/inter/) | Typeface | SIL Open Font License 1.1 |
 | [cffi](https://cffi.readthedocs.io) | Sound output (on a Mac; Linux provides it) | MIT |
+| [rclone](https://rclone.org) | Backups to cloud services (Google Drive, OneDrive, Dropbox, pCloud and more) | MIT |
 
 ### On a Mac only
 

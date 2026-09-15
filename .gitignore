@@ -23,5 +23,6 @@ packaging/media-cache/
 .venv-x86_64/
 packaging/macos-cache/
 packaging/appimage-cache/
+packaging/rclone-cache/
 packaging/media-cache-*/
 packaging/wheel-local-*/

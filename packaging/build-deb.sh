@@ -121,6 +121,23 @@ for v in ${PYVERS#* }; do
   done
 done
 
+# ------------------------------------------------------------------ rclone
+# Cloud backups (Google Drive, OneDrive, Dropbox, pCloud...) go through
+# rclone, carried here so they work with nothing else to install. Fetched and
+# checked against rclone's signed checksums by packaging/fetch-rclone.sh.
+RCLONE_VERSION="$(sed -n 's/^RCLONE_VERSION=//p' "$HERE/fetch-rclone.sh")"
+RCLONE_ZIP="$HERE/rclone-cache/rclone-$RCLONE_VERSION-linux-$ARCH.zip"
+[ -f "$RCLONE_ZIP" ] || { echo "Run packaging/fetch-rclone.sh first ($RCLONE_ZIP is missing)" >&2; exit 1; }
+say "rclone $RCLONE_VERSION for cloud backups"
+python3 - "$RCLONE_ZIP" "$LIB/rclone" <<'PY'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z:
+    name = next(n for n in z.namelist() if n.endswith("/rclone"))
+    open(sys.argv[2], "wb").write(z.read(name))
+PY
+mkdir -p "$DOC/third-party/rclone"
+cp "$HERE/rclone-cache/COPYING" "$DOC/third-party/rclone/COPYING"
+
 # ----------------------------------------------------------------- updates
 # Piklin updates itself through this helper, run by pkexec. It installs only
 # a newer Piklin signed with Vezzu Studio's release key (see
@@ -262,8 +279,8 @@ CTRL
 find "$STAGE" -type d -exec chmod 755 {} +
 find "$STAGE" -type f ! -path '*/DEBIAN/*' ! -path '*/usr/bin/*' -exec chmod 644 {} +
 find "$LIB" -name '*.so*' -exec chmod 644 {} +
-# The update helper is run by pkexec, which needs it executable.
-chmod 755 "$LIB/piklin-update"
+# The update helper is run by pkexec, which needs it executable; rclone runs too.
+chmod 755 "$LIB/piklin-update" "$LIB/rclone"
 
 # The AppImage is made from this same tree (packaging/build-appimage.sh):
 # STAGE_ONLY=1 stops here, without packing or touching dist/.
