@@ -238,6 +238,15 @@ check("move to top level works",
       any(n["kind"] == "album" and n["row"]["name"] == "Paris"
           for n in cat.tree()))
 cat.move_album_to_folder(alb, euro)
+check("the folder and every folder inside it", cat.folder_and_inside(trips) == {trips, euro})
+check("a folder can't go inside itself or a folder inside it",
+      not cat.move_folder(trips, euro) and not cat.move_folder(trips, trips)
+      and cat.q1("SELECT parent_id FROM folders WHERE id=?", (trips,))["parent_id"] is None)
+check("a folder moves out and into another folder",
+      cat.move_folder(euro, None)
+      and cat.q1("SELECT parent_id FROM folders WHERE id=?", (euro,))["parent_id"] is None
+      and cat.move_folder(euro, trips)
+      and cat.q1("SELECT parent_id FROM folders WHERE id=?", (euro,))["parent_id"] == trips)
 cat.delete_folder(euro)
 check("deleting a folder cascades to its albums",
       cat.scalar("SELECT COUNT(*) FROM albums WHERE id=?", (alb,), 0) == 0)
@@ -248,6 +257,12 @@ check("cascade also removes album_items",
 section("4c. Smart albums")
 sid = cat.create_smart_album("Five star",
                              [{"field": "rating", "op": "is", "value": 5}])
+cat.move_smart_album_to_folder(sid, trips)
+check("a Smart Album moves into a folder",
+      any(c["kind"] == "smart" and c["row"]["id"] == sid
+          for n in cat.tree() if n["kind"] == "folder" and n["row"]["id"] == trips
+          for c in n["children"]))
+cat.move_smart_album_to_folder(sid, None)
 before = cat.smart_album_count(sid)
 cat.set_rating([1], 5)
 after_one = cat.smart_album_count(sid)
@@ -562,12 +577,18 @@ check("Smart Album appears in the sidebar tree",
 check("Smart Album filters by its rules",
       [r["filename"] for r in cat5.browse(scope="smart", smart_id=sid)] ==
       [r["filename"] for r in cat5.browse(scope="screenshots")])
+_fid5 = cat5.create_folder("Pantallas"); cat5.move_smart_album_to_folder(sid, _fid5)
+sc.write_folders(fake, cat5)
 sc.write_smart_albums(fake, cat5)
 cat7 = Catalog(os.path.join(TMP, "c7.db"))
+sc.restore_folders(fake, cat7)
 check("Smart Albums restored after a rebuild",
       sc.restore_smart_albums(fake, cat7) == 1 and
       [r["name"] for r in cat7.smart_albums()] == ["Capturas"] and
       sc.restore_smart_albums(fake, cat7) == 0)
+check("a Smart Album moved into a folder is back in it after a rebuild",
+      [f["name"] for f in cat7.folders() if f["id"] == cat7.smart_albums()[0]["folder_id"]]
+      == ["Pantallas"])
 check("Recently Deleted forgets items after 30 days (file kept)",
       cat5.forget_expired_trash(30) == 1 and cat5.photo(old_id) is None
       and os.path.exists(f"{views}/one.jpg"))

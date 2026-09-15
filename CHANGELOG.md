@@ -24,6 +24,7 @@
 - Video always plays with sound: the package now asks for the small library miniaudio needs, which some minimal installations lacked
 
 ### Everywhere
+- Albums, Smart Albums and folders can be moved to any folder, or back to the top: right-click and choose Move To…, or drag them onto a folder in the sidebar, or onto the Albums heading to take them out of every folder. Several albums chosen inside a folder move together. A folder is never moved inside itself, and backups keep where everything was moved
 - A video is never refused when the image library cannot open it: Piklin reads it through its own video engine instead
 
 ## 1.0.4

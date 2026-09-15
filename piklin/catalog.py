@@ -1049,7 +1049,25 @@ class Catalog:
         with self.write() as cur:
             cur.execute("DELETE FROM folders WHERE id=?", (folder_id,))
 
-    def move_folder(self, folder_id: int, new_parent_id: int | None) -> None:
+    def folder_and_inside(self, folder_id: int) -> set[int]:
+        """The folder and every folder inside it, however deep."""
+        found, todo = {folder_id}, [folder_id]
+        while todo:
+            for r in self.q("SELECT id FROM folders WHERE parent_id=?", (todo.pop(),)):
+                if r["id"] not in found:
+                    found.add(r["id"])
+                    todo.append(r["id"])
+        return found
+
+    def move_folder(self, folder_id: int, new_parent_id: int | None) -> bool:
+        """Move a folder into another one, or to the top with None.
+
+        A folder can't go inside itself or inside a folder it holds - that
+        would cut the whole branch off the tree - so that move is refused
+        and returns False.
+        """
+        if new_parent_id is not None and new_parent_id in self.folder_and_inside(folder_id):
+            return False
         pos = int(self.scalar(
             "SELECT COALESCE(MAX(position),-1) FROM folders "
             "WHERE parent_id IS ?", (new_parent_id,), -1)) + 1
@@ -1057,6 +1075,17 @@ class Catalog:
             cur.execute(
                 "UPDATE folders SET parent_id=?, position=? WHERE id=?",
                 (new_parent_id, pos, folder_id))
+        return True
+
+    def move_smart_album_to_folder(self, smart_id: int,
+                                   folder_id: int | None) -> None:
+        pos = int(self.scalar(
+            "SELECT COALESCE(MAX(position),-1) FROM smart_albums "
+            "WHERE folder_id IS ?", (folder_id,), -1)) + 1
+        with self.write() as cur:
+            cur.execute(
+                "UPDATE smart_albums SET folder_id=?, position=? WHERE id=?",
+                (folder_id, pos, smart_id))
 
     def move_album_to_folder(self, album_id: int,
                              folder_id: int | None) -> None:

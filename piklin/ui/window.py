@@ -625,14 +625,18 @@ class MainWindow(Adw.ApplicationWindow):
             # nothing for a right-click to open there.
             if album_id is not None or folder_id is not None:
                 self._make_drop_target(row, album_id, folder_id)
-            if album_id is not None:
-                # An album can be dragged into a folder: this is the only way to move an album
-                # that already exists into a folder.
+            drag_value = (f"pika-album:{album_id}" if album_id is not None
+                          else f"pika-folder:{folder_id}" if folder_id is not None
+                          else f"pika-smart:{smart_id}" if smart_id is not None
+                          else None)
+            if drag_value is not None:
+                # Albums, Smart Albums and folders are dragged onto a folder
+                # to go into it, or onto the Albums heading to leave folders.
                 src = Gtk.DragSource(actions=Gdk.DragAction.MOVE)
                 src.connect(
                     "prepare",
-                    lambda _s, _x, _y, a=album_id:
-                        Gdk.ContentProvider.new_for_value(f"pika-album:{a}"))
+                    lambda _s, _x, _y, v=drag_value:
+                        Gdk.ContentProvider.new_for_value(v))
                 row.add_controller(src)
             if smart_id is not None:
                 rc = Gtk.GestureClick(button=3)
@@ -758,7 +762,8 @@ class MainWindow(Adw.ApplicationWindow):
         add_menu.append(_("New Album…"), "win.new-album")
         add_menu.append(_("New Smart Album…"), "win.new-smart-album")
         add_menu.append(_("New Folder…"), "win.new-folder")
-        header(_("Albums"), add_menu)
+        albums_heading = header(_("Albums"), add_menu)
+        self._make_drop_target(albums_heading, None, None, top=True)
         self._add_tree_rows(self.catalog.tree(), add, depth=0)
 
         for child in self.sidebar_list:
@@ -1301,8 +1306,21 @@ class MainWindow(Adw.ApplicationWindow):
         except Exception:
             pass
 
-    def _make_drop_target(self, row, album_id, folder_id):
-        """Accept photos dropped on an album, and albums dropped on a folder."""
+    @staticmethod
+    def _dragged_item(value):
+        """("album" | "folder" | "smart", id) from a sidebar row's drag, else None."""
+        for kind in ("album", "folder", "smart"):
+            prefix = f"pika-{kind}:"
+            if value.startswith(prefix):
+                try:
+                    return kind, int(value[len(prefix):])
+                except ValueError:
+                    return None
+        return None
+
+    def _make_drop_target(self, row, album_id, folder_id, top=False):
+        """Accept photos dropped on an album; albums, Smart Albums and folders
+        dropped on a folder, or on the Albums heading (``top``) to leave folders."""
         target = Gtk.DropTarget.new(GObject.TYPE_NONE, Gdk.DragAction.COPY
                                     | Gdk.DragAction.MOVE)
         # Photos from Piklin's own grid arrive as text; files from the
@@ -1349,17 +1367,11 @@ class MainWindow(Adw.ApplicationWindow):
                 self._write_album_sidecar(album_id)
                 self._refresh()
                 return True
-            if value.startswith("pika-album:"):
-                if folder_id is None:
+            dragged = self._dragged_item(value)
+            if dragged is not None:
+                if folder_id is None and not top:
                     return False
-                try:
-                    dragged = int(value.split(":", 1)[1])
-                except ValueError:
-                    return False
-                self.catalog.move_album_to_folder(dragged, folder_id)
-                self._write_album_sidecar(dragged)
-                self._refresh()
-                return True
+                return self._move_items([dragged], folder_id)
             return False
 
         def on_enter(_t, _x, _y):
@@ -2467,10 +2479,12 @@ class MainWindow(Adw.ApplicationWindow):
                   lambda: self._on_new_album(folder_id=folder_id)),
                  ("new-folder", _("New Folder Here…"), None,
                   lambda: self._on_new_folder(folder_id))],
-                [("move-out", _("Move Out of “{folder}”").format(folder=parent["name"]), None,
-                  lambda: self._move_out(folder_id=folder_id,
-                                         to=parent["parent_id"]))]
-                if parent is not None else [],
+                [("move-to", _("Move To…"), None,
+                  lambda: self._choose_move_target([("folder", folder_id, name)]))]
+                + ([("move-out", _("Move Out of “{folder}”").format(folder=parent["name"]), None,
+                     lambda: self._move_out(folder_id=folder_id,
+                                            to=parent["parent_id"]))]
+                   if parent is not None else []),
                 [("delete", _("Delete Folder…"), None,
                   lambda: self._on_delete_folder(folder_id, name))],
             ]
@@ -2481,10 +2495,12 @@ class MainWindow(Adw.ApplicationWindow):
             sections = [
                 [("rename", _("Rename…"), None,
                   lambda: self._on_rename_album(album_id, name))],
-                [("move-out", _("Move Out of “{folder}”").format(folder=holder["name"]), None,
-                  lambda: self._move_out(album_id=album_id,
-                                         to=holder["parent_id"]))]
-                if holder is not None else [],
+                [("move-to", _("Move To…"), None,
+                  lambda: self._choose_move_target([("album", album_id, name)]))]
+                + ([("move-out", _("Move Out of “{folder}”").format(folder=holder["name"]), None,
+                     lambda: self._move_out(album_id=album_id,
+                                            to=holder["parent_id"]))]
+                   if holder is not None else []),
                 [("delete", _("Delete Album…"), None,
                   lambda: self._on_delete_album(album_id, name))],
             ]
@@ -2734,12 +2750,109 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _move_out(self, album_id=None, folder_id=None, to=None):
         if album_id is not None:
-            self.catalog.move_album_to_folder(album_id, to)
-            self._write_album_sidecar(album_id)
+            self._move_items([("album", album_id)], to)
         elif folder_id is not None:
-            self.catalog.move_folder(folder_id, to)
-        self._mirror_state()
-        self.refresh_sidebar()
+            self._move_items([("folder", folder_id)], to)
+
+    def _move_items(self, items, to) -> bool:
+        """Put albums, Smart Albums and folders into the folder ``to``, or
+        into no folder with None. ``items`` are (kind, id, ...) tuples.
+        True when anything moved: a folder is never put inside itself."""
+        moved = 0
+        for kind, item_id, *_rest in items:
+            if kind == "album":
+                self.catalog.move_album_to_folder(item_id, to)
+                self._write_album_sidecar(item_id)
+            elif kind == "smart":
+                self.catalog.move_smart_album_to_folder(item_id, to)
+            elif kind != "folder" or not self.catalog.move_folder(item_id, to):
+                continue
+            moved += 1
+        if moved:
+            # the folder tree and Smart Albums live in the mirrors a backup carries
+            self._mirror_state()
+            self.refresh_sidebar()
+            if self._scope == "folder":
+                self.folder_view.load(getattr(self, "_folder_id", None))
+        return moved > 0
+
+    def _choose_move_target(self, items):
+        """Ask where albums, Smart Albums or folders go: any folder, or the
+        top level. ``items`` are (kind, id, name) tuples. A folder's own
+        branch is not offered, and where they already are can't be chosen."""
+        from .chrome import fit
+        blocked = set()
+        for kind, item_id, _name in items:
+            if kind == "folder":
+                blocked |= self.catalog.folder_and_inside(item_id)
+
+        def location(kind, item_id):
+            table, column = {"album": ("albums", "folder_id"),
+                             "smart": ("smart_albums", "folder_id"),
+                             "folder": ("folders", "parent_id")}[kind]
+            row = self.catalog.q1(f"SELECT {column} AS f FROM {table} WHERE id=?", (item_id,))
+            return row["f"] if row is not None else None
+        places = {location(kind, item_id) for kind, item_id, _name in items}
+        here = next(iter(places)) if len(places) == 1 else object()
+
+        listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE,
+                              activate_on_single_click=False)
+        listbox.add_css_class("boxed-list")
+
+        def option(label, icon, target, depth):
+            row = Gtk.ListBoxRow()
+            box = Gtk.Box(spacing=10, margin_start=12 + depth * 18, margin_end=12,
+                          margin_top=9, margin_bottom=9)
+            box.append(Gtk.Image(icon_name=icon))
+            box.append(Gtk.Label(label=label, xalign=0.0, hexpand=True, ellipsize=3))
+            if target == here:
+                note = Gtk.Label(label=_("Here now"))
+                note.add_css_class("pika-dim")
+                box.append(note)
+                row.set_sensitive(False)
+            row.set_child(box)
+            row._target, row._label = target, label
+            listbox.append(row)
+
+        option(_("Top Level"), "view-list-symbolic", None, 0)
+
+        def walk(nodes, depth):
+            for node in nodes:
+                if node["kind"] == "folder" and node["row"]["id"] not in blocked:
+                    option(node["row"]["name"], "folder-symbolic", node["row"]["id"], depth)
+                    walk(node["children"], depth + 1)
+        walk(self.catalog.tree(), 0)
+
+        if len(items) == 1:
+            heading = _("Move “{name}” To").format(name=items[0][2])
+        else:
+            heading = ngettext("Move {count} Item To", "Move {count} Items To",
+                               len(items)).format(count=len(items))
+        dialog = Adw.AlertDialog(heading=heading, body=_("Choose a folder."))
+        dialog.set_extra_child(Gtk.ScrolledWindow(
+            child=listbox, hscrollbar_policy=Gtk.PolicyType.NEVER,
+            propagate_natural_height=True, max_content_height=fit(0, 360)[1]))
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("move", _("Move"))
+        dialog.set_response_appearance("move", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_response_enabled("move", False)
+        dialog.set_close_response("cancel")
+        listbox.connect("row-selected",
+                        lambda _l, row: dialog.set_response_enabled("move", row is not None))
+
+        def move_to(row):
+            if row is None or not self._move_items(items, row._target):
+                return
+            self._show_toast(_("Moved to Top Level") if row._target is None
+                             else _("Moved to “{folder}”").format(folder=row._label))
+
+        def activated(_l, row):              # a double-click moves straight away
+            dialog.force_close()
+            move_to(row)
+        listbox.connect("row-activated", activated)
+        dialog.connect("response", lambda _d, response: response == "move"
+                       and move_to(listbox.get_selected_row()))
+        dialog.present(self)
 
     def _on_new_smart_album(self, smart_id=None, folder_id=None):
         """New Smart Album; also Edit Smart Album."""
@@ -2761,6 +2874,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._show_context_menu(gesture.get_widget(), x, y, [
             [("edit", _("Edit Smart Album…"), None,
               lambda: self._on_new_smart_album(smart_id=smart_id))],
+            [("move-to", _("Move To…"), None,
+              lambda: self._choose_move_target([("smart", smart_id, name)]))],
             [("delete", _("Delete Smart Album…"), None,
               lambda: self._on_delete_smart_album(smart_id, name))],
         ])
@@ -3001,7 +3116,10 @@ class MainWindow(Adw.ApplicationWindow):
             opener = {"folder": self._open_folder, "smart": self._open_smart}.get(
                 kind, self._open_album)
             sections.append([("open", _("Open"), None, lambda: opener(item_id))])
-        albums = [(item_id, name) for kind, item_id, name in keys if kind == "album"]
+        chosen = list(keys)
+        sections.append([("move-to", _("Move To…"), None,
+                          lambda: self._choose_move_target(chosen))])
+        albums =[(item_id, name) for kind, item_id, name in keys if kind == "album"]
         if len(albums) == 1 and len(keys) == 1:
             sections.append([("delete", _("Delete Album…"), None,
                               lambda: self._on_delete_album(*albums[0]))])
