@@ -939,6 +939,47 @@ def certificate_fingerprint(url: str) -> str:
     return hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
 
 
+# Where NAS systems usually offer https beside plain http: QNAP and Synology
+# serve their pages on 5000 and 5001, Synology's WebDAV on 5005 and 5006,
+# QNAP's WebDAV on 8080 and 8081.
+_SECURE_PORTS = {80: (443,), 5000: (5001,), 5005: (5006,), 8080: (8081,)}
+
+
+def secure_address(url: str, timeout: float = 8) -> tuple[str, str] | None:
+    """For a WebDAV server reached with plain http://, the https:// address
+    the same server also answers WebDAV on, with its certificate's SHA-256
+    fingerprint to confirm - or None. Nothing is sent but an anonymous
+    request: no username, no password."""
+    u = urllib.parse.urlparse((url or "").strip())
+    if u.scheme != "http" or not u.hostname:
+        return None
+    port = u.port or 80
+    host = f"[{u.hostname}]" if ":" in u.hostname else u.hostname
+    for candidate in _SECURE_PORTS.get(port, (port + 1, 443)):
+        netloc = host if candidate == 443 else f"{host}:{candidate}"
+        https = urllib.parse.urlunparse(("https", netloc, u.path.rstrip("/"), "", "", ""))
+        try:
+            fingerprint = certificate_fingerprint(https)
+        except Exception:
+            continue
+        # Its own certificate is normal at home; the fingerprint is what the
+        # person confirms, so this one look is made without verifying it.
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        request = urllib.request.Request(https + "/", method="PROPFIND", headers={"Depth": "0"})
+        try:
+            urllib.request.urlopen(request, timeout=timeout, context=ctx)
+            answer = 207
+        except urllib.error.HTTPError as exc:
+            answer = exc.code
+        except Exception:
+            continue
+        if answer in (207, 401):             # WebDAV, asking to sign in
+            return https, fingerprint
+    return None
+
+
 def format_fingerprint(fp: str) -> str:
     pairs = [fp[i:i + 2].upper() for i in range(0, len(fp), 2)]
     return "\n".join(":".join(pairs[i:i + 16]) for i in range(0, len(pairs), 16))
@@ -1323,17 +1364,99 @@ def rclone_path() -> str | None:
     return shutil.which("rclone")
 
 
+# -- rclone's configuration -------------------------------------------------
+# A cloud service Piklin connects keeps its access in Piklin's own rclone
+# file, encrypted, with the key in the system's password manager: whoever
+# gets hold of the file alone cannot reach the cloud with it. Those remotes
+# are named piklin-<service>. Remotes someone set up by hand in rclone stay
+# in rclone's own file, untouched, so rclone in a terminal keeps working.
+PIKLIN_REMOTE_PREFIX = "piklin-"
+RCLONE_KEY_ID = "rclone-config"
+
+
+def piklin_rclone_config() -> Path:
+    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    return base / "piklin" / "rclone.conf"
+
+
+def _rclone_key(create: bool = False) -> str | None:
+    key = load_secret(RCLONE_KEY_ID)
+    if not key and create:
+        import secrets
+        key = secrets.token_urlsafe(32)
+        if not store_secret(RCLONE_KEY_ID, key):
+            return None
+    return key or None
+
+
+def _rclone_env(remote: str = "") -> dict:
+    """The environment rclone runs with for ``remote``: Piklin's encrypted
+    file and its key for Piklin's own remotes, rclone's usual file otherwise.
+    rclone never waits for a password on a terminal nobody sees."""
+    env = dict(os.environ)
+    env.pop("RCLONE_CONFIG_PASS", None)
+    env["RCLONE_ASK_PASSWORD"] = "false"
+    if remote.rstrip(":").startswith(PIKLIN_REMOTE_PREFIX):
+        env["RCLONE_CONFIG"] = str(piklin_rclone_config())
+        key = _rclone_key()
+        if key:
+            env["RCLONE_CONFIG_PASS"] = key
+    return env
+
+
+def _config_encrypted(path: Path) -> bool:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.readline().startswith("# Encrypted rclone configuration")
+    except OSError:
+        return False
+
+
+def encrypt_piklin_rclone_config() -> bool:
+    """Encrypt Piklin's rclone file with a key kept in the password manager.
+    True when it is encrypted (now or already); False when it can't be -
+    no password manager to keep the key in - and it stays readable only by
+    this user, as rclone writes it."""
+    path = piklin_rclone_config()
+    exe = rclone_path()
+    if not exe or not path.is_file():
+        return False
+    if _config_encrypted(path):
+        return True
+    key = _rclone_key(create=True)
+    if not key:
+        return False
+    env = _rclone_env(PIKLIN_REMOTE_PREFIX)
+    env.pop("RCLONE_CONFIG_PASS", None)          # the file is not encrypted yet
+    env["PIKLIN_RCLONE_KEY"] = key               # read by printenv, never on a command line
+    try:
+        subprocess.run([exe, "config", "encryption", "set",
+                        "--password-command", "printenv PIKLIN_RCLONE_KEY"],
+                       env=env, stdin=subprocess.DEVNULL, capture_output=True,
+                       text=True, timeout=60)
+    except Exception:
+        return False
+    return _config_encrypted(path)
+
+
 def rclone_remotes() -> list[str]:
-    """Remotes the user already configured in rclone."""
+    """Remotes set up in rclone: Piklin's own, and any set up by hand."""
     exe = rclone_path()
     if not exe:
         return []
-    try:
-        out = subprocess.run([exe, "listremotes"], capture_output=True,
-                             text=True, timeout=15)
-        return [l.strip() for l in out.stdout.splitlines() if l.strip()]
-    except Exception:
-        return []
+    found = []
+    for env in (_rclone_env(PIKLIN_REMOTE_PREFIX), _rclone_env()):
+        if env.get("RCLONE_CONFIG") and not Path(env["RCLONE_CONFIG"]).is_file():
+            continue
+        try:
+            out = subprocess.run([exe, "listremotes"], capture_output=True,
+                                 text=True, timeout=15, env=env, stdin=subprocess.DEVNULL)
+        except Exception:
+            continue
+        for line in out.stdout.splitlines():
+            if line.strip() and line.strip() not in found:
+                found.append(line.strip())
+    return found
 
 
 # The cloud services Piklin connects by itself: (rclone's type, the name
@@ -1363,19 +1486,22 @@ def connect_cloud(service: str, cancel: threading.Event | None = None,
     if service not in dict(CLOUD_SERVICES):
         return None, _("Unknown cloud service")
     taken = {r.rstrip(":") for r in rclone_remotes()}
-    name, n = f"piklin-{service}", 2
+    name, n = f"{PIKLIN_REMOTE_PREFIX}{service}", 2
     while name in taken:
-        name, n = f"piklin-{service}-{n}", n + 1
+        name, n = f"{PIKLIN_REMOTE_PREFIX}{service}-{n}", n + 1
+    env = _rclone_env(name)
+    piklin_rclone_config().parent.mkdir(parents=True, exist_ok=True)
 
     def forget():
         try:
-            subprocess.run([exe, "config", "delete", name], capture_output=True, timeout=30)
+            subprocess.run([exe, "config", "delete", name], capture_output=True,
+                           timeout=30, env=env, stdin=subprocess.DEVNULL)
         except Exception:
             pass
     try:
         proc = subprocess.Popen([exe, "config", "create", name, service, "config_is_local=true"],
                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True)
+                                stderr=subprocess.PIPE, text=True, env=env)
     except OSError as exc:
         return None, str(exc)
     deadline = time.monotonic() + timeout
@@ -1395,6 +1521,8 @@ def connect_cloud(service: str, cancel: threading.Event | None = None,
         forget()
         lines = (err or out or "").strip().splitlines()
         return None, (lines[-1][:300] if lines else _("Signing in didn't finish"))
+    # The access just granted is locked away before anything else happens.
+    encrypt_piklin_rclone_config()
     return name, ""
 
 
@@ -1411,6 +1539,9 @@ class RcloneBackend(Backend):
     def _base(self) -> str:
         return _in_piklin(self.remote.config.get("path", ""))
 
+    def _env(self) -> dict:
+        return _rclone_env(self.remote.config.get("remote", ""))
+
     def _prepare(self) -> None:
         exe = rclone_path()
         remote = self.remote.config.get("remote", "").strip().rstrip(":")
@@ -1420,18 +1551,19 @@ class RcloneBackend(Backend):
         if self._base() == chosen:
             return
         out = subprocess.run([exe, "lsjson", "--max-depth", "1", f"{remote}:{chosen}"],
-                             capture_output=True, text=True, timeout=60)
+                             capture_output=True, text=True, timeout=60, env=self._env())
         if out.returncode != 0:
             return                              # nothing there yet, or unreachable
         names = {it.get("Name", ""): bool(it.get("IsDir"))
                  for it in json.loads(out.stdout or "[]") if it.get("Name")}
         if names.get(BACKUP_SUBFOLDER) is True:
             return
-        subprocess.run([exe, "mkdir", self.target], capture_output=True, text=True, timeout=60)
+        subprocess.run([exe, "mkdir", self.target], capture_output=True, text=True,
+                       timeout=60, env=self._env())
         for name in _old_backup(names):
             src = f"{remote}:{chosen}/{name}" if chosen else f"{remote}:{name}"
             subprocess.run([exe, "moveto", src, f"{self.target}/{name}"],
-                           capture_output=True, text=True, timeout=1800)
+                           capture_output=True, text=True, timeout=1800, env=self._env())
 
     def test(self) -> TestResult:
         exe = rclone_path()
@@ -1450,9 +1582,9 @@ class RcloneBackend(Backend):
         try:
             # The backup folder may not exist yet; mkdir is harmless if it does.
             made = subprocess.run([exe, "mkdir", self.target],
-                                  capture_output=True, text=True, timeout=60)
+                                  capture_output=True, text=True, timeout=60, env=self._env())
             out = subprocess.run([exe, "lsd", self.target, "--max-depth", "1"],
-                                 capture_output=True, text=True, timeout=45)
+                                 capture_output=True, text=True, timeout=45, env=self._env())
             if out.returncode == 0:
                 return TestResult(True, _("Connected"), self.target)
             return TestResult(False, _("rclone can't reach the cloud service"),
@@ -1473,7 +1605,7 @@ class RcloneBackend(Backend):
             raise RuntimeError(_("Enter the name of the cloud service first"))
         out = subprocess.run(
             [exe, "lsjson", "--dirs-only", f"{remote}:{path.strip().strip('/')}"],
-            capture_output=True, text=True, timeout=60)
+            capture_output=True, text=True, timeout=60, env=self._env())
         if out.returncode != 0:
             err = (out.stderr or "rclone failed").strip().splitlines()[-1]
             raise RuntimeError(err.split(" : ", 1)[-1][:300])
@@ -1491,7 +1623,7 @@ class RcloneBackend(Backend):
                  "--include", "/catalog.db"]
         out = subprocess.run(
             [exe, "lsjson", "-R", "--files-only", *only, self.target],
-            capture_output=True, text=True, timeout=300)
+            capture_output=True, text=True, timeout=300, env=self._env())
         if out.returncode != 0:
             if out.returncode == 3 or "not found" in out.stderr.lower():
                 return {}                       # nothing backed up yet
@@ -1523,7 +1655,7 @@ class RcloneBackend(Backend):
         # rclone copyto takes a full destination path including filename
         try:
             out = subprocess.run([exe, "copyto", str(local), dest],
-                                 capture_output=True, text=True, timeout=1800)
+                                 capture_output=True, text=True, timeout=1800, env=self._env())
             return out.returncode == 0
         except Exception:
             return False
@@ -1536,7 +1668,7 @@ class RcloneBackend(Backend):
         try:
             out = subprocess.run(
                 [exe, "copyto", f"{self.target}/{rel}".replace("//", "/"),
-                 str(local)], capture_output=True, text=True, timeout=1800)
+                 str(local)], capture_output=True, text=True, timeout=1800, env=self._env())
             return out.returncode == 0
         except Exception:
             return False
@@ -1550,8 +1682,8 @@ class RcloneBackend(Backend):
     def _run_rclone(self, cmd: list[str], p: SyncProgress, on_progress) -> int | None:
         """Run an rclone transfer, feeding its stats into ``p``.
         The exit code, or None when cancelled."""
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL,
+                                stderr=subprocess.STDOUT, text=True, env=self._env())
         last = ""
         for line in proc.stdout or []:
             if self.cancel.is_set():
@@ -1596,7 +1728,7 @@ class RcloneBackend(Backend):
         exe = rclone_path()
         if exe:
             subprocess.run([exe, "purge", self._sub(f"{VERSIONS_DIR}/{stamp}")],
-                           capture_output=True, text=True, timeout=600)
+                           capture_output=True, text=True, timeout=600, env=self._env())
 
     def push(self, root: Path, files, on_progress=None,
              keep_versions_days: int = 0) -> SyncProgress:
@@ -1625,6 +1757,10 @@ class RcloneBackend(Backend):
             return p
         manifest = self._load_manifest(root)
         todo, p.skipped = self._plan(root, list(files), remote_index, manifest)
+        kept = [t for t in todo if _empty_over_backup(t[0], t[1], remote_index)]
+        if kept:
+            todo = [t for t in todo if t not in kept]
+            p.skipped += len(kept)
         stamp = datetime.date.today().isoformat()
         p.total_files = len(todo)
         p.total_bytes = sum(t[2] for t in todo)

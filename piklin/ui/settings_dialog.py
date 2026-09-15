@@ -411,11 +411,15 @@ class SettingsDialog(Adw.PreferencesDialog):
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2,
                           margin_top=6, margin_bottom=6,
                           margin_start=6, margin_end=6)
-            for label, handler in (
-                    (_("Check Connection"), self._on_test_remote),
-                    (_("Restore Missing Files…"), self._on_restore_remote),
-                    (_("Edit…"), self._on_edit_remote),
-                    (_("Remove"), self._on_remove_remote)):
+            actions = [(_("Check Connection"), self._on_test_remote)]
+            if r.kind == "webdav" and r.config.get("url", "").strip().startswith("http://"):
+                # Plain http:// is allowed at home, but the password and the photos
+                # travel unencrypted: offer the server's https:// address.
+                actions.append((_("Use a Secure Connection…"), self._on_secure_remote))
+            actions += [(_("Restore Missing Files…"), self._on_restore_remote),
+                        (_("Edit…"), self._on_edit_remote),
+                        (_("Remove"), self._on_remove_remote)]
+            for label, handler in actions:
                 item = Gtk.Button(label=label)
                 item.add_css_class("flat")
                 item.get_child().set_halign(Gtk.Align.START)
@@ -435,7 +439,10 @@ class SettingsDialog(Adw.PreferencesDialog):
         if r.kind == "local":
             return r.config.get("path", "")
         if r.kind == "webdav":
-            return f"{r.config.get('url','')} · {r.config.get('username','')}"
+            text = f"{r.config.get('url','')} · {r.config.get('username','')}"
+            if r.config.get("url", "").strip().startswith("http://"):
+                text += " · " + _("not encrypted")
+            return text
         return f"rclone · {r.config.get('remote','')}:{r.config.get('path','')}"
 
     @staticmethod
@@ -792,6 +799,39 @@ class SettingsDialog(Adw.PreferencesDialog):
                 (retry or self._on_test_remote)(new, *widgets)
         dlg.connect("response", done)
         dlg.present(self.get_root())
+
+    def _on_secure_remote(self, cfg, row, _push):
+        """Move an http:// destination to the https:// address its server also
+        offers, once its certificate is confirmed."""
+        row.set_subtitle(_("Looking for a secure connection…"))
+        url = cfg.get("config", {}).get("url", "")
+
+        def work():
+            try:
+                found = remote_mod.secure_address(url)
+            except Exception:
+                found = None
+            GLib.idle_add(finish, found)
+
+        def finish(found):
+            if found is None:
+                row.set_subtitle(_("This server doesn't offer a secure connection. Turn on "
+                                   "HTTPS for WebDAV in its settings, then try again."))
+                return False
+            https, fingerprint = found
+            shown = dict(cfg, config=dict(cfg.get("config", {}), url=https))
+
+            def trusted(fp):
+                new = dict(cfg, config=dict(cfg.get("config", {}), url=https, cert_sha256=fp))
+                self._save_remote(new)
+                widgets = self._remote_widgets.get(new["id"])
+                if widgets:
+                    self._on_test_remote(new, *widgets)
+            self._ask_trust(shown, remote_mod.TestResult(False, "", fingerprint=fingerprint),
+                            on_trust=trusted)
+            row.set_subtitle(self._describe(remote_mod.Remote.from_dict(cfg)))
+            return False
+        threading.Thread(target=work, daemon=True).start()
 
     def _on_test_remote(self, cfg, row, _push):
         r = remote_mod.Remote.from_dict(cfg)

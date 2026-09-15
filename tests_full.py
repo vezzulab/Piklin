@@ -1159,6 +1159,26 @@ try:
 finally:
     if _saved_rt is None: os.environ.pop("PIKLIN_RUNTIME", None)
     else: os.environ["PIKLIN_RUNTIME"] = _saved_rt
+# A cloud Piklin connects keeps its access in Piklin's own rclone file (to be
+# encrypted); one set up by hand stays in rclone's own. rclone never waits
+# for a password typed on a terminal nobody sees.
+_saved_xdg = os.environ.get("XDG_CONFIG_HOME"); os.environ["XDG_CONFIG_HOME"] = os.path.join(TMP, "rclone-cfg")
+_orig_load = _rm.load_secret
+try:
+    _rm.load_secret = lambda rid: "k3y" if rid == _rm.RCLONE_KEY_ID else None
+    _own, _theirs = _rm._rclone_env("piklin-drive:"), _rm._rclone_env("mydrive")
+    check("Piklin's clouds use its own encrypted rclone file, others rclone's own",
+          _own.get("RCLONE_CONFIG") == os.path.join(TMP, "rclone-cfg", "piklin", "rclone.conf")
+          and _own.get("RCLONE_CONFIG_PASS") == "k3y" and _own.get("RCLONE_ASK_PASSWORD") == "false"
+          and "RCLONE_CONFIG" not in _theirs and "RCLONE_CONFIG_PASS" not in _theirs
+          and _theirs.get("RCLONE_ASK_PASSWORD") == "false")
+    check("only a plain http:// server is offered a secure address",
+          _rm.secure_address("https://nas.example:5001") is None
+          and _rm.secure_address("ftp://nas.example") is None)
+finally:
+    _rm.load_secret = _orig_load
+    if _saved_xdg is None: os.environ.pop("XDG_CONFIG_HOME", None)
+    else: os.environ["XDG_CONFIG_HOME"] = _saved_xdg
 
 section("10. Settings")
 from piklin.settings import Settings

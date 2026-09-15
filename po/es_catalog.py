@@ -990,6 +990,11 @@ ES = {
     "New Album Here…": "Nuevo álbum aquí…",
     "New Folder Here…": "Nueva carpeta aquí…",
     "Move Out of “{folder}”": "Sacar de “{folder}”",
+    "Use a Secure Connection…": "Usar una conexión segura…",
+    "not encrypted": "sin cifrar",
+    "Looking for a secure connection…": "Buscando una conexión segura…",
+    "This server doesn't offer a secure connection. Turn on HTTPS for WebDAV in its settings, then try again.":
+        "Este servidor no ofrece una conexión segura. Activa HTTPS para WebDAV en sus ajustes y vuelve a intentarlo.",
     "Cloud Service": "Servicio en la nube",
     "Choose your cloud service and sign in: your browser opens so you can let Piklin use it. Then choose a folder for your backups.":
         "Elige tu servicio en la nube e inicia sesión: se abre tu navegador para que le des permiso a Piklin. Luego elige una carpeta para tus copias.",
