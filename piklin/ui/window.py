@@ -3266,18 +3266,24 @@ class MainWindow(Adw.ApplicationWindow):
         return False
 
     def _repair_video_sizes(self):
-        """Once per library: upright phone videos were recorded as wide
-        (1280x720 for a 720x1280 video) before the size came from a decoded
-        frame. Measure each video again, in the background."""
-        if self.settings.get("video_sizes_checked_v2"):
+        """Once per library: measure each video again, in the background.
+
+        Upright phone videos were recorded as wide (1280x720 for a 720x1280
+        video) before the size came from a decoded frame, and a video whose
+        pixels aren't square - a 9:16 clip stored as 1080x1080 - was measured,
+        and pictured, at its stored size and showed squashed. A video whose
+        size changes also gets its thumbnails made again."""
+        if self.settings.get("video_sizes_checked_v3"):
             return
         from ..catalog import VIDEO_SQL
         from ..video import stream_info
+        from .. import system
         rows = self.catalog.q(
             f"SELECT p.id, p.path, p.width, p.height FROM photos p WHERE {VIDEO_SQL}")
 
         def work():
-            fixed = []
+            system.lower_thread_priority()
+            fixed, paths = [], []
             for r in rows:
                 try:
                     info = stream_info(r["path"])
@@ -3285,11 +3291,22 @@ class MainWindow(Adw.ApplicationWindow):
                     info = None
                 if info and (info["width"], info["height"]) != (r["width"], r["height"]):
                     fixed.append((info["width"], info["height"], r["id"]))
+                    paths.append(r["path"])
+                    for old in self.thumbs.existing(r["path"]).values():
+                        old.unlink(missing_ok=True)       # pictured squashed: made again
             if fixed:
                 with self.catalog.write() as cur:
                     cur.executemany("UPDATE photos SET width=?, height=? WHERE id=?", fixed)
-            GLib.idle_add(lambda: (self.settings.set("video_sizes_checked_v2", True),
-                                   fixed and self.grid.refresh(), False)[2])
+
+            def done():
+                from . import grid as grid_mod
+                for path in paths:
+                    grid_mod._textures.pop(path, None)
+                self.settings.set("video_sizes_checked_v3", True)
+                if fixed:
+                    self.grid.refresh()
+                return False
+            GLib.idle_add(done)
         threading.Thread(target=work, daemon=True).start()
 
     def _first_run(self):

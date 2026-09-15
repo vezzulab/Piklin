@@ -55,8 +55,51 @@ def _capture(path):
     return cap if cap.isOpened() else None
 
 
+def pixel_aspect(sar) -> float:
+    """A video's pixel shape as a number: 1.0 for square pixels.
+
+    Some videos store their picture in a size other than the one to show it
+    at, with a note saying how wide each pixel is: a 9:16 clip kept as
+    1080x1080 with pixels 9/16 as wide as tall. Shown as stored, it looks
+    squashed or stretched."""
+    try:
+        value = float(sar) if sar else 1.0
+    except (TypeError, ValueError, ZeroDivisionError):
+        return 1.0
+    return value if 0.05 < value < 20 else 1.0
+
+
+def display_size(width: int, height: int, par: float) -> tuple[int, int]:
+    """The size to show a stored picture at, given its pixel shape. The longer
+    side is kept and the other shortened, so nothing is enlarged."""
+    if not width or not height or abs(par - 1.0) < 0.01:
+        return width, height
+    if par < 1.0:
+        return max(2, int(round(width * par / 2)) * 2), height
+    return width, max(2, int(round(height / par / 2)) * 2)
+
+
+def _shown(width: int, height: int, par: float, rotation: int) -> tuple[int, int]:
+    """display_size for a picture already turned upright: turned a quarter,
+    its pixels are as tall as they were wide."""
+    if rotation in (90, 270) and par:
+        par = 1.0 / par
+    return display_size(width, height, par)
+
+
+def _cv_pixel_aspect(cap) -> float:
+    import cv2
+    try:
+        num = float(cap.get(cv2.CAP_PROP_SAR_NUM) or 0)
+        den = float(cap.get(cv2.CAP_PROP_SAR_DEN) or 0)
+    except Exception:
+        return 1.0
+    return pixel_aspect(num / den) if num > 0 and den > 0 else 1.0
+
+
 def stream_info(path: Path | str) -> dict | None:
-    """Width and height as shown (rotation applied), fps and duration."""
+    """Width and height as shown (rotation and pixel shape applied), fps and
+    duration."""
     import cv2
     cap = _capture(path)
     if cap is None:
@@ -67,6 +110,7 @@ def stream_info(path: Path | str) -> dict | None:
         fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
         frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0.0)
         rotation = int(cap.get(cv2.CAP_PROP_ORIENTATION_META) or 0) % 360
+        par = _cv_pixel_aspect(cap)
         ok, frame = cap.read()
         if not ok or w <= 0 or h <= 0:
             return None
@@ -83,6 +127,7 @@ def stream_info(path: Path | str) -> dict | None:
         w, h = fw, fh
     elif rotation in (90, 270):
         w, h = h, w
+    w, h = _shown(w, h, par, rotation)
     return {"width": w, "height": h, "fps": fps, "duration": duration,
             "rotation": rotation}
 
@@ -98,6 +143,8 @@ def frame_at(path: Path | str, seconds: float = 0.0,
     try:
         if seconds > 0:
             cap.set(cv2.CAP_PROP_POS_MSEC, seconds * 1000.0)
+        par = _cv_pixel_aspect(cap)
+        rotation = int(cap.get(cv2.CAP_PROP_ORIENTATION_META) or 0) % 360
         ok, frame = cap.read()
         if not ok and seconds > 0:
             # Some containers cannot seek (a damaged index, raw MTS): the
@@ -109,6 +156,9 @@ def frame_at(path: Path | str, seconds: float = 0.0,
     finally:
         cap.release()
     im = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    shown = _shown(im.width, im.height, par, rotation)
+    if shown != im.size:
+        im = im.resize(shown, Image.LANCZOS)
     if max_side and max(im.size) > max_side:
         im.thumbnail((max_side, max_side), Image.LANCZOS)
     return im
@@ -133,11 +183,21 @@ def _av_frame(container, stream, seconds: float):
     return last
 
 
-def _av_upright(frame):
-    """The frame as an RGB array turned upright, and the rotation applied -
-    the way ui/player.py turns frames, and OpenCV does by itself."""
+def _av_pixel_aspect(stream) -> float:
+    cc = stream.codec_context
+    return pixel_aspect(getattr(cc, "sample_aspect_ratio", None)
+                        or getattr(stream, "sample_aspect_ratio", None))
+
+
+def _av_upright(frame, par: float = 1.0):
+    """The frame as an RGB array turned upright and at its shown proportions,
+    and the rotation applied - the way ui/player.py turns frames."""
     import numpy as np
     arr = frame.to_ndarray(format="rgb24")
+    w, h = display_size(arr.shape[1], arr.shape[0], par)
+    if (w, h) != (arr.shape[1], arr.shape[0]):
+        from PIL import Image
+        arr = np.asarray(Image.fromarray(arr).resize((w, h), Image.LANCZOS))
     turns = int(round(-(getattr(frame, "rotation", 0) or 0))) % 360
     if turns in (90, 180, 270):
         arr = np.ascontiguousarray(np.rot90(arr, k={90: -1, 180: 2, 270: 1}[turns]))
@@ -160,7 +220,7 @@ def _av_stream_info(path) -> dict | None:
             frame = _av_frame(container, stream, 0.0)
             if frame is None:
                 return None
-            arr, rotation = _av_upright(frame)
+            arr, rotation = _av_upright(frame, _av_pixel_aspect(stream))
     except Exception:
         return None
     h, w = arr.shape[:2]
@@ -179,7 +239,7 @@ def _av_frame_at(path, seconds: float, max_side: int | None):
             frame = _av_frame(container, stream, seconds)
             if frame is None:
                 raise OSError(f"no frame in {path}")
-            arr, _turns = _av_upright(frame)
+            arr, _turns = _av_upright(frame, _av_pixel_aspect(stream))
     except OSError:
         raise
     except Exception as exc:

@@ -1337,6 +1337,45 @@ _t.start(); _t.join()
 check("a background thread can lower its own priority",
       _lowered and (_lowered[0] is True or _lowered[0] >= 10), _lowered)
 
+# A video whose pixels aren't square - a 9:16 clip stored as 1080x1080 with
+# pixels 9/16 as wide as tall - is shown, played and exported at 9:16.
+import fractions as _fr
+import av as _avm
+_sar_path = Path(TMP) / "square-stored-9x16.mp4"
+with _avm.open(str(_sar_path), "w") as _out:
+    _st = _out.add_stream("mpeg4", rate=10)
+    _st.width = _st.height = 64
+    _st.pix_fmt = "yuv420p"
+    _st.codec_context.sample_aspect_ratio = _fr.Fraction(9, 16)
+    for _i in range(12):
+        _img = np.zeros((64, 64, 3), dtype=np.uint8); _img[:, :32] = (200, 40, 40); _img[:, 32:] = (40, 40, 200)
+        for _pkt in _st.encode(_avm.VideoFrame.from_ndarray(_img, format="rgb24")):
+            _out.mux(_pkt)
+    for _pkt in _st.encode():
+        _out.mux(_pkt)
+from piklin import video as _vid
+_sinfo = _vid.stream_info(_sar_path) or {}
+_sframe = _vid.frame_at(_sar_path, 0.2)
+check("a video with non-square pixels is measured at its shown size",
+      (_sinfo.get("width"), _sinfo.get("height")) == (36, 64) and _sframe.size == (36, 64),
+      (_sinfo.get("width"), _sinfo.get("height"), _sframe.size))
+from piklin.ui import player as _plm
+_pgot, _pready = {}, _thr.Event()
+def _pframe(w, h, data, stride):
+    _pgot.setdefault("size", (w, h)); _pready.set()
+_peng = _plm._AvEngine(_pframe, lambda *a: None, sound=False)
+_peng.load(str(_sar_path), 36, 64, 0.0); _pready.wait(10); _peng.unload()
+_pw, _ph = _pgot.get("size", (0, 0))
+check("it plays at its shown shape, not squashed", _ph and abs(_pw / _ph - 36 / 64) < 0.05, _pgot)
+from piklin import video_edit as _vem
+_exp = _vem.export(_sar_path, Path(TMP) / "square-stored-exported", _vem.VideoEdit(duration=1.2), fmt="mp4")
+_einfo = _vid.stream_info(_exp) or {}
+with _avm.open(str(_exp)) as _ec:
+    _esar = _vid._av_pixel_aspect(_ec.streams.video[0])
+check("exporting it gives a 9:16 video with square pixels",
+      _einfo.get("height") and abs(_einfo["width"] / _einfo["height"] - 36 / 64) < 0.05 and abs(_esar - 1.0) < 0.01,
+      (_einfo.get("width"), _einfo.get("height"), _esar))
+
 section("10. Settings")
 from piklin.settings import Settings
 s1 = Settings(os.path.join(TMP,"s.json"))

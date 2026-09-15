@@ -179,9 +179,21 @@ def geometry(width: int, height: int, source_rotation: int, edit: VideoEdit,
             "out": (_even(cw * scale), _even(ch * scale))}
 
 
+def _stored_as_shown(stream) -> tuple[int, int]:
+    """The stream's picture size as it is meant to be seen: its stored size
+    with non-square pixels made square (see video.display_size)."""
+    from .video import _av_pixel_aspect, display_size
+    cc = stream.codec_context
+    return display_size(cc.width, cc.height, _av_pixel_aspect(stream))
+
+
 def _video_graph(av, stream, geo, pix_fmt):
     g = av.filter.Graph()
     chain = [g.add_buffer(template=stream)]
+    shown = _stored_as_shown(stream)
+    if shown != (stream.codec_context.width, stream.codec_context.height):
+        # square pixels first, so turning, cropping and scaling keep the shape
+        chain += [g.add("scale", f"{shown[0]}:{shown[1]}:flags=bicubic"), g.add("setsar", "1")]
     turns = geo["turns"]
     if turns == 90:
         chain.append(g.add("transpose", "clock"))
@@ -240,8 +252,7 @@ def frame_image(path, t: float, edit: VideoEdit | None = None,
         v = c.streams.video[0]
         v.thread_type = "AUTO"
         v.codec_context.thread_count = _threads()
-        geo = geometry(v.codec_context.width, v.codec_context.height,
-                       _source_rotation(path), edit, max_side)
+        geo = geometry(*_stored_as_shown(v), _source_rotation(path), edit, max_side)
         c.seek(int(max(0.0, t) / v.time_base), stream=v, backward=True)
         fps = float(v.average_rate or 30)
         chosen = None
@@ -359,8 +370,7 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
         vin.thread_type = "AUTO"
         vin.codec_context.thread_count = _threads()
         ain = inp.streams.audio[0] if inp.streams.audio and not edit.mute else None
-        geo = geometry(vin.codec_context.width, vin.codec_context.height,
-                       _source_rotation(path), edit, max_side)
+        geo = geometry(*_stored_as_shown(vin), _source_rotation(path), edit, max_side)
         ow, oh = geo["out"]
         fps = min(float(vin.average_rate or 30), 60.0)
         rate = fractions.Fraction(fps).limit_denominator(1001)
@@ -538,8 +548,7 @@ def _export_gif(av, path, tmp, edit, segs, max_side, on_progress, cancel):
         v = c.streams.video[0]
         v.thread_type = "AUTO"
         v.codec_context.thread_count = _threads()
-        geo = geometry(v.codec_context.width, v.codec_context.height,
-                       _source_rotation(path), edit, max_side)
+        geo = geometry(*_stored_as_shown(v), _source_rotation(path), edit, max_side)
         g, chain = _video_graph(av, v, geo, "rgb24")
         graph = _finish_graph(av, g, chain, geo, edit, "rgb24")
         offset = 0.0

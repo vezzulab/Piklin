@@ -258,6 +258,11 @@ class _AvEngine:
                 self.fps = float(v.average_rate)
             w = v.codec_context.width or self._hint[0]
             h = v.codec_context.height or self._hint[1]
+            # Stored pixels that aren't square (a 9:16 clip kept as 1080x1080)
+            # are scaled to their shown shape, or the video plays squashed.
+            from ..video import _av_pixel_aspect, display_size
+            if v.codec_context.width:
+                w, h = display_size(w, h, _av_pixel_aspect(v))
             self._rotation = self._stream_rotation(v)
             if self._rotation in (90, 270):
                 tw, th = _target_size(h, w, self._max_frame)
