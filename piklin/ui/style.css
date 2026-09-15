@@ -1815,3 +1815,47 @@ window.piklin paned.pika-split > separator:hover {
   background-image: none;
   background-color: @pika_hairline;
 }
+
+/* An album's name, fixed above its photos: it stays while they scroll, with
+   its back arrow, and a hairline appears under it once photos pass beneath.
+   The switch at its right - All, Photos, Videos - shows only for an album
+   that holds photos and videos both. */
+window.piklin .pika-album-bar {
+  background: #ffffff;
+  padding: 10px 20px 10px 12px;
+  border-bottom: 1px solid transparent;
+}
+window.piklin .pika-album-bar.pika-scrolled { border-bottom-color: @pika_hairline_soft; }
+window.piklin .pika-album-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #000000;
+}
+window.piklin .pika-album-sub { font-size: 0.85rem; color: @pika_text_dim; }
+window.piklin .pika-kind-switch {
+  background: alpha(#000000, 0.06);
+  border-radius: 999px;
+  padding: 2px;
+  margin: 0;
+}
+window.piklin .pika-kind-switch button {
+  min-height: 26px;
+  min-width: 0;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: #000000;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+window.piklin .pika-kind-switch button:hover { background: alpha(#000000, 0.04); }
+window.piklin .pika-kind-switch button:checked {
+  background: #ffffff;
+  box-shadow: 0 1px 2px alpha(#000000, 0.18), 0 0 0 0.5px alpha(#000000, 0.06);
+}
+window.piklin .pika-kind-switch button label { color: #000000; }
+window.piklin .pika-kind-switch button image { color: #000000; -gtk-icon-size: 14px; }
+window.piklin .pika-kind-switch buttoncontent > box { border-spacing: 5px; }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.8
+
+### Albums
+- An album's name stays at the top while you scroll through its photos, so the back arrow to its folder is always one click away
+- An album with photos and videos has a switch at the right of that bar - All, Photos, Videos - to see only one kind. Albums with only photos, or only videos, don't show it
+
+### Clicks
+- A click counts even when the pointer slips a little while pressing, as it often does on a trackpad or a high-resolution screen: buttons, album cards, sidebar rows and photos no longer need a second or third click, on Mac and Linux
+- One click chooses a photo as soon as it is pressed
+
 ## 1.0.7
 
 ### All your computers, in step

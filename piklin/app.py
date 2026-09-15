@@ -22,7 +22,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from .paths import APP_ID, LIBRARY_EXT, Library, remember_library
 
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 
 
 def _load_bundled_fonts():
@@ -104,6 +104,30 @@ def _add_css(css: Path, extra: int = 0):
             display, provider, Gtk.STYLE_PROVIDER_PRIORITY_USER + 1 + extra)
 
 
+CLICK_SLIP_PX = 12
+
+
+def _forgiving_clicks():
+    """A click still counts when the pointer slips a little while pressed.
+
+    GTK drops a click whose pointer moves more than 5 px between press and
+    release (gtk-double-click-distance), and a trackpad click, or a mouse on
+    a high-resolution screen, often moves that much: buttons, album cards,
+    sidebar rows and photos needed a second or third click, on Mac and Linux
+    alike. A drag starts at the same distance, so a slip is a click and only
+    a real movement drags."""
+    settings = Gtk.Settings.get_default()
+    if settings is None:
+        return
+    try:
+        if settings.props.gtk_double_click_distance < CLICK_SLIP_PX:
+            settings.props.gtk_double_click_distance = CLICK_SLIP_PX
+        if settings.props.gtk_dnd_drag_threshold < CLICK_SLIP_PX:
+            settings.props.gtk_dnd_drag_threshold = CLICK_SLIP_PX
+    except Exception:
+        pass
+
+
 class PikaliciousApp(Adw.Application):
     def __init__(self, library_root=None):
         super().__init__(application_id=APP_ID,
@@ -117,6 +141,7 @@ class PikaliciousApp(Adw.Application):
         Gtk.Window.set_default_icon_name("piklin")
         _load_bundled_fonts()
         _load_css()
+        _forgiving_clicks()
         quit_action = Gio.SimpleAction.new("quit", None)
         quit_action.connect("activate", lambda *_: self.quit())
         self.add_action(quit_action)

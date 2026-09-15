@@ -160,6 +160,7 @@ class PhotoGrid(Gtk.Box):
         # changes nothing.
         self._last_press = None
         self._opened_on_press = None
+        self._chose_on_press = None
         self._tile_widgets: dict[int, list] = {}
         # Separate from _tile_widgets (which holds the PhotoTile used
         # for painting thumbnails): this holds each tile's outer
@@ -217,6 +218,7 @@ class PhotoGrid(Gtk.Box):
         menu = Gtk.GestureClick(button=Gdk.BUTTON_SECONDARY)
         menu.connect("pressed", self._on_background_press, self.scroller)
         self.scroller.add_controller(menu)
+        self._build_album_bar()
         self.append(overlay)
         self._overlay = overlay
 
@@ -260,6 +262,107 @@ class PhotoGrid(Gtk.Box):
         # children at all.  The check below is two integer comparisons
         # per frame and does nothing until the width really changes.
         self.add_tick_callback(self._on_tick)
+
+    def _build_album_bar(self) -> None:
+        """An album's name, fixed above its photos so its back arrow is always
+        at hand however far down you scroll. An album with photos and videos
+        both has a switch at its right to see only one kind."""
+        self._kind = None               # None, "photos" or "videos"
+        self._kind_view = None          # the view the kind was chosen in
+        self._syncing_kind = False
+        self._bar_back_to = None
+        bar = Gtk.CenterBox()
+        bar.add_css_class("pika-album-bar")
+        bar.set_visible(False)
+        start = Gtk.Box(spacing=4)
+        back = Gtk.Button(icon_name="go-previous-symbolic", visible=False,
+                          valign=Gtk.Align.CENTER)
+        back.add_css_class("flat")
+        back.add_css_class("pika-heading-back")
+        back.connect("clicked", self._on_bar_back)
+        start.append(back)
+        names = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
+        title = Gtk.Label(xalign=0.0, ellipsize=3)
+        title.add_css_class("pika-album-title")
+        sub = Gtk.Label(xalign=0.0, ellipsize=3)
+        sub.add_css_class("pika-album-sub")
+        names.append(title)
+        names.append(sub)
+        start.append(names)
+        bar.set_start_widget(start)
+        kinds = Gtk.Box(valign=Gtk.Align.CENTER)
+        kinds.add_css_class("pika-kind-switch")
+        self._kind_buttons = {}
+        first = None
+        for kind, label, icon in ((None, _("All"), None),
+                                  ("photos", _("Photos"), "image-x-generic-symbolic"),
+                                  ("videos", _("Videos"), "video-x-generic-symbolic")):
+            button = Gtk.ToggleButton(active=kind is None)
+            if icon:
+                button.set_child(Adw.ButtonContent(icon_name=icon, label=label))
+            else:
+                button.set_label(label)
+            if first is None:
+                first = button
+            else:
+                button.set_group(first)
+            button.connect("toggled", self._on_kind_toggled, kind)
+            kinds.append(button)
+            self._kind_buttons[kind] = button
+        # at the right, not in the middle: the middle of the toolbar above
+        # already holds Years, Months and Days, and two switches one above
+        # the other read as one
+        bar.set_end_widget(kinds)
+        self.append(bar)
+        self._album_bar, self._bar_back = bar, back
+        self._bar_title, self._bar_sub, self._kind_switch = title, sub, kinds
+        # a hairline under the name only once photos pass beneath it
+        self.scroller.get_vadjustment().connect("value-changed", self._on_bar_scroll)
+
+    def _on_bar_scroll(self, adj) -> None:
+        if adj.get_value() > 1:
+            self._album_bar.add_css_class("pika-scrolled")
+        else:
+            self._album_bar.remove_css_class("pika-scrolled")
+
+    def _on_bar_back(self, _button) -> None:
+        if self._bar_back_to is not None:
+            self.emit("open-folder", self._bar_back_to[0])
+
+    def _on_kind_toggled(self, button, kind) -> None:
+        if self._syncing_kind or not button.get_active() or kind == self._kind:
+            return
+        self._kind = kind
+        self.refresh()
+        adj = self.scroller.get_vadjustment()
+        adj.set_value(adj.get_lower())
+
+    def _show_heading(self) -> None:
+        """The album bar for an album or Smart Album; for Duplicates, its
+        explanation as the first row of the list."""
+        heading = self._heading_section()
+        if heading is None or self._scope not in ("album", "smart"):
+            self._album_bar.set_visible(False)
+            self._kind = None
+            if heading is not None:
+                self.sections.append(heading)
+            return
+        photos, videos = heading.counts
+        self._bar_title.set_text(heading.title or "")
+        self._bar_sub.set_text(heading.subtitle or "")
+        self._bar_back_to = heading.back_to
+        self._bar_back.set_visible(heading.back_to is not None)
+        if heading.back_to is not None:
+            self._bar_back.set_tooltip_text(
+                _("Back to {folder}").format(folder=heading.back_to[1]))
+        both = bool(photos and videos)
+        if not both:
+            self._kind = None             # only one kind: nothing to switch
+        self._kind_switch.set_visible(both)
+        self._syncing_kind = True
+        self._kind_buttons[self._kind].set_active(True)
+        self._syncing_kind = False
+        self._album_bar.set_visible(True)
 
     def _on_tick(self, _widget, _clock):
         width = self.scroller.get_width()
@@ -354,9 +457,10 @@ class PhotoGrid(Gtk.Box):
         self._tail = None
         self._day_counts, self._day_heads, self._day_videos = {}, {}, {}
         self.sections.remove_all()
-        heading = self._heading_section()
-        if heading is not None:
-            self.sections.append(heading)
+        if self._scope not in ("album", "smart"):
+            heading = self._heading_section()
+            if heading is not None:
+                self.sections.append(heading)
         self._group(list(self._items))
         for i in range(self.sections.get_n_items()):
             if anchor in self.sections.get_item(i).items:
@@ -942,9 +1046,20 @@ class PhotoGrid(Gtk.Box):
         delivers the release. Two presses on the same photo within the
         double-click time open it, however GTK counted them - and the
         gesture is claimed, so no drag starts from that press.
+
+        A single click chooses the photo on the press too, for the same
+        reason: choosing it on the release lost every click that moved a
+        little. Only a press on a photo already among several chosen waits
+        for the release, so those several can still be dragged together.
         """
+        self._chose_on_press = None
         state = gesture.get_current_event_state()
-        if state & (PRIMARY_MASK | Gdk.ModifierType.SHIFT_MASK):
+        ctrl = bool(state & PRIMARY_MASK)
+        shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
+        if ctrl or shift:
+            self._last_press = None
+            self._chose_on_press = item.id
+            self._choose(item, ctrl, shift)
             return
         now = GLib.get_monotonic_time()
         limit = (Gtk.Settings.get_default().get_property("gtk-double-click-time") or 400) * 1000
@@ -955,21 +1070,31 @@ class PhotoGrid(Gtk.Box):
             self._opened_on_press = item.id
             gesture.set_state(Gtk.EventSequenceState.CLAIMED)
             self.emit("activated", item)
+            return
+        if item.id not in self._selected or len(self._selected) == 1:
+            self._chose_on_press = item.id
+            self._choose(item, False, False)
 
     def _on_tile_click(self, gesture, n_press, x, y, button, item):
+        """The release of a click. The press has usually chosen the photo
+        already (see _on_tile_press); a click on one of several chosen photos,
+        without dragging them, chooses just that one."""
+        if self._opened_on_press == item.id:
+            self._opened_on_press = None           # the release of a double click
+            return
+        if self._chose_on_press == item.id:
+            self._chose_on_press = None
+            return
+        self._choose(item, False, False)
+
+    def _choose(self, item, ctrl, shift):
         """A single click chooses the photo, as in Photos on a Mac: clicking it
         again keeps it chosen - it used to unchoose it, so a double click a
         little slower than the system's marked and unmarked the photo and
         never opened it. ⌘ (Ctrl) adds or removes one; Shift chooses a range."""
-        if self._opened_on_press == item.id:
-            self._opened_on_press = None           # the release of a double click
-            return
         self._click_mark = (GLib.get_monotonic_time(),
                             self.scroller.get_vadjustment().get_value(), item.id)
         self.grab_focus()
-        state = gesture.get_current_event_state()
-        ctrl = bool(state & PRIMARY_MASK)
-        shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
         if ctrl:
             self._toggle(item)
         elif shift and self._selected:
@@ -1222,6 +1347,10 @@ class PhotoGrid(Gtk.Box):
 
     def load(self, scope="library", album_id=None, search=None,
              order=None, smart_id=None, keep_selection=None) -> None:
+        if (scope, album_id, smart_id) != self._kind_view:
+            # another album opens showing everything in it
+            self._kind_view = (scope, album_id, smart_id)
+            self._kind = None
         self._scope = scope
         self._album_id = album_id
         self._smart_id = smart_id
@@ -1243,9 +1372,7 @@ class PhotoGrid(Gtk.Box):
         self._tile_widgets = {}
         self._tile_containers = {}
         self.sections.remove_all()
-        heading = self._heading_section()
-        if heading is not None:
-            self.sections.append(heading)
+        self._show_heading()
         self._load_page()
 
     def _on_heading_back(self, _btn, list_item):
@@ -1255,8 +1382,8 @@ class PhotoGrid(Gtk.Box):
             self.emit("open-folder", back_to[0])
 
     def _heading_section(self):
-        """An album's name and size, shown above its photos and scrolling
-        away with them. None for views that are not an album."""
+        """An album's name and size, shown in the bar above its photos. None
+        for views that are not an album."""
         try:
             from ..catalog import VIDEO_SQL
             from ..video import is_video
@@ -1291,6 +1418,7 @@ class PhotoGrid(Gtk.Box):
         if row is None:
             return None
         section = DaySection(row["name"], count_label(n - videos, videos), [], heading=True)
+        section.counts = (n - videos, videos)
         # Inside a folder, a back arrow beside the name returns to it.
         if row["folder_id"] is not None:
             folder = self.catalog.q1("SELECT id, name FROM folders WHERE id=?",
@@ -1312,6 +1440,8 @@ class PhotoGrid(Gtk.Box):
         gen = self._generation
         offset = self._offset
         limit = FIRST_PAGE if offset == 0 else PAGE
+        # the album bar's Photos or Videos, on top of the toolbar's filters
+        filters = self._filters | ({self._kind} if self._kind else set())
 
         def work():
             try:
@@ -1319,7 +1449,7 @@ class PhotoGrid(Gtk.Box):
                     scope=self._scope, album_id=self._album_id,
                     smart_id=self._smart_id,
                     search=self._search, order=self._order,
-                    filters=self._filters,
+                    filters=filters,
                     limit=limit, offset=offset)
             except Exception:
                 rows = []
