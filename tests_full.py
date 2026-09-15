@@ -1368,8 +1368,15 @@ for _style in ("another Mac or Linux computer", "Windows"):
     if _style == "Windows":
         for _f in list(libT.root.glob("*.json")) + list(libT.albums.glob("*.json")):
             _f.write_text(json.dumps(_as_windows(json.loads(_f.read_text()), str(libS.root))))
-    with _ctxr.redirect_stdout(io.StringIO()):
-        _status = _rebuild(libT)
+    # The first computer's paths must not exist here, as on another computer:
+    # with the source library still in place the rebuild found its photos there.
+    _away = str(libS.root) + ".elsewhere"
+    os.rename(libS.root, _away)
+    try:
+        with _ctxr.redirect_stdout(io.StringIO()):
+            _status = _rebuild(libT)
+    finally:
+        os.rename(_away, libS.root)
     cT = _C(libT.db)
     _albumT = cT.q1("SELECT id, folder_id FROM albums WHERE uuid='u1'")
     _photosT = cT.album_photo_paths(_albumT["id"]) if _albumT else []
