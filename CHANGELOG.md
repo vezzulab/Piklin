@@ -8,6 +8,9 @@
 - A library waiting to be rebuilt after a restore leaves its restored files alone until the rebuild has run
 - A restore that stops halfway - a full disk, a connection lost - still rebuilds on the next start, instead of leaving the library half restored and silent
 
+### The interface reads as it should on every Mac
+- Piklin is drawn in the Inter it carries, on a Mac with fonts installed too. The typeface was registered through whichever fontconfig the Mac had, and inside Piklin.app there is none, so on a Mac with many fonts installed - a designer's Mac, with Adobe's fonts - the interface came out in heavy display faces that read as bold capitals. The app's own fontconfig now lists the typeface itself, and registering it falls back through every library Piklin carries
+
 ### Albums
 - An album's name stays at the top while you scroll through its photos, so the back arrow to its folder is always one click away
 - An album with photos and videos has a switch at the right of that bar - All, Photos, Videos - to see only one kind. Albums with only photos, or only videos, don't show it

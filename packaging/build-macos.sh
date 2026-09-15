@@ -165,6 +165,10 @@ PY
   <dir>/System/Library/Fonts</dir>
   <dir>/Library/Fonts</dir>
   <dir>~/Library/Fonts</dir>
+  <!-- Contents/Resources/app/data/fonts, from etc/fonts in this runtime: the
+       Inter Piklin draws its interface in, found by fontconfig itself so a
+       Mac full of installed fonts cannot stand in for it. -->
+  <dir prefix="relative">../../../app/data/fonts</dir>
   <cachedir>~/Library/Caches/Piklin/fontconfig</cachedir>
   <include ignore_missing="yes">conf.d</include>
 </fontconfig>

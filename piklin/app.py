@@ -58,17 +58,35 @@ def _load_bundled_fonts():
     if font_dir is None:
         return False
 
-    lib_name = ctypes.util.find_library("fontconfig")
-    if not lib_name:
-        return False
-    try:
-        fc = ctypes.CDLL(lib_name)
-        fc.FcConfigAppFontAddDir.restype = ctypes.c_int
-        ok = fc.FcConfigAppFontAddDir(
-            None, ctypes.c_char_p(str(font_dir).encode()))
-        return bool(ok)
-    except OSError:
-        return False
+    # The fontconfig the app itself carries comes first. Inside Piklin.app
+    # nothing is installed system-wide and ctypes.util.find_library returned
+    # nothing, so Inter was never registered: on a Mac with many fonts
+    # installed the interface was drawn in whichever of them fontconfig
+    # matched, in heavy display faces instead of Inter.
+    names = []
+    runtime = os.environ.get("PIKLIN_RUNTIME")
+    if runtime:
+        names += [str(_P(runtime) / "lib" / n) for n in
+                  ("libfontconfig.1.dylib", "libfontconfig.dylib",
+                   "libfontconfig.so.1")]
+    if os.environ.get("APPDIR"):
+        names.append(str(_P(os.environ["APPDIR"]) / "usr" / "lib" /
+                         "libfontconfig.so.1"))
+    found = ctypes.util.find_library("fontconfig")
+    if found:
+        names.append(found)
+    names += ["libfontconfig.1.dylib", "libfontconfig.so.1"]
+
+    for name in names:
+        try:
+            fc = ctypes.CDLL(name)
+            fc.FcConfigAppFontAddDir.restype = ctypes.c_int
+            if fc.FcConfigAppFontAddDir(
+                    None, ctypes.c_char_p(str(font_dir).encode())):
+                return True
+        except (OSError, AttributeError):
+            continue
+    return False
 
 
 def _load_css():
