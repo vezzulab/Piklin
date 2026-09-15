@@ -29,6 +29,8 @@ from .i18n import _, ngettext, day_month
 
 QUIET_SECONDS = 60
 RETRY_MINUTES = (5, 15, 60)
+# How often another computer's changes are looked for while Piklin is open.
+SYNC_MINUTES = 10
 
 
 @dataclass
@@ -40,11 +42,17 @@ class Outcome:
 
 
 def run_backup(root: Path, remotes: list, keep_days: int = 30,
-               progress: Callable[[str], None] | None = None) -> Outcome:
-    """Back the library up to every destination that is behind."""
+               progress: Callable[[str], None] | None = None,
+               before_push: Callable | None = None) -> Outcome:
+    """Back the library up to every destination that is behind.
+
+    ``before_push(remote, backend)``, when given, runs once a destination is
+    reached and before anything is sent to it: it brings in what another
+    computer sent there, so this backup never overwrites it."""
     root = Path(root)
     light = remote_mod.library_files(root, include_catalog=False)
-    behind = [r for r in remotes if r.backend().has_local_changes(root, light)]
+    behind = [r for r in remotes
+              if before_push is not None or r.backend().has_local_changes(root, light)]
     if not behind:
         return Outcome(True)
     files = remote_mod.library_files(root)          # now with the catalog
@@ -62,6 +70,16 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
             problems.append(f"{r.name}: {test.message}")
             unreachable = unreachable or test.unreachable
             continue
+        if before_push is not None:
+            if progress:
+                progress(_("Updating from {name}…").format(name=r.name))
+            try:
+                before_push(r, backend)
+            except Exception as exc:
+                problems.append(f"{r.name}: {exc}")
+                continue
+            if not backend.has_local_changes(root, light):
+                continue
 
         def report(p, name=r.name):
             if progress and p.phase == "listing":
@@ -106,10 +124,14 @@ def describe_last(ts: float) -> str:
 
 
 class AutoBackup:
-    def __init__(self, library, settings, on_status: Callable[[str], None]):
+    def __init__(self, library, settings, on_status: Callable[[str], None],
+                 sync: Callable | None = None):
         self.library = library
         self.settings = settings
         self.on_status = on_status
+        # sync(backend, progress): brings in another computer's changes (sync.pull)
+        self._sync = sync
+        self._syncing = False
         self._timer = 0
         self._running = False
         self._again = False
@@ -134,7 +156,57 @@ class AutoBackup:
         # Changes left over from the last session still go out.
         if self.active and self._state.get("pending"):
             self._schedule(QUIET_SECONDS)
+        # Another computer sharing the backup may have changed things: looked
+        # for soon after opening, then every few minutes.
+        if self._sync is not None:
+            GLib.timeout_add_seconds(30, self._sync_tick)
+            GLib.timeout_add_seconds(SYNC_MINUTES * 60, self._sync_tick)
         self.refresh_status()
+
+    # -- another computer's changes ----------------------------------------
+    @property
+    def syncing_on(self) -> bool:
+        return (self._sync is not None and self.active
+                and bool(self.settings.get("sync_computers", True)))
+
+    def _before_push(self, remote, backend) -> None:
+        if self.syncing_on:
+            self._sync(backend, None)
+
+    def _sync_tick(self):
+        """Look for another computer's changes, unless a backup is running
+        (it brings them in first anyway). Keeps repeating."""
+        if (not self.syncing_on or self._running or self._syncing
+                or not self._network.get_network_available()
+                or (self._power is not None and self._power.get_power_saver_enabled())):
+            return GLib.SOURCE_CONTINUE
+        self._syncing = True
+        remotes = self.remotes
+
+        def work():
+            changed = False
+            for r in remotes:
+                backend = r.backend()
+                GLib.idle_add(self.refresh_status, _("Updating from {name}…").format(name=r.name))
+                try:
+                    if not backend.test().ok:
+                        continue
+                    result = self._sync(backend, None)
+                    changed = changed or bool(getattr(result, "changed", False))
+                except Exception as exc:
+                    from . import logs
+                    logs.get("backup").warning("Updating from %s failed: %s", r.name, exc)
+            GLib.idle_add(self._sync_done, changed)
+        threading.Thread(target=work, daemon=True).start()
+        return GLib.SOURCE_CONTINUE
+
+    def _sync_done(self, changed: bool):
+        self._syncing = False
+        self._progress = ""
+        if changed:
+            self.mark_changed(delay=5)      # what merged here goes back up
+        self.refresh_status()
+        return False
 
     # -- state ----------------------------------------------------------
     def _set_state(self, **values) -> None:
@@ -221,6 +293,9 @@ class AutoBackup:
     def run(self) -> bool:
         if self._running or not self.active or not self._state.get("pending"):
             return False
+        if self._syncing:
+            self._schedule(QUIET_SECONDS)       # after the update in progress
+            return False
         if self._power is not None and self._power.get_power_saver_enabled():
             self._waiting = "power"
             self.refresh_status()
@@ -240,7 +315,8 @@ class AutoBackup:
         def work():
             try:
                 outcome = run_backup(root, remotes, keep, progress=lambda text:
-                                     GLib.idle_add(self.refresh_status, text))
+                                     GLib.idle_add(self.refresh_status, text),
+                                     before_push=self._before_push if self.syncing_on else None)
             except Exception as exc:
                 outcome = Outcome(False, False, str(exc))
             GLib.idle_add(self._finished, outcome)

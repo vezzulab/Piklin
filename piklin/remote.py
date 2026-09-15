@@ -299,9 +299,13 @@ def _empty_over_backup(local: Path, rel: str, remote_index: dict) -> bool:
     entries = _state_entries(local, rel)
     try:
         size = Path(local).stat().st_size
-    except OSError:
+        data = json.loads(Path(local).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
         return False
-    return entries is not None and not entries and remote_index[rel][0] > size
+    # A list emptied on purpose records what was cleared or deleted: that is a
+    # change to send, not a new library's blank file.
+    history = any(data.get(k) for k in ("cleared", "deleted")) if isinstance(data, dict) else False
+    return entries is not None and not entries and not history and remote_index[rel][0] > size
 # The folders a backup writes at the destination (see library_files). A
 # backup folder may be shared with other things - a NAS photo share with a
 # Lightroom catalog beside it - so a listing reads only these and the

@@ -131,7 +131,8 @@ class MainWindow(Adw.ApplicationWindow):
         except Exception:
             pass
         from ..autobackup import AutoBackup
-        self.autobackup = AutoBackup(library, self.settings, self._on_backup_status)
+        self.autobackup = AutoBackup(library, self.settings, self._on_backup_status,
+                                     sync=self._sync_from_backup)
         GLib.idle_add(self._first_run)
 
     # ==================================================================
@@ -2969,70 +2970,13 @@ class MainWindow(Adw.ApplicationWindow):
         first, or renaming would leave the old name's file behind as a
         stale duplicate forever.
         """
-        import json
-        row = self.catalog.q1("SELECT * FROM albums WHERE id=?", (album_id,))
-        if row is None:
-            return
-        # The folder is recorded by uuid, not by id: ids are handed out
-        # fresh when the database is rebuilt, so an id here would point
-        # at whatever folder happened to land on that number.
-        folder_uuid = None
-        if row["folder_id"] is not None:
-            frow = self.catalog.q1("SELECT uuid FROM folders WHERE id=?",
-                                   (row["folder_id"],))
-            folder_uuid = frow["uuid"] if frow else None
-        payload = {"format": "pikalicious-album", "version": 1,
-                   "uuid": row["uuid"], "name": row["name"],
-                   "created_at": row["created_at"],
-                   "folder_uuid": folder_uuid,
-                   "photos": self.catalog.album_photo_paths(album_id)}
-        if row["cover_id"] is not None:
-            cover = self.catalog.photo(row["cover_id"])
-            if cover is not None:
-                payload["cover"] = cover["path"]
-        safe = "".join(c if c.isalnum() or c in " -_" else "_"
-                       for c in row["name"])[:80] or row["uuid"]
-        try:
-            from .. import sync
-            self.library.albums.mkdir(parents=True, exist_ok=True)
-            target = self.library.albums / f"{safe}.json"
-            previous = None
-            for existing in self.library.albums.glob("*.json"):
-                try:
-                    data = json.loads(existing.read_text())
-                except (OSError, ValueError):
-                    continue
-                if data.get("uuid") != row["uuid"]:
-                    continue
-                previous = data if previous is None or existing == target else previous
-                if existing != target:
-                    existing.unlink(missing_ok=True)
-            # When each photo came in or left: what lets two computers sharing
-            # a backup merge the album (see sync.py).
-            payload = sync.stamp_album(previous, payload)
-            text = json.dumps(payload, indent=2)
-            # unchanged albums are not rewritten: a rewrite would look like
-            # a change and send the file to the backup again
-            if not target.is_file() or target.read_text() != text:
-                target.write_text(text)
-                self._backup_soon()
-        except OSError:
-            pass
+        if sidecars.write_album(self.library, self.catalog, album_id):
+            self._backup_soon()
 
     def _delete_album_sidecar(self, album_uuid):
-        """Remove an album's JSON file when the album itself is deleted."""
-        import json
-        if not self.library.albums.exists():
-            return
-        for existing in self.library.albums.glob("*.json"):
-            try:
-                data = json.loads(existing.read_text())
-            except (OSError, ValueError):
-                continue
-            if data.get("uuid") == album_uuid:
-                existing.unlink(missing_ok=True)
-        # another computer sharing the backup deletes it too
-        sidecars.note_album_deleted(self.library, album_uuid)
+        """Remove an album's JSON file when the album itself is deleted, and
+        remember it, so another computer sharing the backup deletes it too."""
+        sidecars.delete_album_file(self.library, album_uuid)
 
     # -- photo menu & rename ---------------------------------------------
     def _on_rename_photo(self):
@@ -3369,6 +3313,19 @@ class MainWindow(Adw.ApplicationWindow):
     def _backup_soon(self):
         if getattr(self, "autobackup", None) is not None:
             self.autobackup.mark_changed()
+
+    def _sync_from_backup(self, backend, progress=None):
+        """Bring in what another computer sent to this backup (off the UI
+        thread), then show it."""
+        from .. import sync
+        result = sync.pull(self.library, self.catalog, backend, progress)
+        if result.changed:
+            GLib.idle_add(self._after_sync)
+        return result
+
+    def _after_sync(self):
+        self._refresh()
+        return False
 
     def _on_backup_status(self, text):
         self.footer_backup.set_text(text)

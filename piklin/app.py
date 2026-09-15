@@ -249,12 +249,18 @@ def rebuild_index(library: Library) -> int:
     print(f"  indexed {progress.added} photos")
 
     restored = 0
+    from . import sync
+    # A backup keeps the file of an album deleted on another computer: the
+    # deletion, recorded beside it, keeps it from coming back.
+    deleted = sidecars._read_json(sidecars.deleted_albums_path(library)).get("albums") or {}
     for album_file in library.albums.glob("*.json"):
         try:
             data = json.loads(album_file.read_text())
         except (OSError, ValueError):
             continue
         if data.get("format") != "pikalicious-album":
+            continue
+        if sync.album_deleted_after_change(data, deleted.get(data.get("uuid"))):
             continue
         aid = catalog.create_album(data.get("name", album_file.stem),
                                    data.get("uuid"))

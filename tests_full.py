@@ -1282,6 +1282,47 @@ _stc.delete_folder(_gone); _scm.write_all(_st, _stc)
 check("the folder list records deletions, and an unchanged list is not rewritten",
       _same and _gone_uuid in json.loads((_st.albums / "_folders.json").read_text())["deleted"])
 
+# Two computers sharing one backup folder keep each other up to date.
+from piklin.indexer import Indexer as _IxS
+_share = Path(TMP) / "sync-shared-nas"; _share.mkdir()
+_shared = lambda: _rm.Remote(id="shared", name="NAS", kind="local", config={"path": str(_share)}).backend()
+_A = _Lm(Path(TMP) / "computer-a" / "Piklin Library.piklin").ensure(); _cA = _Cm(_A.db)
+(_A.originals / "2023").mkdir(parents=True)
+shutil.copy2(SRC[0], _A.originals / "2023" / "beach.jpg"); shutil.copy2(SRC[1], _A.originals / "2023" / "sunset.jpg")
+_IxS(_cA, None, library_root=_A.root).scan([_A.originals])
+_beachA = _cA.photo_by_path(str(_A.originals / "2023" / "beach.jpg"))["id"]
+_famA = _cA.create_folder("Family"); _tripA = _cA.create_album("Trip", folder_id=_famA)
+_cA.album_add(_tripA, [_beachA]); _cA.set_favorite([_beachA], True)
+_scm.write_album(_A, _cA, _tripA); _scm.write_all(_A, _cA)
+_shared().push(_A.root, _rm.library_files(_A.root))
+_B = _Lm(Path(TMP) / "computer-b" / "Piklin Library.piklin").ensure(); _cB = _Cm(_B.db)
+_rB = _sy.pull(_B, _cB, _shared())
+_tripB = _cB.q1("SELECT id, uuid, folder_id FROM albums WHERE name='Trip'")
+_beachB = _cB.photo_by_path(str(_B.originals / "2023" / "beach.jpg"))
+check("another computer brings in the photos, the album in its folder and the favourite",
+      _rB.ok and _rB.photos == 2 and _tripB is not None and _tripB["folder_id"] is not None
+      and _cB.q1("SELECT name FROM folders WHERE id=?", (_tripB["folder_id"],))["name"] == "Family"
+      and [os.path.basename(p) for p in _cB.album_photo_paths(_tripB["id"])] == ["beach.jpg"]
+      and _beachB is not None and _beachB["favorite"] == 1, (_rB, dict(_tripB) if _tripB else None))
+time.sleep(1.1)                                       # B's changes come later than A's
+if _tripB is not None and _beachB is not None:
+    _cB.delete_album(_tripB["id"]); _scm.delete_album_file(_B, _tripB["uuid"])
+    _sunB = _cB.photo_by_path(str(_B.originals / "2023" / "sunset.jpg"))["id"]
+    _beachAlbum = _cB.create_album("Beach"); _cB.album_add(_beachAlbum, [_sunB])
+    _scm.write_album(_B, _cB, _beachAlbum)
+    _cB.set_favorite([_beachB["id"]], False)
+    _scm.write_all(_B, _cB)
+    _shared().push(_B.root, _rm.library_files(_B.root))
+    _rA = _sy.pull(_A, _cA, _shared())
+    _beachAlbumA = _cA.q1("SELECT id FROM albums WHERE name='Beach'")
+    check("back on the first computer: the deleted album goes, the new one comes, the mark is cleared",
+          _rA.ok and _cA.q1("SELECT id FROM albums WHERE uuid=?", (_tripB["uuid"],)) is None
+          and _beachAlbumA is not None
+          and [os.path.basename(p) for p in _cA.album_photo_paths(_beachAlbumA["id"])] == ["sunset.jpg"]
+          and _cA.photo_by_path(str(_A.originals / "2023" / "beach.jpg"))["favorite"] == 0, _rA)
+    _rA2 = _sy.pull(_A, _cA, _shared())
+    check("looking again with nothing new changes nothing", _rA2.ok and not _rA2.changed, _rA2)
+
 section("10. Settings")
 from piklin.settings import Settings
 s1 = Settings(os.path.join(TMP,"s.json"))

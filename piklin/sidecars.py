@@ -96,9 +96,17 @@ def write_photo_state(library, catalog) -> None:
         if entry:
             photos[r["path"]] = entry
     path = photo_state_path(library)
+    previous = _read_json(path)
+    # Marks on photos this computer doesn't have - outside its library, or not
+    # brought in yet - are another computer's: kept, never taken as cleared.
+    removed = set(catalog.removed_paths())
+    for photo_path, entry in (previous.get("photos") or {}).items():
+        if (photo_path not in photos and photo_path not in removed and isinstance(entry, dict)
+                and catalog.photo_by_path(photo_path) is None):
+            photos[photo_path] = {k: v for k, v in entry.items() if k != "modified_at"}
     # When each photo's marks changed, and which were cleared: what lets two
     # computers sharing a backup merge them (see sync.py).
-    payload = sync.stamp_marks(_read_json(path) or None,
+    payload = sync.stamp_marks(previous or None,
                                {"format": FORMAT, "version": VERSION, "photos": photos})
     _write_json(path, payload)
 
@@ -261,6 +269,83 @@ def restore_removed(library, catalog) -> int:
                if isinstance(p, str) and isinstance(t, (int, float))]
     catalog.set_removed(entries)
     return len(entries)
+
+
+# -- albums -----------------------------------------------------------------
+def album_file_name(name: str, album_uuid: str) -> str:
+    safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in name or "")[:80]
+    return f"{safe or album_uuid}.json"
+
+
+def _album_files(library, album_uuid: str) -> list[Path]:
+    found = []
+    if library.albums.is_dir():
+        for f in library.albums.glob("*.json"):
+            if not f.name.startswith("_") and _read_json(f).get("uuid") == album_uuid:
+                found.append(f)
+    return found
+
+
+def write_album(library, catalog, album_id: int) -> bool:
+    """Mirror an album to its readable file. True when the file changed.
+
+    The file is named after the album, so a rename changes it: any older file
+    of the same album (matched by the uuid inside) is removed. Photos this
+    computer doesn't have stay in the album, and each photo's history is
+    carried on (see sync.stamp_album)."""
+    row = catalog.q1("SELECT * FROM albums WHERE id=?", (album_id,))
+    if row is None:
+        return False
+    # The folder by uuid, not id: ids are handed out afresh by a rebuild.
+    folder_uuid = None
+    if row["folder_id"] is not None:
+        frow = catalog.q1("SELECT uuid FROM folders WHERE id=?", (row["folder_id"],))
+        folder_uuid = frow["uuid"] if frow else None
+    payload = {"format": "pikalicious-album", "version": 1,
+               "uuid": row["uuid"], "name": row["name"],
+               "created_at": row["created_at"], "folder_uuid": folder_uuid,
+               "photos": catalog.album_photo_paths(album_id)}
+    if row["cover_id"] is not None:
+        cover = catalog.photo(row["cover_id"])
+        if cover is not None:
+            payload["cover"] = cover["path"]
+    try:
+        library.albums.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return False
+    target = library.albums / album_file_name(row["name"], row["uuid"])
+    existing = _album_files(library, row["uuid"])
+    previous_file = target if target in existing else (existing[0] if existing else None)
+    previous = _read_json(previous_file) if previous_file else None
+    if previous:
+        removed = set(catalog.removed_paths())
+        for photo_path in previous.get("photos") or []:
+            if (photo_path not in payload["photos"] and photo_path not in removed
+                    and catalog.photo_by_path(photo_path) is None):
+                payload["photos"].append(photo_path)
+    payload = sync.stamp_album(previous, payload)
+    text = json.dumps(payload, indent=2)
+    changed = False
+    try:
+        for f in existing:
+            if f != target:
+                f.unlink(missing_ok=True)
+                changed = True
+        # an unchanged album is not rewritten: it would look like a change to the backup
+        if not target.is_file() or target.read_text() != text:
+            target.write_text(text)
+            changed = True
+    except OSError:
+        return False
+    forget_album_deletion(library, row["uuid"])
+    return changed
+
+
+def delete_album_file(library, album_uuid: str) -> None:
+    """Remove a deleted album's file, and remember the deletion."""
+    for f in _album_files(library, album_uuid):
+        f.unlink(missing_ok=True)
+    note_album_deleted(library, album_uuid)
 
 
 # -- deleted albums ---------------------------------------------------------
