@@ -22,5 +22,6 @@ packaging/media-cache/
 .DS_Store
 .venv-x86_64/
 packaging/macos-cache/
+packaging/appimage-cache/
 packaging/media-cache-*/
 packaging/wheel-local-*/

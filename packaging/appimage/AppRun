@@ -1,0 +1,6 @@
+#!/bin/sh
+# Start Piklin inside its AppImage, with the Python the AppImage carries.
+# -I keeps the computer's own Python settings (PYTHONPATH, ~/.local
+# packages) out of it. packaging/appimage/boot.py does the rest.
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/python3.12" -I "$HERE/usr/lib/piklin/boot.py" "$@"

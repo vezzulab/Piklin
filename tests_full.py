@@ -1684,6 +1684,35 @@ if _ossl3:
           (_ok, _other, _changed) == ("ok", "verification", "verification"), (_ok, _other, _changed))
 check("running from source points to the download instead of installing",
       not _upd.can_install_itself())
+# An AppImage updates by replacing its own file: only where it may write.
+_ai_dir = Path(TMP) / "appimage"; _ai_dir.mkdir()
+_ai = _ai_dir / "Piklin-1.0.5-x86_64.AppImage"; _ai.write_bytes(b"appimage")
+os.environ["PIKLIN_APPIMAGE"] = str(_ai)
+try:
+    import platform as _plat
+    _ai_names = _upd.appimage_names("2.0.0")
+    check("an AppImage knows its own update files and build",
+          _ai_names == (f"Piklin-2.0.0-{_plat.machine()}.AppImage",
+                        f"Piklin-2.0.0-{_plat.machine()}.AppImage.sha256",
+                        f"Piklin-2.0.0-{_plat.machine()}.AppImage.sha256.sig")
+          and _upd.build_asset("2.0.0") == _ai_names[0] + ".build"
+          and _upd.launcher() == str(_ai), (_ai_names, _upd.build_asset("2.0.0")))
+    _writable = _upd.can_install_itself()
+    os.chmod(_ai_dir, 0o555)
+    _locked = _upd.can_install_itself()
+    os.chmod(_ai_dir, 0o755)
+    check("an AppImage installs updates itself only in a folder it can write to",
+          _writable and not _locked, (_writable, _locked))
+    try:
+        _upd._install_appimage("../1.0"); _bad = "installed"
+    except _upd.UpdateError as _e:
+        _bad = _e.kind
+    check("an AppImage update needs a real version number", _bad == "install", _bad)
+finally:
+    os.environ.pop("PIKLIN_APPIMAGE", None)
+check("outside an AppImage the .deb and Mac rules still apply",
+      _upd._appimage() is None and _upd.launcher() == _upd.LAUNCHER
+      and _upd.build_asset("2.0.0").endswith(".deb.build") != sys.platform.startswith("darwin"))
 _saved_cfg_u = os.environ.get("XDG_CONFIG_HOME"); os.environ["XDG_CONFIG_HOME"] = os.path.join(TMP, "updcfg")
 try:
     _now = 1_800_000_000.0

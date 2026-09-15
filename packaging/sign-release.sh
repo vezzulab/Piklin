@@ -46,13 +46,13 @@ case "$name" in
   *.deb)
     python3 -I "$HERE/deb/piklin-update" --verify-only \
         "$(dpkg-deb -f "$FILE" Version)" "$dir" "$PUB" ;;
-  *.dmg)
+  *.dmg|*.AppImage)
     PYTHONPATH="$ROOT" python3 -c '
 import sys
 from pathlib import Path
 from piklin.updates import verify_signed
 verify_signed(Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3]).read_text())
 ' "$dir" "$name" "$PUB" ;;
-  *) echo "Not a .deb or .dmg: $name" >&2; exit 1 ;;
+  *) echo "Not a .deb, .dmg or .AppImage: $name" >&2; exit 1 ;;
 esac
 echo "Signed: $dir/$name.sha256 and $dir/$name.sha256.sig"

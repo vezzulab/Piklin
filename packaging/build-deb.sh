@@ -265,6 +265,13 @@ find "$LIB" -name '*.so*' -exec chmod 644 {} +
 # The update helper is run by pkexec, which needs it executable.
 chmod 755 "$LIB/piklin-update"
 
+# The AppImage is made from this same tree (packaging/build-appimage.sh):
+# STAGE_ONLY=1 stops here, without packing or touching dist/.
+if [ -n "${STAGE_ONLY:-}" ]; then
+  say "Staged in $STAGE"
+  exit 0
+fi
+
 mkdir -p "$ROOT/dist"
 OUT="$ROOT/dist/${PKG}_${VERSION}_${ARCH}.deb"
 say "Packing $OUT"

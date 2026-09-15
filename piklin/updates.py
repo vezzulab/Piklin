@@ -8,8 +8,9 @@ public page anyone can open in a browser.
 An installed .deb updates itself: /usr/lib/piklin/piklin-update, run through
 pkexec, downloads the new version, installs it only if it is signed with
 Vezzu Studio's release key, and Piklin then reopens. Piklin.app does the same
-on a Mac with the disk image (see the macOS part below). Anywhere neither can
-(running from source, an old package) Piklin points to the download.
+on a Mac with the disk image (see the macOS part below), and the AppImage
+replaces its own file. Anywhere none can (running from source, an old
+package) Piklin points to the download.
 """
 from __future__ import annotations
 
@@ -48,7 +49,12 @@ class UpdateError(Exception):
 
 def can_install_itself() -> bool:
     """True for Piklin installed from its .deb, carrying the update helper,
-    and for Piklin.app in a folder it is allowed to replace itself in."""
+    and for Piklin.app or the AppImage in a folder it is allowed to replace
+    itself in."""
+    image = _appimage()
+    if image is not None:
+        return (image.is_file() and os.access(image, os.W_OK)
+                and os.access(image.parent, os.W_OK))
     if system.IS_MAC:
         app = _mac_app()
         return (app is not None and os.access(app, os.W_OK)
@@ -61,6 +67,8 @@ def can_install_itself() -> bool:
 def install(version: str) -> None:
     """Download, check and install ``version``. Blocks for a while: call it
     off the UI thread. Raises UpdateError when it did not install."""
+    if _appimage() is not None:
+        return _install_appimage(version)
     if system.IS_MAC:
         return _install_mac(version)
     kinds = {3: "not-newer", 4: "download", 5: "verification", 6: "install",
@@ -129,8 +137,7 @@ def latest_release(current: str, timeout: float = 10.0) -> Release:
     tag = data.get("tag_name") or data.get("name") or ""
     version = tag.lstrip("vV")
     build = ""
-    wanted = (f"Piklin-{version}.dmg.build" if system.IS_MAC
-              else f"piklin_{version}_{_arch()}.deb.build")
+    wanted = build_asset(version)
     for asset in data.get("assets") or []:
         if asset.get("name") == wanted and asset.get("browser_download_url"):
             try:
@@ -145,11 +152,77 @@ def latest_release(current: str, timeout: float = 10.0) -> Release:
                    notes=data.get("body") or "", build=build)
 
 
+def build_asset(version: str) -> str:
+    """The release file naming the build of the package this Piklin came in."""
+    if _appimage() is not None:
+        return appimage_names(version)[0] + ".build"
+    if system.IS_MAC:
+        return f"Piklin-{version}.dmg.build"
+    return f"piklin_{version}_{_arch()}.deb.build"
+
+
 def launcher() -> str:
-    """What starts the installed Piklin: /usr/bin/piklin, or on a Mac the
-    app's own executable (the new one, once an update has replaced it)."""
+    """What starts the installed Piklin: /usr/bin/piklin, the AppImage file,
+    or on a Mac the app's own executable (the new one, once an update has
+    replaced it)."""
+    image = _appimage()
+    if image is not None:
+        return str(image)
     app = _mac_app() if system.IS_MAC else None
     return str(app / "Contents" / "MacOS" / "Piklin") if app else LAUNCHER
+
+
+# -- AppImage -------------------------------------------------------------------
+# The AppImage replaces its own file, under the same rules as the .deb helper:
+# only a version number comes in, only Piklin's own GitHub releases are read,
+# and nothing replaces it unless its checksum is signed with Vezzu Studio's
+# release key.
+def _appimage() -> Path | None:
+    """The AppImage file, when this Piklin runs from one."""
+    path = os.environ.get("PIKLIN_APPIMAGE")
+    return Path(path) if path else None
+
+
+def appimage_names(version: str) -> tuple[str, str, str]:
+    import platform
+    image = f"Piklin-{version}-{platform.machine()}.AppImage"
+    return image, image + ".sha256", image + ".sha256.sig"
+
+
+def _install_appimage(version: str) -> None:
+    from .app import VERSION
+    if not _VERSION_RE.match(version):
+        raise UpdateError("install", "not a version number")
+    image = _appimage()
+    if image is None or not can_install_itself():
+        raise UpdateError("install", "the AppImage cannot replace itself where it is")
+    try:
+        key_pem = (Path(os.environ.get("PIKLIN_APPDIR", "")) / "usr" / "lib" / "piklin"
+                   / "release-key.pem").read_text()
+    except OSError as exc:
+        raise UpdateError("verification", f"no release key in the AppImage: {exc}")
+    base = f"https://github.com/{REPO}/releases/download/v{version}/"
+    names = appimage_names(version)
+    # Downloaded beside the AppImage, so the last step is a rename on one disk.
+    work = Path(tempfile.mkdtemp(prefix=".piklin-update-", dir=image.parent))
+    try:
+        for name in (*names, names[0] + ".build"):
+            _download(base + name, work / name)
+        new = verify_signed(work, names[0], key_pem)
+        new_build = (work / (names[0] + ".build")).read_text(errors="replace").strip()
+        if is_newer(VERSION, version) or (
+                not is_newer(version, VERSION)
+                and (not new_build or new_build == installed_build())):
+            raise UpdateError("not-newer", f"Piklin {version} is already installed")
+        os.chmod(new, 0o755)
+        # The running AppImage keeps reading the old file, which stays on disk
+        # until it closes; the next start is the new one.
+        try:
+            os.replace(new, image)
+        except OSError as exc:
+            raise UpdateError("install", str(exc))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 
 
 # -- macOS ----------------------------------------------------------------------

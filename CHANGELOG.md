@@ -21,6 +21,7 @@
 - Dropping photos on an album adds the photos it can, instead of failing and adding none
 
 ### Linux
+- Piklin also comes as an AppImage, for amd64 and arm64: one file to download, make executable and open, nothing to install. It runs on Ubuntu 24.04, Linux Mint 22, Debian 13, Fedora 40 and newer, and updates itself like the .deb, asking first and accepting only versions signed by Vezzu Studio
 - Piklin is available for 64-bit ARM computers as well (arm64), such as a Raspberry Pi 5 or an ARM laptop running Ubuntu 24.04 or newer
 - Video always plays with sound: the package now asks for the small library miniaudio needs, which some minimal installations lacked
 

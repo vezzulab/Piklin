@@ -361,11 +361,13 @@ def main(argv=None):
     # library opens in a fresh process once this one has fully quit.
     target = getattr(app, "relaunch_library", None)
     if target:
-        from .updates import launcher
+        from .updates import _appimage, launcher
         start = launcher()
-        if getattr(app, "relaunch_update", False) and os.access(start, os.X_OK):
+        if ((getattr(app, "relaunch_update", False) or _appimage() is not None)
+                and os.access(start, os.X_OK)):
             # Just updated: start through the new package's own launcher, which
-            # picks the libraries that version shipped.
+            # picks the libraries that version shipped. An AppImage always
+            # starts through its file: its Python alone can't find Piklin.
             os.execv(start, [start, "--library", target])
         os.execv(sys.executable, [sys.executable, "-s", "-m",
                                   "piklin.app", "--library", target])
