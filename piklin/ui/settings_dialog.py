@@ -416,6 +416,10 @@ class SettingsDialog(Adw.PreferencesDialog):
                 # Plain http:// is allowed at home, but the password and the photos
                 # travel unencrypted: offer the server's https:// address.
                 actions.append((_("Use a Secure Connection…"), self._on_secure_remote))
+            if r.config.get("encrypted"):
+                actions.append((_("Show Recovery Key…"), self._on_show_recovery_key))
+            else:
+                actions.append((_("Encrypt This Backup…"), self._on_encrypt_remote))
             actions += [(_("Restore Missing Files…"), self._on_restore_remote),
                         (_("Edit…"), self._on_edit_remote),
                         (_("Remove"), self._on_remove_remote)]
@@ -437,13 +441,134 @@ class SettingsDialog(Adw.PreferencesDialog):
     @staticmethod
     def _describe(r):
         if r.kind == "local":
-            return r.config.get("path", "")
-        if r.kind == "webdav":
+            text = r.config.get("path", "")
+        elif r.kind == "webdav":
             text = f"{r.config.get('url','')} · {r.config.get('username','')}"
             if r.config.get("url", "").strip().startswith("http://"):
                 text += " · " + _("not encrypted")
-            return text
-        return f"rclone · {r.config.get('remote','')}:{r.config.get('path','')}"
+        else:
+            text = f"rclone · {r.config.get('remote','')}:{r.config.get('path','')}"
+        if r.config.get("encrypted"):
+            text += " · " + _("backups encrypted")
+        return text
+
+    # -- encrypted backups ------------------------------------------------
+    def _on_encrypt_remote(self, cfg, row, _push):
+        r = remote_mod.Remote.from_dict(cfg)
+        row.set_subtitle(_("Checking the backup…"))
+
+        def work():
+            try:
+                exists = remote_mod.encrypted_backup_exists(r)
+            except Exception:
+                exists = False
+            GLib.idle_add(ask, exists)
+
+        def ask(exists):
+            row.set_subtitle(self._describe(r))
+            if exists:
+                self._ask_recovery_key(cfg, row)     # encrypted on another computer
+            else:
+                self._confirm_encryption(cfg, row)
+            return False
+        threading.Thread(target=work, daemon=True).start()
+
+    def _confirm_encryption(self, cfg, row):
+        dlg = Adw.AlertDialog(
+            heading=_("Encrypt This Backup?"),
+            body=_("Your photos and videos are encrypted on this computer before they are "
+                   "sent, so only you can open them. A new, encrypted copy is made in the "
+                   "folder “{folder}”: your whole library is sent again, and the copy already "
+                   "there stays until you delete it.\n\nYou get a recovery key. Without it "
+                   "nobody can open the encrypted copy, not even Vezzu Studio: write it down "
+                   "and keep it safe.").format(folder=remote_mod.ENCRYPTED_FOLDER))
+        dlg.add_response("cancel", _("Cancel"))
+        dlg.add_response("encrypt", _("Encrypt"))
+        dlg.set_response_appearance("encrypt", Adw.ResponseAppearance.SUGGESTED)
+        dlg.set_close_response("cancel")
+        dlg.connect("response", lambda _d, response: response == "encrypt"
+                    and self._run_encryption(cfg, row, None))
+        dlg.present(self.get_root())
+
+    def _ask_recovery_key(self, cfg, row):
+        dlg = Adw.AlertDialog(
+            heading=_("Enter the Recovery Key"),
+            body=_("“{backup}” already holds an encrypted Piklin backup. Enter the recovery "
+                   "key you wrote down when it was encrypted.").format(
+                       backup=cfg.get("name") or _("This backup")))
+        entry = Gtk.Entry(placeholder_text="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX",
+                          activates_default=True)
+        dlg.set_extra_child(entry)
+        dlg.add_response("cancel", _("Cancel"))
+        dlg.add_response("open", _("Open Backup"))
+        dlg.set_response_appearance("open", Adw.ResponseAppearance.SUGGESTED)
+        dlg.set_default_response("open")
+        dlg.set_close_response("cancel")
+        GLib.idle_add(lambda: (entry.grab_focus(), GLib.SOURCE_REMOVE)[1],
+                      priority=GLib.PRIORITY_HIGH)
+        dlg.connect("response", lambda _d, response: response == "open"
+                    and self._run_encryption(cfg, row, entry.get_text()))
+        dlg.present(self.get_root())
+
+    def _run_encryption(self, cfg, row, key_text):
+        row.set_subtitle(_("Setting up encryption…"))
+        r = remote_mod.Remote.from_dict(cfg)
+
+        def work():
+            try:
+                new_cfg, key, problem = remote_mod.enable_encryption(r, key_text)
+            except Exception as exc:
+                new_cfg, key, problem = None, None, str(exc)
+            GLib.idle_add(finish, new_cfg, key, problem)
+
+        def finish(new_cfg, key, problem):
+            if new_cfg is None:
+                row.set_subtitle(problem)
+                return False
+            self._save_remote(new_cfg)
+            if key:
+                self._show_recovery_key(new_cfg, key, first=True)
+            else:
+                self._toast(_("The encrypted backup is open on this computer."))
+            return False
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_show_recovery_key(self, cfg, row, _push):
+        key = remote_mod.load_secret(remote_mod.encryption_secret_id(cfg["id"]))
+        if not key:
+            row.set_subtitle(_("The recovery key isn't on this computer"))
+            return
+        self._show_recovery_key(cfg, key, first=False)
+
+    def _show_recovery_key(self, cfg, key, first):
+        from gi.repository import Gdk
+        dlg = Adw.AlertDialog(
+            heading=_("Your Recovery Key"),
+            body=_("Write this key down and keep it somewhere safe, away from this computer. "
+                   "You need it to open your encrypted backup on another computer, or if "
+                   "this one is lost."))
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        label = Gtk.Label(label=key, selectable=True, wrap=True)
+        label.add_css_class("title-3")
+        label.add_css_class("monospace")
+        box.append(label)
+        copy = Gtk.Button(label=_("Copy"), halign=Gtk.Align.CENTER)
+        copy.connect("clicked", lambda *_a: (
+            self.get_clipboard().set_content(Gdk.ContentProvider.new_for_value(key)),
+            self._toast(_("Recovery key copied"))))
+        box.append(copy)
+        dlg.add_response("done", _("Done"))
+        dlg.set_response_appearance("done", Adw.ResponseAppearance.SUGGESTED)
+        if first:
+            # Not closed until it is kept: this is the only time it is shown unasked.
+            wrote = Gtk.CheckButton(label=_("I wrote it down"), halign=Gtk.Align.CENTER)
+            box.append(wrote)
+            dlg.set_response_enabled("done", False)
+            wrote.connect("toggled", lambda b: dlg.set_response_enabled("done", b.get_active()))
+            dlg.set_can_close(False)
+            dlg.connect("response", lambda *_a: dlg.set_can_close(True))
+        dlg.set_extra_child(box)
+        dlg.present(self.get_root())
 
     @staticmethod
     def _result_text(result):

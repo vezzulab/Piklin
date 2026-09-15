@@ -990,6 +990,36 @@ ES = {
     "New Album Here…": "Nuevo álbum aquí…",
     "New Folder Here…": "Nueva carpeta aquí…",
     "Move Out of “{folder}”": "Sacar de “{folder}”",
+    # -- encrypted backups ------------------------------------------------------
+    "Encrypt This Backup…": "Cifrar esta copia…",
+    "Encrypt This Backup?": "¿Cifrar esta copia?",
+    "Your photos and videos are encrypted on this computer before they are sent, so only you can open them. A new, encrypted copy is made in the folder “{folder}”: your whole library is sent again, and the copy already there stays until you delete it.\n\nYou get a recovery key. Without it nobody can open the encrypted copy, not even Vezzu Studio: write it down and keep it safe.":
+        "Tus fotos y videos se cifran en esta computadora antes de enviarse, así que solo tú puedes abrirlos. Se hace una copia nueva y cifrada en la carpeta “{folder}”: toda tu biblioteca se envía otra vez, y la copia que ya está ahí se queda hasta que la borres.\n\nRecibirás una clave de recuperación. Sin ella nadie puede abrir la copia cifrada, ni siquiera Vezzu Studio: apúntala y guárdala en un lugar seguro.",
+    "Encrypt": "Cifrar",
+    "Enter the Recovery Key": "Escribe la clave de recuperación",
+    "“{backup}” already holds an encrypted Piklin backup. Enter the recovery key you wrote down when it was encrypted.":
+        "“{backup}” ya tiene una copia cifrada de Piklin. Escribe la clave de recuperación que apuntaste cuando se cifró.",
+    "This backup": "Esta copia",
+    "Open Backup": "Abrir copia",
+    "Checking the backup…": "Revisando la copia…",
+    "Setting up encryption…": "Preparando el cifrado…",
+    "The encrypted backup is open on this computer.": "La copia cifrada ya está abierta en esta computadora.",
+    "Show Recovery Key…": "Mostrar clave de recuperación…",
+    "The recovery key isn't on this computer": "La clave de recuperación no está en esta computadora",
+    "Your Recovery Key": "Tu clave de recuperación",
+    "Write this key down and keep it somewhere safe, away from this computer. You need it to open your encrypted backup on another computer, or if this one is lost.":
+        "Apunta esta clave y guárdala en un lugar seguro, lejos de esta computadora. La necesitas para abrir tu copia cifrada en otra computadora, o si pierdes esta.",
+    "Recovery key copied": "Clave de recuperación copiada",
+    "Done": "Listo",
+    "I wrote it down": "Ya la apunté",
+    "backups encrypted": "copias cifradas",
+    "This backup is encrypted": "Esta copia está cifrada",
+    "Enter its recovery key on this computer to use it": "Escribe su clave de recuperación en esta computadora para usarla",
+    "A recovery key has 32 letters and numbers. Check it and try again.":
+        "Una clave de recuperación tiene 32 letras y números. Revísala y vuelve a intentarlo.",
+    "The recovery key couldn't be kept in your password manager, so the backup wasn't encrypted.":
+        "La clave de recuperación no se pudo guardar en tu gestor de contraseñas, así que la copia no se cifró.",
+    "This recovery key doesn't open the encrypted backup there.": "Esta clave de recuperación no abre la copia cifrada que hay ahí.",
     "Use a Secure Connection…": "Usar una conexión segura…",
     "not encrypted": "sin cifrar",
     "Looking for a secure connection…": "Buscando una conexión segura…",

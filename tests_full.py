@@ -1180,6 +1180,63 @@ finally:
     if _saved_xdg is None: os.environ.pop("XDG_CONFIG_HOME", None)
     else: os.environ["XDG_CONFIG_HOME"] = _saved_xdg
 
+# Encrypted backups, with the real rclone Piklin ships: nothing readable
+# reaches the destination, the photos come back identical, and only the
+# recovery key opens the backup on another computer.
+import platform as _pf, zipfile as _zf
+_rc_zip = next(iter(sorted((Path(os.path.dirname(os.path.abspath(__file__))) / "packaging" / "rclone-cache").glob(
+    f"rclone-*-{'osx' if sys.platform == 'darwin' else 'linux'}-"
+    f"{'arm64' if _pf.machine() in ('arm64', 'aarch64') else 'amd64'}.zip"))), None)
+if _rc_zip is not None:
+    _ert = Path(TMP) / "enc-runtime"; (_ert / "bin").mkdir(parents=True)
+    with _zf.ZipFile(_rc_zip) as _z:
+        (_ert / "bin" / "rclone").write_bytes(_z.read(next(n for n in _z.namelist() if n.endswith("/rclone"))))
+    os.chmod(_ert / "bin" / "rclone", 0o755)
+    _vault = {}
+    _saved_env = {k: os.environ.get(k) for k in ("PIKLIN_RUNTIME", "XDG_CONFIG_HOME")}
+    _orig_secret = (_rm.load_secret, _rm.store_secret)
+    os.environ["PIKLIN_RUNTIME"] = str(_ert); os.environ["XDG_CONFIG_HOME"] = os.path.join(TMP, "enc-cfg")
+    _rm.load_secret = lambda rid: _vault.get(rid)
+    _rm.store_secret = lambda rid, value: (_vault.__setitem__(rid, value), True)[1]
+    try:
+        _esrc = _Lm(Path(TMP) / "enc-src" / "Piklin Library.piklin").ensure(); _ecat = _Cm(_esrc.db)
+        (_esrc.originals / "2024").mkdir(parents=True)
+        shutil.copy2(SRC[0], _esrc.originals / "2024" / "secret-beach.jpg")
+        _ecat.create_folder("Family"); _scm.write_all(_esrc, _ecat)
+        _nas = Path(TMP) / "enc-nas"; _nas.mkdir()
+        _plain = _rm.Remote(id="enc-test", name="NAS", kind="local", config={"path": str(_nas)})
+        _new_cfg, _key, _problem = _rm.enable_encryption(_plain)
+        check("encrypting a backup gives a recovery key and marks the destination",
+              _new_cfg is not None and _new_cfg["config"].get("encrypted") is True
+              and _rm.normalize_recovery_key(_key) == _key, _problem)
+        _eb = _rm.make_backend(_rm.Remote.from_dict(_new_cfg))
+        _pushed_e = _eb.push(_esrc.root, _rm.library_files(_esrc.root))
+        _stored = [p for p in (_nas / _rm.ENCRYPTED_FOLDER).rglob("*") if p.is_file()]
+        _readable = [p for p in _stored if any(w in str(p.relative_to(_nas / _rm.ENCRYPTED_FOLDER))
+                                               for w in ("Albums", "Originals", "secret-beach", ".jpg", "_folders"))]
+        _photo_bytes = (_esrc.originals / "2024" / "secret-beach.jpg").read_bytes()
+        _leaks = [p for p in _stored if _photo_bytes[:4096] in p.read_bytes()]
+        check("an encrypted backup leaves nothing readable at the destination",
+              _pushed_e.phase == "done" and len(_stored) >= 3 and not _readable and not _leaks,
+              (_pushed_e.phase, _pushed_e.message, len(_stored), [str(p) for p in _readable[:3]]))
+        _dst = _Lm(Path(TMP) / "enc-dst" / "Piklin Library.piklin").ensure()
+        _eb.restore(_dst.root)
+        _back_photo = _dst.originals / "2024" / "secret-beach.jpg"
+        check("an encrypted backup restores the photos exactly",
+              _back_photo.is_file() and _back_photo.read_bytes() == _photo_bytes
+              and (_dst.albums / "_folders.json").is_file())
+        _vault.clear()                              # another computer: nothing kept yet
+        check("another computer finds the encrypted backup", _rm.encrypted_backup_exists(_plain))
+        _wrong = _rm.enable_encryption(_plain, _rm.new_recovery_key())
+        _right = _rm.enable_encryption(_plain, _key.lower().replace("-", " "))
+        check("only the right recovery key opens it there",
+              _wrong[0] is None and _right[0] is not None and _right[1] is None, (_wrong[2], _right[2]))
+    finally:
+        _rm.load_secret, _rm.store_secret = _orig_secret
+        for _k, _v in _saved_env.items():
+            if _v is None: os.environ.pop(_k, None)
+            else: os.environ[_k] = _v
+
 section("10. Settings")
 from piklin.settings import Settings
 s1 = Settings(os.path.join(TMP,"s.json"))

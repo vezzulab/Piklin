@@ -1880,11 +1880,182 @@ class RcloneBackend(Backend):
             p.message = q.message
 
 
+# ==========================================================================
+# encrypted backups
+# ==========================================================================
+# A backup can be encrypted on this computer before anything leaves it:
+# rclone's crypt encrypts every file and every name, so the NAS or the cloud
+# service only ever holds unreadable data. It goes in a folder of its own,
+# beside any earlier unencrypted backup. The one secret is a recovery key,
+# shown once to be written down and kept in the password manager; rclone's
+# two passwords are derived from it, so the key alone opens the backup on
+# another computer - and without it nobody can. The encrypted remote is
+# defined only in rclone's environment, which only this user can read,
+# never in a file or on a command line.
+ENCRYPTED_FOLDER = "Piklin Encrypted"
+_CRYPT = "piklincrypt"
+_DAV = "piklindav"
+
+
+def encryption_secret_id(remote_id: str) -> str:
+    return f"{remote_id}-encryption"
+
+
+def new_recovery_key() -> str:
+    """32 letters and digits in groups of four: 160 random bits."""
+    import base64
+    import secrets
+    raw = base64.b32encode(secrets.token_bytes(20)).decode()
+    return "-".join(raw[i:i + 4] for i in range(0, 32, 4))
+
+
+def normalize_recovery_key(text: str) -> str | None:
+    """A recovery key as written down - any case, with spaces or dashes - in
+    its standard form, or None when it can't be one."""
+    raw = re.sub(r"[\s-]", "", text or "").upper()
+    if not re.fullmatch(r"[A-Z2-7]{32}", raw):
+        return None
+    return "-".join(raw[i:i + 4] for i in range(0, 32, 4))
+
+
+def _obscure(exe: str, secret: str) -> str:
+    """rclone's obscured form of a password, given on stdin so it never shows
+    on a command line."""
+    out = subprocess.run([exe, "obscure", "-"], input=secret + "\n", capture_output=True,
+                         text=True, timeout=30, env=_rclone_env())
+    if out.returncode != 0 or not out.stdout.strip():
+        raise RuntimeError((out.stderr or "rclone obscure failed").strip()[:300])
+    return out.stdout.strip()
+
+
+class EncryptedBackend(RcloneBackend):
+    """A destination whose backups are encrypted on this computer."""
+
+    def __init__(self, remote: Remote):
+        self.origin = remote
+        super().__init__(Remote(id=remote.id, name=remote.name, kind="rclone",
+                                config={"remote": _CRYPT, "path": ""},
+                                enabled=remote.enabled, last_sync=remote.last_sync))
+        self._crypt_env: dict | None = None
+
+    def underlying(self) -> str:
+        """rclone's address of the folder the encrypted files go in."""
+        o = self.origin
+        if o.kind == "rclone":
+            name = o.config.get("remote", "").strip().rstrip(":")
+            path = o.config.get("path", "").strip().strip("/")
+            return f"{name}:{path + '/' if path else ''}{ENCRYPTED_FOLDER}"
+        if o.kind == "webdav":
+            base = o.config.get("base", "").strip().strip("/")
+            return f"{_DAV}:{base + '/' if base else ''}{ENCRYPTED_FOLDER}"
+        return str(Path(o.config.get("path", "")).expanduser() / ENCRYPTED_FOLDER)
+
+    def _env(self) -> dict:
+        if self._crypt_env is not None:
+            return self._crypt_env
+        o = self.origin
+        exe = rclone_path()
+        env = _rclone_env(o.config.get("remote", "") if o.kind == "rclone" else "")
+        if exe and o.kind == "webdav":
+            dav = _DAV.upper()
+            url = o.config.get("url", "").strip().rstrip("/")
+            env[f"RCLONE_CONFIG_{dav}_TYPE"] = "webdav"
+            env[f"RCLONE_CONFIG_{dav}_URL"] = url
+            env[f"RCLONE_CONFIG_{dav}_VENDOR"] = "other"
+            user = o.config.get("username", "")
+            if user:
+                env[f"RCLONE_CONFIG_{dav}_USER"] = user
+                password = o.config.get("password") or load_secret(o.id) or ""
+                if password:
+                    env[f"RCLONE_CONFIG_{dav}_PASS"] = _obscure(exe, password)
+            # A NAS with its own certificate: accepted only while it is the
+            # one confirmed and pinned, checked here before rclone connects.
+            pin = o.config.get("cert_sha256", "")
+            if url.startswith("https://") and pin:
+                try:
+                    if certificate_fingerprint(url) == pin:
+                        env["RCLONE_NO_CHECK_CERTIFICATE"] = "true"
+                except Exception:
+                    pass
+        key = load_secret(encryption_secret_id(o.id))
+        if exe and key:
+            crypt = _CRYPT.upper()
+            env[f"RCLONE_CONFIG_{crypt}_TYPE"] = "crypt"
+            env[f"RCLONE_CONFIG_{crypt}_REMOTE"] = self.underlying()
+            env[f"RCLONE_CONFIG_{crypt}_PASSWORD"] = _obscure(exe, key)
+            salt = hashlib.sha256(f"piklin-backup-salt:{key}".encode()).hexdigest()
+            env[f"RCLONE_CONFIG_{crypt}_PASSWORD2"] = _obscure(exe, salt)
+            self._crypt_env = env
+        return env
+
+    def test(self) -> TestResult:
+        if not load_secret(encryption_secret_id(self.origin.id)):
+            return TestResult(False, _("This backup is encrypted"),
+                              _("Enter its recovery key on this computer to use it"))
+        return super().test()
+
+
+def encrypted_backup_exists(remote: Remote) -> bool:
+    """Whether the destination already holds an encrypted Piklin backup -
+    made on another computer, for instance."""
+    exe = rclone_path()
+    if not exe:
+        return False
+    backend = EncryptedBackend(remote)
+    try:
+        out = subprocess.run([exe, "lsjson", "--max-depth", "1", backend.underlying()],
+                             capture_output=True, text=True, timeout=90,
+                             env=backend._env(), stdin=subprocess.DEVNULL)
+        return out.returncode == 0 and bool(json.loads(out.stdout or "[]"))
+    except Exception:
+        return False
+
+
+def enable_encryption(remote: Remote, recovery_key: str | None = None
+                      ) -> tuple[dict | None, str | None, str]:
+    """Encrypt this destination's backups from now on.
+
+    Without a recovery key a new one is made, and returned to be shown once.
+    With one, the encrypted backup already there is opened with it, once the
+    key is checked to really open it. Returns (the destination's new
+    settings, the new recovery key or None, what went wrong)."""
+    exe = rclone_path()
+    if not exe:
+        return None, None, _("rclone is not installed")
+    made = recovery_key is None
+    key = new_recovery_key() if made else normalize_recovery_key(recovery_key)
+    if key is None:
+        return None, None, _("A recovery key has 32 letters and numbers. Check it and try again.")
+    secret_id = encryption_secret_id(remote.id)
+    previous = load_secret(secret_id)
+    if not store_secret(secret_id, key):
+        return None, None, _("The recovery key couldn't be kept in your password manager, "
+                             "so the backup wasn't encrypted.")
+    if not made:
+        backend = EncryptedBackend(remote)
+        env = backend._env()
+
+        def files(where):
+            out = subprocess.run([exe, "lsf", "-R", "--files-only", "--max-depth", "4", where],
+                                 capture_output=True, text=True, timeout=180, env=env,
+                                 stdin=subprocess.DEVNULL)
+            return out.stdout.strip()
+        # A wrong key reads nothing: every name there fails to decrypt.
+        if files(backend.underlying()) and not files(f"{_CRYPT}:"):
+            if previous:
+                store_secret(secret_id, previous)
+            return None, None, _("This recovery key doesn't open the encrypted backup there.")
+    config = dict(remote.config, encrypted=True)
+    return dict(remote.to_dict(), config=config), (key if made else None), ""
+
+
 BACKENDS = {"local": LocalBackend, "webdav": WebDavBackend,
             "rclone": RcloneBackend}
 
 
 def make_backend(remote: Remote) -> Backend:
+    if remote.config.get("encrypted"):
+        return EncryptedBackend(remote)
     cls = BACKENDS.get(remote.kind, LocalBackend)
     return cls(remote)
 
