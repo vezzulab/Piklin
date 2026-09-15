@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-15 01:45-0400\n"
+"POT-Creation-Date: 2026-09-15 02:01-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,7 +23,7 @@ msgstr ""
 msgid "Connecting to {name}…"
 msgstr ""
 
-#: piklin/autobackup.py:75 piklin/autobackup.py:192
+#: piklin/autobackup.py:75 piklin/autobackup.py:182
 #, python-brace-format
 msgid "Updating from {name}…"
 msgstr ""
@@ -65,42 +65,56 @@ msgstr ""
 msgid "yesterday at {time}"
 msgstr ""
 
-#: piklin/autobackup.py:368
+#: piklin/autobackup.py:177
+#, python-brace-format
+msgid "Receiving from {name} — {done} of {total} ({percent}%)"
+msgstr ""
+
+#: piklin/autobackup.py:180
+#, python-brace-format
+msgid "Adding what came from {name}…"
+msgstr ""
+
+#: piklin/autobackup.py:383
 msgid "Backing up…"
 msgstr ""
 
-#: piklin/autobackup.py:370
+#: piklin/autobackup.py:386
+msgid "Updating from your backup…"
+msgstr ""
+
+#: piklin/autobackup.py:388
 msgid "Automatic backup is off"
 msgstr ""
 
-#: piklin/autobackup.py:372
+#: piklin/autobackup.py:390
 msgid "Backup waits until battery saver is off"
 msgstr ""
 
-#: piklin/autobackup.py:374
+#: piklin/autobackup.py:392
 #, python-brace-format
 msgid "Can't reach {name}, will try again"
 msgstr ""
 
-#: piklin/autobackup.py:376
+#: piklin/autobackup.py:394
 msgid "Backup waits for a connection"
 msgstr ""
 
-#: piklin/autobackup.py:378
+#: piklin/autobackup.py:396
 #, python-brace-format
 msgid "Backup stopped: {problem}"
 msgstr ""
 
-#: piklin/autobackup.py:380
+#: piklin/autobackup.py:398
 msgid "Changes waiting to back up"
 msgstr ""
 
-#: piklin/autobackup.py:382
+#: piklin/autobackup.py:400
 #, python-brace-format
 msgid "Backed up {when}"
 msgstr ""
 
-#: piklin/autobackup.py:383
+#: piklin/autobackup.py:401
 msgid "Not backed up yet"
 msgstr ""
 

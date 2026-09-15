@@ -386,7 +386,7 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
 
         def report(q):
             if progress:
-                progress("downloading", q.done_files, q.total_files)
+                progress("downloading", q.done_files, q.total_files, int(q.fraction * 100))
         backend._fetch_many(root, todo, p, manifest, report)
         backend._save_manifest(root, manifest)
         if p.phase == "cancelled":

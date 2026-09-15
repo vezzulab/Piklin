@@ -16,7 +16,7 @@ msgstr ""
 msgid "Connecting to {name}…"
 msgstr "Conectando con {name}…"
 
-#: piklin/autobackup.py:75 piklin/autobackup.py:192
+#: piklin/autobackup.py:75 piklin/autobackup.py:182
 #, python-brace-format
 msgid "Updating from {name}…"
 msgstr "Actualizando desde {name}…"
@@ -58,42 +58,56 @@ msgstr "hoy a las {time}"
 msgid "yesterday at {time}"
 msgstr "ayer a las {time}"
 
-#: piklin/autobackup.py:368
+#: piklin/autobackup.py:177
+#, python-brace-format
+msgid "Receiving from {name} — {done} of {total} ({percent}%)"
+msgstr "Recibiendo de {name} — {done} de {total} ({percent}%)"
+
+#: piklin/autobackup.py:180
+#, python-brace-format
+msgid "Adding what came from {name}…"
+msgstr "Añadiendo lo que llegó de {name}…"
+
+#: piklin/autobackup.py:383
 msgid "Backing up…"
 msgstr "Haciendo la copia…"
 
-#: piklin/autobackup.py:370
+#: piklin/autobackup.py:386
+msgid "Updating from your backup…"
+msgstr "Actualizando desde tu copia…"
+
+#: piklin/autobackup.py:388
 msgid "Automatic backup is off"
 msgstr "La copia automática está apagada"
 
-#: piklin/autobackup.py:372
+#: piklin/autobackup.py:390
 msgid "Backup waits until battery saver is off"
 msgstr "La copia espera a que se apague el ahorro de batería"
 
-#: piklin/autobackup.py:374
+#: piklin/autobackup.py:392
 #, python-brace-format
 msgid "Can't reach {name}, will try again"
 msgstr "No se puede conectar con {name}, se volverá a intentar"
 
-#: piklin/autobackup.py:376
+#: piklin/autobackup.py:394
 msgid "Backup waits for a connection"
 msgstr "La copia espera a que haya conexión"
 
-#: piklin/autobackup.py:378
+#: piklin/autobackup.py:396
 #, python-brace-format
 msgid "Backup stopped: {problem}"
 msgstr "La copia se detuvo: {problem}"
 
-#: piklin/autobackup.py:380
+#: piklin/autobackup.py:398
 msgid "Changes waiting to back up"
 msgstr "Hay cambios pendientes de copiar"
 
-#: piklin/autobackup.py:382
+#: piklin/autobackup.py:400
 #, python-brace-format
 msgid "Backed up {when}"
 msgstr "Copia hecha {when}"
 
-#: piklin/autobackup.py:383
+#: piklin/autobackup.py:401
 msgid "Not backed up yet"
 msgstr "Todavía sin copia"
 

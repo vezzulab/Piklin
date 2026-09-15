@@ -169,9 +169,23 @@ class AutoBackup:
         return (self._sync is not None and self.active
                 and bool(self.settings.get("sync_computers", True)))
 
+    def _sync_progress(self, name: str):
+        """What updating from ``name`` shows at the bottom of the sidebar, step by
+        step: looking, receiving (with how far through), then adding it in."""
+        def report(stage, done=0, total=0, percent=0):
+            if stage == "downloading" and total:
+                text = _("Receiving from {name} — {done} of {total} ({percent}%)").format(
+                    name=name, done=f"{min(done + 1, total):,}", total=f"{total:,}", percent=percent)
+            elif stage == "applying":
+                text = _("Adding what came from {name}…").format(name=name)
+            else:
+                text = _("Updating from {name}…").format(name=name)
+            GLib.idle_add(self.refresh_status, text)
+        return report
+
     def _before_push(self, remote, backend) -> None:
         if self.syncing_on:
-            self._sync(backend, None)
+            self._sync(backend, self._sync_progress(remote.name))
 
     def _sync_tick(self):
         """Look for another computer's changes, unless a backup is running
@@ -189,11 +203,12 @@ class AutoBackup:
             changed = False
             for r in remotes:
                 backend = r.backend()
-                GLib.idle_add(self.refresh_status, _("Updating from {name}…").format(name=r.name))
+                report = self._sync_progress(r.name)
+                report("looking")
                 try:
                     if not backend.test().ok:
                         continue
-                    result = self._sync(backend, None)
+                    result = self._sync(backend, report)
                     changed = changed or bool(getattr(result, "changed", False))
                 except Exception as exc:
                     from . import logs
@@ -366,6 +381,9 @@ class AutoBackup:
             return ""
         if self._running:
             return self._progress or _("Backing up…")
+        if self._syncing:
+            # receiving what another computer sent: shown as it happens
+            return self._progress or _("Updating from your backup…")
         if not self.settings.get("remote_autosync"):
             return _("Automatic backup is off")
         if self._waiting == "power":
