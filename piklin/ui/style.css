@@ -1724,7 +1724,7 @@ toast button:hover {
 .pika-grid, .pika-grid > row { background: #ffffff; }
 .pika-section { border: none; padding-bottom: 0; }
 .pika-grid > row:not(:first-child) .pika-section { padding-top: 20px; }
-.pika-grid > row .pika-section.pika-section-continued { padding-top: 0; }
+.pika-grid > row .pika-section.pika-section-continued { padding-top: 2px; }   /* TILE_GAP in grid.py */
 .pika-grid { padding-bottom: 24px; }
 
 /* A folder's card without a cover photo yet */
@@ -1822,7 +1822,7 @@ window.piklin paned.pika-split > separator:hover {
    that holds photos and videos both. */
 window.piklin .pika-album-bar {
   background: #ffffff;
-  padding: 10px 20px 10px 12px;
+  padding: 10px 20px;
   border-bottom: 1px solid transparent;
 }
 window.piklin .pika-album-bar.pika-scrolled { border-bottom-color: @pika_hairline_soft; }
@@ -1859,3 +1859,233 @@ window.piklin .pika-kind-switch button:checked {
 window.piklin .pika-kind-switch button label { color: #000000; }
 window.piklin .pika-kind-switch button image { color: #000000; -gtk-icon-size: 14px; }
 window.piklin .pika-kind-switch buttoncontent > box { border-spacing: 5px; }
+
+/* Tooltips: a dark label with white text, everywhere. The rule above that
+   pins text black inside the window reached tooltips too (a tooltip hangs
+   from the window it belongs to), and over the theme's dark tooltip the
+   words of the viewer's buttons were black on black. */
+tooltip, tooltip.background, window.piklin tooltip, window.piklin tooltip.background {
+  background-color: alpha(#1d1d1f, 0.94);
+  color: #ffffff;
+  border: none;
+  border-radius: 7px;
+  box-shadow: 0 2px 8px alpha(#000000, 0.22);
+}
+tooltip label, tooltip image,
+window.piklin tooltip label, window.piklin tooltip image,
+window.piklin tooltip box label {
+  color: #ffffff;
+}
+
+/* Edit in the photo viewer, Continue in the first steps: a black pill with a soft sheen along its top
+   edge and a gentle shadow under it, lifting a little under the pointer.
+   No colour - black, white and light, like the rest of Piklin. */
+window.piklin button.suggested-action.pika-primary-pill {
+  min-height: 32px;
+  padding: 0 18px 0 14px;
+  margin: 0 6px;
+  border: none;
+  border-radius: 999px;
+  background-color: #111113;
+  background-image: linear-gradient(to bottom, #3a3a3e 0%, #1c1c1f 48%, #0b0b0c 100%);
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.22),
+              inset 0 -1px 0 alpha(#000000, 0.35),
+              0 1px 2px alpha(#000000, 0.22),
+              0 4px 12px alpha(#000000, 0.16);
+  transition: all 160ms ease-out;
+}
+window.piklin button.suggested-action.pika-primary-pill:hover {
+  background-image: linear-gradient(to bottom, #4a4a4f 0%, #28282c 48%, #141416 100%);
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.28),
+              inset 0 -1px 0 alpha(#000000, 0.35),
+              0 2px 4px alpha(#000000, 0.22),
+              0 8px 20px alpha(#000000, 0.20);
+}
+window.piklin button.suggested-action.pika-primary-pill:active {
+  background-image: linear-gradient(to bottom, #0b0b0c 0%, #1c1c1f 100%);
+  box-shadow: inset 0 1px 3px alpha(#000000, 0.5), 0 1px 1px alpha(#000000, 0.15);
+}
+window.piklin button.suggested-action.pika-primary-pill label {
+  color: #ffffff;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+window.piklin button.suggested-action.pika-primary-pill image {
+  color: alpha(#ffffff, 0.92);
+  -gtk-icon-size: 14px;
+}
+window.piklin button.suggested-action.pika-primary-pill buttoncontent > box { border-spacing: 7px; }
+
+/* -- alerts ---------------------------------------------------------------
+ * The answers of every alert as rounded buttons you can see: they were
+ * bare words on white, with nothing to show they could be pressed. The
+ * suggested answer is the black pill; the others a soft grey. */
+window.piklin dialog.alert sheet { border-radius: 18px; }
+window.piklin dialog.alert .message-area { padding: 28px 28px 14px 28px; }
+window.piklin dialog.alert .message-area .title-2,
+window.piklin dialog.alert .message-area label.heading { font-size: 1.25rem; font-weight: 800; }
+window.piklin dialog.alert .response-area {
+  padding: 8px 20px 20px 20px;
+  border-spacing: 8px;
+}
+window.piklin dialog.alert .response-area > separator { min-width: 0; min-height: 0; background: none; opacity: 0; }
+window.piklin dialog.alert .response-area > button {
+  min-height: 38px;
+  margin: 0;
+  border: none;
+  border-radius: 999px;
+  background-color: alpha(#000000, 0.06);
+  background-image: none;
+  box-shadow: none;
+  font-weight: 600;
+  transition: all 140ms ease-out;
+}
+window.piklin dialog.alert .response-area > button:hover { background-color: alpha(#000000, 0.10); }
+window.piklin dialog.alert .response-area > button:active { background-color: alpha(#000000, 0.14); }
+window.piklin dialog.alert .response-area > button.suggested-action {
+  background-color: #111113;
+  background-image: linear-gradient(to bottom, #3a3a3e 0%, #1c1c1f 48%, #0b0b0c 100%);
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.22), 0 1px 2px alpha(#000000, 0.22),
+              0 4px 12px alpha(#000000, 0.14);
+}
+window.piklin dialog.alert .response-area > button.suggested-action:hover {
+  background-image: linear-gradient(to bottom, #4a4a4f 0%, #28282c 48%, #141416 100%);
+}
+window.piklin dialog.alert .response-area > button.suggested-action label { color: #ffffff; }
+
+/* -- first steps ------------------------------------------------------------
+ * Numbered steps at the top, one question in the middle, Back and Continue
+ * at the bottom. The choices are cards: the chosen one gets a black edge,
+ * a black icon tile and a check. */
+window.piklin .pika-first-steps sheet { border-radius: 22px; }
+window.piklin .pika-steps { background: #ffffff; }
+window.piklin .pika-steps-top { padding: 26px 28px 6px 28px; }
+window.piklin .pika-step-dot {
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 999px;
+  background: alpha(#000000, 0.06);
+  transition: all 200ms ease-out;
+}
+window.piklin .pika-step-dot label { color: alpha(#000000, 0.45); font-size: 0.8rem; font-weight: 700; }
+window.piklin .pika-step-dot.current {
+  background-image: linear-gradient(to bottom, #3a3a3e, #0b0b0c);
+  box-shadow: 0 0 0 4px alpha(#000000, 0.07), 0 3px 8px alpha(#000000, 0.22);
+}
+window.piklin .pika-step-dot.current label { color: #ffffff; }
+window.piklin .pika-step-dot.done { background: #1d1d1f; }
+window.piklin .pika-step-dot.done image { color: #ffffff; -gtk-icon-size: 12px; }
+window.piklin .pika-step-line {
+  min-width: 34px;
+  min-height: 2px;
+  margin: 0 6px;
+  border-radius: 2px;
+  background: alpha(#000000, 0.08);
+}
+window.piklin .pika-step-line.done { background: #1d1d1f; }
+window.piklin .pika-steps-caption {
+  color: @pika_text_dim;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+window.piklin .pika-step-page { padding: 18px 40px 12px 40px; }
+
+window.piklin .pika-step-icon {
+  min-width: 64px;
+  min-height: 64px;
+  margin-bottom: 18px;
+  border-radius: 20px;
+  background-image: linear-gradient(to bottom, #3a3a3e 0%, #1c1c1f 50%, #0b0b0c 100%);
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.2), 0 10px 26px alpha(#000000, 0.18);
+}
+window.piklin .pika-step-icon image { color: #ffffff; -gtk-icon-size: 30px; }
+window.piklin .pika-step-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #000000;
+}
+window.piklin .pika-step-body {
+  margin-top: 8px;
+  font-size: 0.95rem;
+  color: @pika_text_dim;
+}
+window.piklin .pika-step-content { margin-top: 24px; }
+window.piklin .pika-step-note { color: @pika_text_dim; font-size: 0.85rem; }
+
+window.piklin button.pika-choice {
+  margin: 0 0 10px 0;
+  padding: 12px 14px;
+  min-height: 50px;
+  border: 1px solid @pika_hairline;
+  border-radius: 14px;
+  background: #ffffff;
+  background-image: none;
+  box-shadow: 0 1px 2px alpha(#000000, 0.04);
+  transition: all 150ms ease-out;
+}
+window.piklin button.pika-choice:hover { border-color: alpha(#000000, 0.28); background: #fbfbfc; }
+window.piklin button.pika-choice:checked {
+  border-color: #111113;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #111113, 0 8px 22px alpha(#000000, 0.10);
+}
+window.piklin button.pika-choice .pika-choice-icon {
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 12px;
+  background: alpha(#000000, 0.05);
+  transition: all 150ms ease-out;
+}
+window.piklin button.pika-choice .pika-choice-icon image { color: #000000; -gtk-icon-size: 20px; }
+window.piklin button.pika-choice:checked .pika-choice-icon {
+  background-image: linear-gradient(to bottom, #3a3a3e, #0b0b0c);
+}
+window.piklin button.pika-choice:checked .pika-choice-icon image { color: #ffffff; }
+window.piklin button.pika-choice .pika-choice-title { color: #000000; font-weight: 700; font-size: 1rem; }
+window.piklin button.pika-choice .pika-choice-desc { color: @pika_text_dim; font-size: 0.85rem; font-weight: 400; }
+window.piklin button.pika-choice .pika-choice-check {
+  min-width: 22px;
+  min-height: 22px;
+  border-radius: 999px;
+  background: #111113;
+  color: #ffffff;
+  -gtk-icon-size: 12px;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+window.piklin button.pika-choice:checked .pika-choice-check { opacity: 1; }
+
+window.piklin .pika-ready-card {
+  border: 1px solid @pika_hairline;
+  border-radius: 14px;
+  background: #fbfbfc;
+}
+window.piklin .pika-ready-row { padding: 13px 16px; border-bottom: 1px solid @pika_hairline_soft; }
+window.piklin .pika-ready-row:last-child { border-bottom: none; }
+window.piklin .pika-ready-row image { color: #000000; -gtk-icon-size: 16px; }
+window.piklin .pika-ready-label { color: #000000; font-weight: 600; }
+window.piklin .pika-ready-value { color: @pika_text_dim; }
+
+window.piklin .pika-steps-footer {
+  padding: 16px 40px 20px 40px;
+  border-top: 1px solid @pika_hairline_soft;
+}
+/* Back and Continue: two pills of the same size, one at each side. */
+window.piklin button.pika-step-back {
+  min-height: 32px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 999px;
+  background: alpha(#000000, 0.06);
+  box-shadow: none;
+  font-weight: 600;
+}
+window.piklin button.pika-step-back:hover { background: alpha(#000000, 0.10); }
+window.piklin button.suggested-action.pika-primary-pill:disabled { opacity: 0.35; }
+
+/* In the first steps both pills sit flush with the side margins: the
+   viewer's spacing around Edit made Continue narrower and further in. */
+window.piklin .pika-steps-footer button.suggested-action.pika-primary-pill,
+window.piklin .pika-steps-footer button.pika-step-back { margin: 0; padding-left: 0; padding-right: 0; }

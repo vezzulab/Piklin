@@ -10,6 +10,15 @@
 - A click counts even when the pointer slips a little while pressing, as it often does on a trackpad or a high-resolution screen: buttons, album cards, sidebar rows and photos no longer need a second or third click, on Mac and Linux
 - One click chooses a photo as soon as it is pressed
 
+### First steps
+- The first time Piklin opens, a short guide asks one thing at a time, in five numbered steps: the language, where the library lives, where your photos are - or a backup to restore from - and where to keep a copy. The guide changes language as soon as you choose one, and nothing happens until the last step, so Back can change any answer
+
+### Look and feel
+- Edit, in the photo viewer, is a black pill with an icon
+- Alerts show their answers as rounded buttons, the suggested one in black
+- Tooltips are readable everywhere: over the photo viewer's buttons they were black text on black
+- A hairline of space between photos in the grid, and the same margin at both sides of the photos
+
 ## 1.0.7
 
 ### All your computers, in step

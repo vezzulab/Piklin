@@ -40,6 +40,10 @@ PAGE = 600              # rows fetched per database page
 # the background, page by page, while nobody is looking at it yet.
 FIRST_PAGE = 120
 SECTION_PADDING = 20    # must match .pika-section in style.css
+# A hairline of white between photos, so each one reads as its own picture
+# instead of one long mosaic. Also between the rows a long day is split into
+# (see .pika-section-continued in style.css).
+TILE_GAP = 2
 SCROLLBAR_ALLOWANCE = 14
 # Tiles in one list row. The list only builds the rows on screen, so a
 # small row means opening an album builds and decodes about what is visible
@@ -384,10 +388,10 @@ class PhotoGrid(Gtk.Box):
         # scrollbar; measuring against the raw scroller width made the
         # last column overflow and get clipped at the window edge.
         raw = max(1, self._last_width or self.scroller.get_width())
-        avail = max(1, raw - SECTION_PADDING * 2 - SCROLLBAR_ALLOWANCE)
+        avail = max(1, raw - SECTION_PADDING * 2 - self._scrollbar_width())
         target = max(90, min(420, int(self._target_px)))
-        cols = max(1, int(round(avail / target)))
-        px = max(60, avail // cols)
+        cols = max(1, int(round((avail + TILE_GAP) / (target + TILE_GAP))))
+        px = max(60, (avail - TILE_GAP * (cols - 1)) // cols)
         if px == self.tile_px and cols == self._columns:
             return
         old_cols = self._columns
@@ -408,6 +412,15 @@ class PhotoGrid(Gtk.Box):
                 and not getattr(self, "_regroup_pending", False)):
             self._regroup_pending = True
             GLib.idle_add(self._regroup)
+
+    def _scrollbar_width(self) -> int:
+        """Room kept for the scrollbar at the right. A scrollbar that floats
+        over the photos (a Mac, and GTK's default) takes none: keeping room
+        for it anyway left a wider margin at the right than at the left."""
+        settings = Gtk.Settings.get_default()
+        floating = self.scroller.get_overlay_scrolling() and (
+            settings is None or settings.props.gtk_overlay_scrolling)
+        return 0 if floating else SCROLLBAR_ALLOWANCE
 
     def _keep_place(self) -> None:
         """Tiles are about to change size: keep the photo at the top of the
@@ -490,8 +503,8 @@ class PhotoGrid(Gtk.Box):
         sub = Gtk.Label(xalign=0.0, ellipsize=3)
         sub.add_css_class("pika-section-sub")
         flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE,
-                           homogeneous=False, row_spacing=0,
-                           column_spacing=0, max_children_per_line=64,
+                           homogeneous=False, row_spacing=TILE_GAP,
+                           column_spacing=TILE_GAP, max_children_per_line=64,
                            min_children_per_line=1, valign=Gtk.Align.START,
                            halign=Gtk.Align.START, focusable=False,
                            activate_on_single_click=False)
@@ -575,7 +588,7 @@ class PhotoGrid(Gtk.Box):
             return
         cols = max(1, self._columns or 1)
         rows = -(-len(section.items) // cols)
-        list_item._flow.set_size_request(-1, rows * self.tile_px)
+        list_item._flow.set_size_request(-1, rows * self.tile_px + max(0, rows - 1) * TILE_GAP)
 
     def _build_row(self, list_item) -> None:
         self._pending_rows.discard(list_item)

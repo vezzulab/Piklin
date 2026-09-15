@@ -148,8 +148,13 @@ class ViewerView(Gtk.Box):
         bar.append(info_btn)
         self.info_btn = info_btn
 
-        self.edit_btn = edit = Gtk.Button(label=_("Edit"))
+        # The one filled button in the bar: a black pill with a soft sheen,
+        # the way to the editor and the first thing the eye finds.
+        self.edit_btn = edit = Gtk.Button(tooltip_text=_("Edit"))
+        edit.set_child(Adw.ButtonContent(icon_name="document-edit-symbolic",
+                                         label=_("Edit")))
         edit.add_css_class("suggested-action")
+        edit.add_css_class("pika-primary-pill")
         edit.connect("clicked", lambda *_: self.emit("edit-requested"))
         bar.append(edit)
 

@@ -3322,8 +3322,17 @@ class MainWindow(Adw.ApplicationWindow):
         # updates are on, and never more than once an hour - see updates.due)
         GLib.timeout_add_seconds(60 * 60, lambda: (self._check_updates(quiet=True), True)[1])
         self.grid.load("library")
-        if not self.catalog.roots():
-            self._show_welcome()
+        from . import onboarding
+        pending = onboarding.take_pending(self.library.root)
+        if pending is not None:
+            # Piklin reopened at the end of the first steps: finish them here
+            if self.catalog.roots():
+                self._start_scan(None)
+            GLib.timeout_add(400, lambda: (onboarding.apply(self, pending), False)[1])
+        elif not self.catalog.roots() and not self.settings.get("onboarding_done"):
+            GLib.timeout_add(300, lambda: (onboarding.FirstSteps(self).present(self), False)[1])
+        elif not self.catalog.roots():
+            pass                    # left empty on purpose: the empty page says how to add
         else:
             self._start_scan(None)
             GLib.timeout_add(800, self._maybe_offer_backup)

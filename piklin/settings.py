@@ -75,6 +75,9 @@ DEFAULTS: dict[str, Any] = {
     "backup_keep_versions_days": 30,
     # The first-launch question about backups was answered.
     "backup_onboarding_done": False,
+    # The first steps (language, library, photos, backup) were answered or
+    # put off: they are not shown again.
+    "onboarding_done": False,
 
     # -- privacy ---------------------------------------------------------
     "face_detection": True,            # local only; used by portrait tools
