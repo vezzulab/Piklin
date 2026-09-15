@@ -3209,6 +3209,8 @@ class MainWindow(Adw.ApplicationWindow):
             threading.Thread(target=self._shrink_videos, daemon=True).start()
 
     def _shrink_videos(self):
+        from .. import system
+        system.lower_thread_priority()          # the encoder's threads inherit it
         total = len(self.settings.get("videos_to_shrink") or [])
         done = 0
         while True:

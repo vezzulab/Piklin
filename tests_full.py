@@ -1323,6 +1323,20 @@ if _tripB is not None and _beachB is not None:
     _rA2 = _sy.pull(_A, _cA, _shared())
     check("looking again with nothing new changes nothing", _rA2.ok and not _rA2.changed, _rA2)
 
+# Heavy work takes only what the computer can spare, and gives way.
+from piklin import system as _sysm
+import threading as _thr
+_budgets = {k: _sysm.work_budget(k) for k in ("thumbs", "probe", "images", "video")}
+check("background work leaves a core free and fits in memory",
+      all(1 <= n <= _sysm._CAPS[k] for k, n in _budgets.items())
+      and all(n <= max(1, (os.cpu_count() or 2) - 1) for n in _budgets.values()), _budgets)
+_lowered = []
+_t = _thr.Thread(target=lambda: (_sysm.lower_thread_priority(), _lowered.append(
+    os.getpriority(os.PRIO_PROCESS, _thr.get_native_id()) if _sysm.IS_LINUX else True)))
+_t.start(); _t.join()
+check("a background thread can lower its own priority",
+      _lowered and (_lowered[0] is True or _lowered[0] >= 10), _lowered)
+
 section("10. Settings")
 from piklin.settings import Settings
 s1 = Settings(os.path.join(TMP,"s.json"))

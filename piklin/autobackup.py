@@ -184,6 +184,8 @@ class AutoBackup:
         remotes = self.remotes
 
         def work():
+            from . import system
+            system.lower_thread_priority()
             changed = False
             for r in remotes:
                 backend = r.backend()
@@ -313,6 +315,8 @@ class AutoBackup:
         keep = int(self.settings.get("backup_keep_versions_days", 30) or 0)
 
         def work():
+            from . import system
+            system.lower_thread_priority()      # whatever the person is doing comes first
             try:
                 outcome = run_backup(root, remotes, keep, progress=lambda text:
                                      GLib.idle_add(self.refresh_status, text),

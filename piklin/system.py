@@ -17,6 +17,68 @@ IS_MAC = sys.platform == "darwin"
 IS_WINDOWS = sys.platform == "win32"
 
 
+# -- sharing the computer ---------------------------------------------------------
+# Piklin's heavy work - thumbnails, reading photos, compressing, making videos
+# smaller, backups - runs beside whatever else the person is doing, on anything
+# from a new laptop to an old one with little memory. It takes only what the
+# computer can spare, and gives way to everything else: that also keeps the
+# processor from racing on a battery.
+_MB = 1024 * 1024
+# What one large photo can take while decoded and worked on: a 45-megapixel
+# image as floating point, with a copy or two along the way.
+_PER_IMAGE = 600 * _MB
+_KEEP_FREE = 2048 * _MB            # for the system, Piklin's window and everything else
+_CAPS = {"thumbs": 6, "probe": 8, "images": 4, "video": 4}
+
+
+def total_memory() -> int:
+    try:
+        return int(os.sysconf("SC_PAGE_SIZE")) * int(os.sysconf("SC_PHYS_PAGES"))
+    except (ValueError, OSError, AttributeError):
+        return 8192 * _MB
+
+
+def work_budget(kind: str = "images") -> int:
+    """How many pieces of ``kind`` of work may run at once on this computer:
+    a core is always left for the person using it, and each large photo in
+    progress needs its share of memory. ``kind``: thumbs, probe (reading
+    photo details, which needs little memory), images or video."""
+    spare_cores = max(1, (os.cpu_count() or 2) - 1)
+    spare_memory = max(1, (total_memory() - _KEEP_FREE) // _PER_IMAGE)
+    if kind == "probe":
+        spare_memory = max(spare_memory, 2)
+    return int(max(1, min(spare_cores, spare_memory, _CAPS.get(kind, 4))))
+
+
+_QOS_CLASS_UTILITY = 0x11
+
+
+def lower_thread_priority() -> None:
+    """Make the calling thread give way to everything else on the computer.
+    Threads it starts afterwards (a video encoder's) inherit it."""
+    import threading
+    try:
+        if IS_LINUX:
+            os.setpriority(os.PRIO_PROCESS, threading.get_native_id(), 10)
+        elif IS_MAC:
+            libsystem = ctypes.CDLL(None)
+            libsystem.pthread_set_qos_class_self_np(ctypes.c_uint(_QOS_CLASS_UTILITY),
+                                                    ctypes.c_int(0))
+    except (OSError, AttributeError, ValueError):
+        pass
+
+
+def _nice_child() -> None:
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+
+
+# For subprocess's preexec_fn: a helper program (rclone) at low priority.
+lower_process_priority = None if IS_WINDOWS else _nice_child
+
+
 # -- extended attributes ------------------------------------------------------
 # A short note stored on a file itself, such as the size of the camera file a
 # smaller library copy was made from. Linux has os.getxattr; Python on a Mac

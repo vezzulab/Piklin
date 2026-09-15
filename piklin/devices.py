@@ -495,8 +495,11 @@ def import_photos(library, records: list[dict], on_progress=None,
     skipped = failed = done = 0
     total = len(records)
     stopped = False
-    max_workers = workers or min(4, max(2, os.cpu_count() or 2))
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+    # Each file may be a large photo compressed in memory: as many at once as
+    # the computer can spare, at low priority (system.work_budget).
+    max_workers = workers or system.work_budget("images")
+    with ThreadPoolExecutor(max_workers=max_workers,
+                            initializer=system.lower_thread_priority) as pool:
         futures = [pool.submit(one, rec) for rec in records]
         for fut in as_completed(futures):
             if cancel is not None and cancel.is_set() and not stopped:

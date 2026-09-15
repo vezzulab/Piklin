@@ -42,18 +42,24 @@ class ThumbCache:
         # path -> the edit file for it (Library.edit_sidecar), or None
         self._edits = edits
         self.root.mkdir(parents=True, exist_ok=True)
-        n = workers or min(8, max(2, (os.cpu_count() or 4)))
+        from . import system
+        # As many as the computer can spare: a core stays free for the person
+        # using it, and each large photo decoded takes memory (system.work_budget).
+        n = workers or system.work_budget("thumbs")
         # Decoding is I/O plus C code that releases the GIL, so threads
         # genuinely parallelise here; processes would cost more in
-        # pickling the results than they save.
+        # pickling the results than they save. They run at low priority:
+        # whatever the person is doing comes first.
         self._pool = ThreadPoolExecutor(max_workers=n,
-                                        thread_name_prefix="thumb")
+                                        thread_name_prefix="thumb",
+                                        initializer=system.lower_thread_priority)
         # Photos read through gvfs - a phone or camera over gphoto2 or MTP -
         # arrive a whole file at a time over USB, seconds each. They get
         # workers of their own, so they can never hold up the library's
         # thumbnails behind them.
         self._slow_pool = ThreadPoolExecutor(max_workers=2,
-                                             thread_name_prefix="thumb-device")
+                                             thread_name_prefix="thumb-device",
+                                             initializer=system.lower_thread_priority)
         self._inflight: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
 

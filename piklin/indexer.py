@@ -67,7 +67,8 @@ class Indexer:
                  library_root: Path | str | None = None):
         self.catalog = catalog
         self.thumbs = thumbs
-        self.workers = workers or min(8, max(2, (os.cpu_count() or 4)))
+        from . import system
+        self.workers = workers or system.work_budget("probe")
         self.follow_symlinks = follow_symlinks
         # The library lives at ~/Pictures/Piklin by default - that
         # is *inside* ~/Pictures, which is also the folder the first-run
@@ -242,7 +243,9 @@ class Indexer:
         # Probing is header reads plus EXIF parsing: I/O bound, so threads
         # help even though the work is in Python.
         batch: list[dict] = []
-        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+        from . import system
+        with ThreadPoolExecutor(max_workers=self.workers,
+                                initializer=system.lower_thread_priority) as pool:
             futures = {pool.submit(iio.probe, path, rid): path
                        for path, st, rid in stale}
             for fut in as_completed(futures):
@@ -405,7 +408,9 @@ class Indexer:
             return row["id"], (1 if out else 2)
 
         results: list[tuple[int, int]] = []
-        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+        from . import system
+        with ThreadPoolExecutor(max_workers=self.workers,
+                                initializer=system.lower_thread_priority) as pool:
             for fut in as_completed([pool.submit(work, r) for r in rows]):
                 if self.cancel.is_set():
                     break

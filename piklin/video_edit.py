@@ -222,6 +222,13 @@ def _source_rotation(path) -> int:
     return int((stream_info(path) or {}).get("rotation") or 0)
 
 
+def _threads() -> int:
+    """Threads a video decoder or encoder may use: what the computer can
+    spare, not every core (see system.work_budget)."""
+    from . import system
+    return system.work_budget("video")
+
+
 # -- single frames ---------------------------------------------------------------
 def frame_image(path, t: float, edit: VideoEdit | None = None,
                 max_side: int | None = None):
@@ -232,6 +239,7 @@ def frame_image(path, t: float, edit: VideoEdit | None = None,
     with av.open(str(path)) as c:
         v = c.streams.video[0]
         v.thread_type = "AUTO"
+        v.codec_context.thread_count = _threads()
         geo = geometry(v.codec_context.width, v.codec_context.height,
                        _source_rotation(path), edit, max_side)
         c.seek(int(max(0.0, t) / v.time_base), stream=v, backward=True)
@@ -349,6 +357,7 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
     try:
         vin = inp.streams.video[0]
         vin.thread_type = "AUTO"
+        vin.codec_context.thread_count = _threads()
         ain = inp.streams.audio[0] if inp.streams.audio and not edit.mute else None
         geo = geometry(vin.codec_context.width, vin.codec_context.height,
                        _source_rotation(path), edit, max_side)
@@ -361,6 +370,7 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
                       container_options=container_options)
         vout = out.add_stream(vcodec, rate=rate)
         vout.width, vout.height, vout.pix_fmt = ow, oh, "yuv420p"
+        vout.codec_context.thread_count = _threads()
         # about 0.12 bit per pixel per frame: 1080p30 near 7.5 Mbit/s
         vout.bit_rate = int(ow * oh * fps * 0.12)
         if vcodec.startswith("libvpx"):
@@ -527,6 +537,7 @@ def _export_gif(av, path, tmp, edit, segs, max_side, on_progress, cancel):
     with av.open(str(path)) as c:
         v = c.streams.video[0]
         v.thread_type = "AUTO"
+        v.codec_context.thread_count = _threads()
         geo = geometry(v.codec_context.width, v.codec_context.height,
                        _source_rotation(path), edit, max_side)
         g, chain = _video_graph(av, v, geo, "rgb24")

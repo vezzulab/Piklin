@@ -222,6 +222,8 @@ class ExportDialog(Adw.Dialog):
         sample = self.paths[:6]
 
         def work():
+            from .. import system
+            system.lower_thread_priority()
             for pid in cz.PROFILES:
                 if pid == "original":
                     GLib.idle_add(self._set_badge, pid, "unchanged")
@@ -367,6 +369,8 @@ class ExportDialog(Adw.Dialog):
         self.status_row.set_title(_("Exporting…"))
 
         def work():
+            from .. import system
+            system.lower_thread_priority()      # the person's own work comes first
             done = saved_in = saved_out = 0
             errors = 0
             for i, p in enumerate(paths):
@@ -479,6 +483,8 @@ class ExportDialog(Adw.Dialog):
         self.status_row.set_title(_("Exporting originals…"))
 
         def work():
+            from .. import system
+            system.lower_thread_priority()
             done = errors = total = 0
             for i, p in enumerate(paths):
                 try:
