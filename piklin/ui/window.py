@@ -330,8 +330,12 @@ class MainWindow(Adw.ApplicationWindow):
         # Minimise, maximise, close on the trailing edge, whatever order
         # the desktop's own setting would put them in (none here on a Mac,
         # where they are at the start of the sidebar's bar).
-        from .chrome import CONTENT_LAYOUT
+        from .chrome import CONTENT_LAYOUT, IS_MAC
         header.set_decoration_layout(CONTENT_LAYOUT)
+        if IS_MAC:
+            # Otherwise the bar keeps an empty slot for the system's buttons.
+            header.set_show_start_title_buttons(False)
+            header.set_show_end_title_buttons(False)
 
         self.search = Gtk.SearchEntry(placeholder_text=_("Search photos"),
                                       width_chars=22)

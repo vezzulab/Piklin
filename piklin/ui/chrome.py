@@ -13,7 +13,7 @@ import gi
 
 gi.require_version("Gdk", "4.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gdk, Gtk  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 IS_MAC = sys.platform == "darwin"
 
@@ -75,18 +75,76 @@ def fit(width: int, height: int, share: float = 0.9) -> tuple[int, int]:
     return width, height
 
 
-def _mac_controls() -> Gtk.WindowControls:
-    """The Mac's own close, minimise and zoom buttons. Drawn by GTK they
-    looked right but did not answer clicks reliably; the system's own
-    answer like in every other app."""
-    controls = Gtk.WindowControls(side=Gtk.PackType.START, use_native_controls=True)
-    controls.set_decoration_layout("close,minimize,maximize:")
-    return controls
+class MacWindowButtons(Gtk.Box):
+    """Close, minimise and zoom as a Mac shows them, top left.
+
+    Three ordinary buttons that call the window directly. Gtk.WindowControls
+    did not answer clicks on a Mac - drawn by GTK or asked for as native
+    controls, which only work in GTK's own header bar, not libadwaita's.
+    Each dot is 12 px, as on a Mac, inside a 20 px target that is easy to hit.
+    """
+
+    def __init__(self):
+        super().__init__(spacing=0, valign=Gtk.Align.CENTER)
+        self.add_css_class("pika-mac-buttons")
+        # The system's own buttons are still drawn at the corner and answer
+        # nothing: hidden once the window is on screen, so these are the ones.
+        self.connect("map", lambda *_: GLib.idle_add(hide_native_window_buttons))
+        for name, icon, action in (
+                ("close", "window-close-symbolic", self._close),
+                ("minimize", "window-minimize-symbolic", self._minimize),
+                ("maximize", "window-maximize-symbolic", self._zoom)):
+            button = Gtk.Button(child=Gtk.Image(icon_name=icon), focusable=False)
+            button.add_css_class(name)
+            button.connect("clicked", action)
+            self.append(button)
+
+    def _window(self):
+        root = self.get_root()
+        return root if isinstance(root, Gtk.Window) else None
+
+    def _close(self, _button):
+        if (win := self._window()) is not None:
+            win.close()
+
+    def _minimize(self, _button):
+        if (win := self._window()) is not None:
+            win.minimize()
+
+    def _zoom(self, _button):
+        if (win := self._window()) is not None:
+            win.unmaximize() if win.is_maximized() else win.maximize()
+
+
+def hide_native_window_buttons() -> bool:
+    """Hide the Mac's own close, minimise and zoom buttons on every window of
+    the app. Returns False, so it can be used as a one-shot idle callback."""
+    if not IS_MAC:
+        return False
+    try:
+        from AppKit import (NSApplication, NSWindowCloseButton,
+                            NSWindowMiniaturizeButton, NSWindowZoomButton)
+    except ImportError:
+        return False
+    for window in NSApplication.sharedApplication().windows() or []:
+        for kind in (NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton):
+            button = window.standardWindowButton_(kind)
+            if button is not None:
+                button.setHidden_(True)
+    return False
+
+
+def _mac_controls() -> Gtk.Widget:
+    return MacWindowButtons()
 
 
 def add_header_controls(header) -> None:
     """On a Mac, the window buttons at the start of the sidebar's bar."""
     if IS_MAC:
+        # The bar's own button slots stay reserved for the system's buttons on
+        # a Mac, empty, and push these away from the corner: they go.
+        header.set_show_start_title_buttons(False)
+        header.set_show_end_title_buttons(False)
         header.pack_start(_mac_controls())
 
 

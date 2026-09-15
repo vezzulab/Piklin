@@ -1,8 +1,34 @@
 /* macOS only, loaded after style.css.
  *
- * The window buttons are the system's own (see ui/chrome.py): they need no
- * style here, only room at the start of the bar. */
-windowcontrols.start { margin: 0 6px 0 4px; }
+ * The window buttons (ui/chrome.py, MacWindowButtons): three 12 px dots -
+ * close red, minimise yellow, zoom green - each the middle of a 20 px target,
+ * their symbols showing only while the pointer is over the group. */
+.pika-mac-buttons { margin: 0 4px 0 4px; }
+.pika-mac-buttons button,
+.pika-header .pika-mac-buttons button {
+  min-width: 12px;
+  min-height: 12px;
+  padding: 4px;
+  margin: 0;
+  border: none;
+  border-radius: 999px;
+  box-shadow: none;
+  background-clip: content-box;
+  color: alpha(#000000, 0.6);
+}
+.pika-mac-buttons button.close { background-color: #ff5f57; }
+.pika-mac-buttons button.minimize { background-color: #febc2e; }
+.pika-mac-buttons button.maximize { background-color: #28c840; }
+.pika-mac-buttons button:hover { filter: none; }
+.pika-mac-buttons button:active { filter: brightness(0.85); }
+.pika-mac-buttons button image {
+  -gtk-icon-size: 8px;
+  opacity: 0;
+  color: alpha(#000000, 0.6);
+}
+.pika-mac-buttons:hover button image { opacity: 1; }
+/* An unfocused window greys them, as the system does. */
+window:backdrop .pika-mac-buttons button { background-color: #dcdcdc; }
 
 /* The brand, at the top of the sidebar below the window buttons rather than
  * squeezed between them and the menu button in the bar. */
