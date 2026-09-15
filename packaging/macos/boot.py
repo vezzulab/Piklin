@@ -31,6 +31,16 @@ env["GIO_MODULE_DIR"] = os.path.join(LIB, "gio", "modules")
 env["FONTCONFIG_FILE"] = os.path.join(RUNTIME, "etc", "fonts", "fonts.conf")
 env["PANGOCAIRO_BACKEND"] = "fontconfig"
 
+# python.org's Python looks for the certificates that let it trust a website
+# in /Library/Frameworks, which no Mac has without that Python's installer:
+# every HTTPS request - updates, WebDAV backups - failed as "no connection".
+# The app carries certifi's list instead.
+try:
+    import certifi
+    env.setdefault("SSL_CERT_FILE", certifi.where())
+except ImportError:
+    pass
+
 
 def _pixbuf_loaders() -> str:
     """GdkPixbuf's list of image loaders names each loader by its full path,

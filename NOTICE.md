@@ -37,6 +37,7 @@ On Linux, Piklin uses the Python, GTK and libraries of the system. The Mac app c
 | [libpng](http://www.libpng.org), [libjpeg-turbo](https://libjpeg-turbo.org), [LibTIFF](https://libtiff.gitlab.io/libtiff/), [PCRE2](https://pcre.org), [libepoxy](https://github.com/anholt/libepoxy), [libfyaml](https://github.com/pantoniou/libfyaml) | Libraries the interface uses | libpng; BSD-3-Clause and IJG; libtiff; BSD-3-Clause; MIT; MIT |
 | [PyGObject](https://pygobject.gnome.org), [pycairo](https://pycairo.readthedocs.io) | Python access to GTK and cairo | LGPL-2.1-or-later |
 | [PyObjC](https://pyobjc.readthedocs.io) | iPhones, iPads and cameras through Image Capture | MIT |
+| [certifi](https://github.com/certifi/python-certifi) | The certificates that secure connections (updates, backups) | MPL-2.0 |
 
 These libraries are separate shared libraries inside `Piklin.app/Contents/Resources/runtime-arm64` and `runtime-x86_64`, and may be replaced with your own builds. Their source code is available from the projects above.
 

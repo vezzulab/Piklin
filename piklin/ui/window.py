@@ -183,8 +183,9 @@ class MainWindow(Adw.ApplicationWindow):
         header.add_css_class("pika-header")
         # No window buttons on the sidebar's bar on Linux: they sit on the
         # right of the content bar. On a Mac they belong here, at the top left.
-        from .chrome import SIDEBAR_LAYOUT
+        from .chrome import SIDEBAR_LAYOUT, add_header_controls
         header.set_decoration_layout(SIDEBAR_LAYOUT)
+        add_header_controls(header)
         # The app's mark, centred over the sidebar.
         from .brand import BrandMark
         from .chrome import BRAND_IN_SIDEBAR, BRAND_SIZE

@@ -41,6 +41,10 @@ PINNED=($(sed -n 's/^PER_PYTHON=(\(.*\))$/\1/p; s/^ABI3=(\(.*\))$/\1/p' "$HERE/b
 # Cameras and phones reach a Mac through Image Capture (gvfs does this on
 # Linux); PyObjC is how Python talks to it.
 PINNED+=(pyobjc-core==12.2.2 pyobjc-framework-Cocoa==12.2.2 pyobjc-framework-ImageCaptureCore==12.2.2)
+# The certificates HTTPS trusts (updates, WebDAV backups): python.org's
+# Python has none of its own on a Mac without its installer; boot.py points
+# SSL_CERT_FILE at these.
+PINNED+=(certifi==2026.7.22)
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 [ -n "$VERSION" ] || { echo "could not read VERSION from app.py" >&2; exit 1; }

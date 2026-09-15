@@ -29,7 +29,9 @@ def key_name(keyval) -> str:
     return "Delete" if IS_MAC and name == "BackSpace" else name
 
 # The sidebar's bar and the content bar of the library page.
-SIDEBAR_LAYOUT = "close,minimize,maximize:" if IS_MAC else ":"
+# On a Mac the bar draws no buttons of its own: add_header_controls puts the
+# system's own there instead.
+SIDEBAR_LAYOUT = ":"
 CONTENT_LAYOUT = ":" if IS_MAC else ":minimize,maximize,close"
 # The buttons take room at the start of the sidebar's bar on a Mac, so the
 # sidebar is wider there to keep the brand centred beside them.
@@ -73,11 +75,25 @@ def fit(width: int, height: int, share: float = 0.9) -> tuple[int, int]:
     return width, height
 
 
+def _mac_controls() -> Gtk.WindowControls:
+    """The Mac's own close, minimise and zoom buttons. Drawn by GTK they
+    looked right but did not answer clicks reliably; the system's own
+    answer like in every other app."""
+    controls = Gtk.WindowControls(side=Gtk.PackType.START, use_native_controls=True)
+    controls.set_decoration_layout("close,minimize,maximize:")
+    return controls
+
+
+def add_header_controls(header) -> None:
+    """On a Mac, the window buttons at the start of the sidebar's bar."""
+    if IS_MAC:
+        header.pack_start(_mac_controls())
+
+
 def add_window_controls(bar: Gtk.Box) -> Gtk.WindowControls:
     """Put the window buttons on a custom top bar, at the end it belongs."""
     if IS_MAC:
-        controls = Gtk.WindowControls(side=Gtk.PackType.START)
-        controls.set_decoration_layout("close,minimize,maximize:")
+        controls = _mac_controls()
         bar.prepend(controls)
     else:
         controls = Gtk.WindowControls(side=Gtk.PackType.END)
