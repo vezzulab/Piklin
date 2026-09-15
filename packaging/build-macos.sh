@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build Piklin.app and its disk image: one app for Apple Silicon and Intel
-# Macs running macOS 14 or newer.
+# Macs running macOS 11 Big Sur or newer.
 #
 # The app carries two complete native runtimes - GTK 4, libadwaita, FFmpeg
 # and the compiled Python libraries, built once for arm64 and once for
@@ -25,7 +25,7 @@ MAC="$HERE/macos"
 CACHE="$HERE/macos-cache"
 SRC="$CACHE/src"
 ARCHS="${ARCHS:-arm64 x86_64}"
-MIN_MACOS="${MIN_MACOS:-14.0}"
+MIN_MACOS="${MIN_MACOS:-11.0}"
 SIGN_ID="${SIGN_ID:--}"
 PYVER=3.14
 PYFULL=3.14.6
@@ -95,14 +95,19 @@ cp "$HERE/deb/release-key.pem" "$C/Resources/release-key.pem"
 
 # -------------------------------------------------------------- runtimes
 platforms() {   # pip --platform flags for a Mac of this architecture, newest first
-  local v
-  if [ "$1" = arm64 ]; then
-    for v in 14_0 13_0 12_0 11_0; do printf -- '--platform macosx_%s_arm64 ' "$v"; done
-  else
-    for v in 14_0 13_0 12_0 11_0 10_15 10_13 10_9; do printf -- '--platform macosx_%s_x86_64 ' "$v"; done
-  fi
+  # Only wheels that run on the oldest macOS Piklin supports: pip otherwise
+  # takes the newest it may, and NumPy's for macOS 14 refused to start on 13.
+  local v min="${MIN_MACOS%%.*}" tags
+  if [ "$1" = arm64 ]; then tags="14_0 13_0 12_0 11_0"; else tags="14_0 13_0 12_0 11_0 10_16 10_15 10_13 10_9"; fi
+  for v in $tags; do
+    [ "${v%%_*}" -gt "$min" ] && continue
+    printf -- '--platform macosx_%s_%s ' "$v" "$1"
+  done
   # Wheels built for both processors in one file (PyObjC).
-  for v in 11_0 10_15 10_13 10_9; do printf -- '--platform macosx_%s_universal2 ' "$v"; done
+  for v in 11_0 10_15 10_13 10_9; do
+    [ "${v%%_*}" -gt "$min" ] && continue
+    printf -- '--platform macosx_%s_universal2 ' "$v"
+  done
 }
 
 for a in $ARCHS; do

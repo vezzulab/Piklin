@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the GTK 4 and libadwaita stack Piklin.app carries, for one
-# architecture, for macOS 14 and newer.
+# architecture, for macOS 11 Big Sur and newer.
 #
 # Homebrew's libraries are built for the macOS the build machine runs, so an
 # app made from them refuses to start on anything older. This builds the same
@@ -43,7 +43,7 @@ PREFIX="$CACHE/$ARCH/prefix"
 WHEELS="$CACHE/$ARCH/wheels"
 STAMPS="$PREFIX/.built"
 LOGS="$CACHE/$ARCH/logs"
-MIN_MACOS="${MIN_MACOS:-14.0}"
+MIN_MACOS="${MIN_MACOS:-11.0}"
 JOBS="$(sysctl -n hw.ncpu)"
 
 if [ "$ARCH" = arm64 ]; then
@@ -163,6 +163,7 @@ fetch "$G/gobject-introspection/1.86/gobject-introspection-1.86.0.tar.xz" gobjec
 fetch "https://download.sourceforge.net/libpng/libpng-1.6.55.tar.xz" libpng-1.6.55.tar.xz
 fetch "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.1.3/libjpeg-turbo-3.1.3.tar.gz" libjpeg-turbo-3.1.3.tar.gz
 fetch "https://download.osgeo.org/libtiff/tiff-4.7.1.tar.xz" tiff-4.7.1.tar.xz
+fetch "https://github.com/mm2/Little-CMS/releases/download/lcms2.17/lcms2-2.17.tar.gz" lcms2-2.17.tar.gz
 fetch "https://download.savannah.gnu.org/releases/freetype/freetype-2.14.2.tar.xz" freetype-2.14.2.tar.xz
 fetch "https://gitlab.freedesktop.org/api/v4/projects/890/packages/generic/fontconfig/2.17.1/fontconfig-2.17.1.tar.xz" fontconfig-2.17.1.tar.xz
 fetch "https://cairographics.org/releases/pixman-0.46.4.tar.gz" pixman-0.46.4.tar.gz
@@ -222,6 +223,8 @@ cmake_pkg libjpeg-turbo libjpeg-turbo-3.1.3.tar.gz -DENABLE_STATIC=OFF -DWITH_TU
 cmake_pkg libtiff tiff-4.7.1.tar.xz -Dtiff-tools=OFF -Dtiff-tests=OFF -Dtiff-docs=OFF \
     -Dtiff-contrib=OFF -Dcxx=OFF -Djpeg=ON -Dzlib=ON -Dlzma=OFF -Dzstd=OFF -Dwebp=OFF \
     -Djbig=OFF -Dlerc=OFF -Dlibdeflate=OFF -Dpixarlog=OFF
+# Colour management for RAW photos (LibRaw, inside rawpy on Intel Macs).
+configure_pkg lcms2 lcms2-2.17.tar.gz --without-jpeg --without-tiff
 meson_pkg freetype freetype-2.14.2.tar.xz -Dharfbuzz=disabled -Dbrotli=disabled \
     -Dbzip2=disabled -Dpng=enabled -Dtests=disabled
 meson_pkg fontconfig fontconfig-2.17.1.tar.xz -Ddoc=disabled -Dtests=disabled \
@@ -291,25 +294,40 @@ if ! built python-bindings; then
   if [ "$ARCH" = x86_64 ]; then
     RAWPY="$(sed -n 's/.*rawpy==\([0-9.]*\).*/\1/p' "$(dirname "$HERE")/build-deb.sh")"
     rm -f "$WHEELS"/rawpy-*.whl
-    run_logged python-bindings "$PY" -m pip wheel --no-deps --no-cache-dir \
-        --no-binary rawpy "rawpy==$RAWPY" -w "$WHEELS"
-    # Its LibRaw uses Little CMS, JasPer and libjpeg from Intel Homebrew:
-    # carried inside the wheel, as rawpy's own Apple Silicon wheel carries
-    # them - but only if they run on the oldest macOS Piklin supports.
-    for lib in /usr/local/opt/little-cms2/lib/liblcms2.2.dylib \
-               /usr/local/opt/jasper/lib/libjasper.7.dylib \
-               /usr/local/opt/jpeg-turbo/lib/libjpeg.8.dylib; do
-      minos="$(otool -l "$lib" | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print $2; exit}')"
-      if [ "$(printf '%s\n%s\n' "$minos" "$MIN_MACOS" | sort -V | tail -1)" != "$MIN_MACOS" ]; then
-        echo "$lib needs macOS $minos, newer than $MIN_MACOS - refusing to bundle it" >&2; exit 1
-      fi
-    done
+    # LibRaw finds its image libraries through CMake, which rawpy gives no
+    # options: a toolchain file (read from the environment) keeps it to this
+    # prefix - Little CMS and libjpeg built above for the oldest macOS Piklin
+    # supports - and away from Intel Homebrew's, which need a newer macOS.
+    # JPEG 2000 (JasPer), used by the RAW files of a few old cameras, is left out.
+    tc="$WORK/rawpy-toolchain.cmake"
+    cat > "$tc" <<CMAKE
+set(CMAKE_OSX_ARCHITECTURES $ARCH)
+set(CMAKE_OSX_DEPLOYMENT_TARGET $MIN_MACOS)
+set(CMAKE_PREFIX_PATH $PREFIX)
+set(CMAKE_IGNORE_PREFIX_PATH /usr/local;/opt/homebrew)
+set(ENABLE_JASPER OFF CACHE BOOL "" FORCE)
+CMAKE
+    run_logged python-bindings env CMAKE_TOOLCHAIN_FILE="$tc" "$PY" -m pip wheel --no-deps \
+        --no-cache-dir --no-binary rawpy "rawpy==$RAWPY" -w "$WHEELS"
     run_logged python-bindings "$PY" -m pip install --quiet delocate
     raw="$(ls "$WHEELS"/rawpy-*.whl)"
     rm -rf "$WORK/rawpy-delocated"
     run_logged python-bindings "$CACHE/$ARCH/buildpy/bin/delocate-wheel" \
         --require-archs "$ARCH" -w "$WORK/rawpy-delocated" "$raw"
     mv -f "$WORK"/rawpy-delocated/rawpy-*.whl "$raw"
+    # Everything carried inside the wheel runs on the oldest macOS Piklin supports.
+    check="$(mktemp -d)"
+    unzip -q "$raw" -d "$check"
+    while IFS= read -r lib; do
+      if otool -L "$lib" | tail -n +2 | grep -qE "/opt/homebrew|/usr/local"; then
+        echo "$lib links to Homebrew - refusing to bundle it" >&2; exit 1
+      fi
+      minos="$(otool -l "$lib" | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print $2; exit}')"
+      if [ -n "$minos" ] && [ "$(printf '%s\n%s\n' "$minos" "$MIN_MACOS" | sort -V | tail -1)" != "$MIN_MACOS" ]; then
+        echo "$lib needs macOS $minos, newer than $MIN_MACOS - refusing to bundle it" >&2; exit 1
+      fi
+    done < <(find "$check" -type f \( -name '*.dylib' -o -name '*.so' \))
+    rm -rf "$check"
   fi
   unset _PYTHON_HOST_PLATFORM
   done_ python-bindings
@@ -320,19 +338,23 @@ fi
 # goes through PyAV and Piklin's own LGPL FFmpeg, as on an Intel Mac, whose
 # OpenCV wheel has no FFmpeg at all - and without formats Piklin never asks
 # OpenCV to read, so it links to nothing but macOS.
-if [ "$ARCH" = arm64 ] && ! built opencv; then
+# Built for Intel Macs too: OpenCV's Intel wheel needs macOS 14.
+if ! built opencv; then
   say "OpenCV without FFmpeg"
   : > "$LOGS/opencv.log"
   OPENCV="$(sed -n 's/.*opencv-python-headless==\([0-9.]*\).*/\1/p' "$(dirname "$HERE")/build-deb.sh")"
   rm -f "$WHEELS"/opencv_python_headless-*.whl
   # In a bare environment - nothing of this script's compiler flags, search
-  # paths or tools - which is the only way OpenCV's build recognised this Mac
-  # as arm64 (with them it built Intel assembly). Homebrew stays out because
-  # every optional library it could offer is switched off.
-  run_logged opencv env -i HOME="$HOME" PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+  # paths or tools - with the processor named at every level: OpenCV's build
+  # took this Mac for an Intel one ("Host: Darwin x86_64") and compiled Intel
+  # assembly, until the process was started for this architecture and CMake
+  # and scikit-build were told which processor to build for. Homebrew stays
+  # out because every optional library it could offer is switched off.
+  run_logged opencv arch "-$ARCH" /usr/bin/env -i HOME="$HOME" PATH="$BREW/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
       MACOSX_DEPLOYMENT_TARGET="$MIN_MACOS" _PYTHON_HOST_PLATFORM="macosx-$MIN_MACOS-$ARCH" \
+      ARCHFLAGS="-arch $ARCH" CMAKE_APPLE_SILICON_PROCESSOR="$ARCH" \
       ENABLE_HEADLESS=1 ENABLE_CONTRIB=0 \
-      CMAKE_ARGS="-DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_AVIF=OFF -DWITH_OPENEXR=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_TIFF=OFF -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF" \
+      CMAKE_ARGS="-DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_AVIF=OFF -DWITH_OPENEXR=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_TIFF=OFF -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DCMAKE_SYSTEM_PROCESSOR=$ARCH -DCMAKE_OSX_ARCHITECTURES=$ARCH" \
       "$PY" -m pip wheel --no-deps --no-cache-dir --no-binary opencv-python-headless \
       "opencv-python-headless==$OPENCV" -w "$WHEELS"
   # Nothing but macOS itself may be linked.

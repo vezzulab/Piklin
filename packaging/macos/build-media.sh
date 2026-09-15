@@ -34,7 +34,7 @@ CACHE="$PACKAGING/macos-cache/$ARCH"
 WORK="$CACHE/media-build"
 PREFIX="$CACHE/media-prefix"
 OUT="$CACHE/media-wheels"
-MIN_MACOS="${MIN_MACOS:-14.0}"
+MIN_MACOS="${MIN_MACOS:-11.0}"
 JOBS="$(sysctl -n hw.ncpu)"
 [ "$ARCH" = arm64 ] && BREW=/opt/homebrew || BREW=/usr/local
 PY="$CACHE/buildpy/bin/python3"
@@ -132,7 +132,8 @@ if [ ! -f "$PREFIX/lib/libavcodec.dylib" ]; then
 fi
 
 # Already built against this FFmpeg: nothing to do.
-wheel="$(ls "$OUT"/av-"$PYAV"-*.whl 2>/dev/null | head -1)"
+# (|| true: with no wheel yet, ls fails, and under pipefail that stopped the build silently)
+wheel="$(ls "$OUT"/av-"$PYAV"-*.whl 2>/dev/null | head -1 || true)"
 if [ -n "$wheel" ] && [ "$wheel" -nt "$PREFIX/lib/libavcodec.dylib" ]; then
   say "Done: $wheel (already built)"
   exit 0
@@ -140,7 +141,9 @@ fi
 
 say "PyAV $PYAV against that FFmpeg"
 rm -rf "$WORK/pyav-build" && mkdir -p "$WORK/pyav-build"
-"$PY" -m pip wheel --quiet --no-deps --no-binary=av "av==$PYAV" -w "$WORK/pyav-build"
+# Never from pip's cache: a wheel built earlier, for another macOS and another
+# FFmpeg, came back from it looking like a fresh build.
+"$PY" -m pip wheel --quiet --no-deps --no-cache-dir --no-binary=av "av==$PYAV" -w "$WORK/pyav-build"
 "$PY" -m pip install --quiet delocate
 say "Bundling FFmpeg into the wheel"
 rm -f "$OUT"/av-*.whl
