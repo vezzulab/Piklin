@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/vezzulab/Piklin/releases"><img src="https://img.shields.io/badge/download-.deb%20%7C%20.dmg-0b0b0b?style=flat-square" alt="Download"></a>
+  <a href="https://github.com/vezzulab/Piklin/releases"><img src="https://img.shields.io/badge/download-.dmg%20%7C%20.deb%20%7C%20AppImage-0b0b0b?style=flat-square" alt="Download"></a>
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-0b0b0b?style=flat-square" alt="Platform: Linux and macOS">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Piklin%20License-0b0b0b?style=flat-square" alt="License: Piklin License"></a>
   <a href="https://ko-fi.com/vezzustudio"><img src="https://img.shields.io/badge/support-Ko--fi-0b0b0b?style=flat-square" alt="Support on Ko-fi"></a>
@@ -26,7 +26,7 @@
 
 - **One package for everything.** Your library is a single `Piklin Library.piklin` package. Move it to another disk, copy it to a new computer and open it again.
 - **Years, Months, Days or All Photos.** Filters and search cover favourites, videos, screenshots, location and more.
-- **Albums, folders and smart albums.** Smart albums fill themselves from rules such as camera, date, rating, media type or video length.
+- **Albums, folders and smart albums.** Group albums in folders inside folders, and move anything with a right-click or a drag. Smart albums fill themselves from rules such as camera, date, rating, media type or video length.
 - **Import from iPhones, iPads, cameras, cards and USB drives.** Connect one and it appears in the sidebar, ready to browse. Drag photos or whole folders from your desktop or file manager straight onto an album. Duplicates are recognised, and photos can be stored smaller without visible loss.
 - **Useful views.** Recently Deleted keeps items for 30 days; Duplicates, Hidden and Imports are one click away.
 
@@ -54,28 +54,46 @@
   <img src="docs/screenshots/video-editor.png" alt="Editing a video" width="900">
 </p>
 
-### Back up to your own server
+### Back up to your NAS or the cloud
 
-Connect the place you want to back up to once. From then on, new photos, videos and edits are copied there automatically, a minute after they change. Nothing runs when nothing has changed, so it is easy on laptop batteries.
+Connect the place you want to back up to once. From then on, new photos, videos and edits are copied there automatically, a minute after they change.
 
 **Where your backup can go**
 
 - **Any folder your computer can see.** A USB drive, a NAS such as QNAP or Synology (over SMB or NFS), or a folder kept in sync by a cloud app.
-- **A NAS or server over WebDAV, built in.** QNAP, Synology, Nextcloud, ownCloud, pCloud, Box and any other WebDAV server, with nothing extra to install. Choose the backup folder from a list of the folders on your server.
-- **Seventy-plus cloud services through [rclone](https://rclone.org).** Google Drive, OneDrive, Dropbox, Backblaze B2, S3, SFTP and more, using the rclone remotes you have already set up.
+- **A NAS or server over WebDAV, built in.** QNAP, Synology, Nextcloud, ownCloud and any other WebDAV server. Choose the backup folder from a list of the folders on your server.
+- **Google Drive, OneDrive, Dropbox, pCloud, Box and more.** Choose the service and sign in once, in your browser. Nothing else to install: Piklin carries [rclone](https://rclone.org), which also reaches seventy-plus other services, such as Backblaze B2, S3 and SFTP.
 
 **What it does for you**
 
 - **Only what changed.** A photo already backed up is never uploaded again unless it changes.
 - **Previous versions.** When a file changes, its older copy stays in the backup for 7, 30 or 90 days.
-- **Restore Missing Files.** Bring back only what is gone from your library, without replacing anything.
-- **Safe by design.** Passwords are kept in your system keyring, never in a settings file, and backups never delete your photos.
+- **Restore onto any computer.** Bring back your photos, albums, folders, favourites and edits on a new Mac or Linux computer, or only what is missing from your library, without replacing anything.
+
+### All your computers, in step
+
+Use Piklin on more than one computer with the same NAS or cloud folder, and each keeps the others up to date: new photos and videos, albums, folders, favourites and edits made on one appear on the others, on Mac and Linux alike. When two computers change the same thing, the latest change wins; a photo deleted on one moves to Recently Deleted on the others, and nothing is ever lost.
+
+### Your files stay safe
+
+- **Your originals are never changed.** Edits are kept beside them, and any edit can be undone.
+- **Encrypted backups, if you want them.** Your photos and videos are encrypted on your computer before they leave it, so your NAS or cloud service only ever holds unreadable data. A recovery key, which only you have, opens them on another computer.
+- **Secure connections.** A server on the internet must use https. A NAS with its own security certificate is confirmed by its fingerprint once, and Piklin refuses to connect if that certificate is ever replaced. A NAS reached over plain http at home is marked as not encrypted and offers to switch.
+- **Passwords never in a file.** Server passwords stay in your computer's password manager (Keychain on a Mac). The access a cloud service grants is kept in an encrypted file, with its key in the password manager too.
+- **A backup is never overwritten by mistake.** A new or empty library connected to an existing backup brings it in; it never replaces it with blank lists. Backups never delete your photos.
+- **Updates you can trust.** Piklin asks before updating, and installs only versions signed by Vezzu Studio.
+
+### Light on any computer
+
+- **Gives way to you.** Thumbnails, imports, compression, video, exports and backups run at low priority, so the computer stays responsive while they work.
+- **Takes only what it can spare.** A core is always left free, and fewer photos are processed at once on a computer with little memory, from a new laptop to an older PC or a Raspberry Pi 5.
+- **Easy on batteries.** Nothing runs when nothing has changed, and backups and updates between computers wait while battery saver is on.
 
 ### Private by design
 
 - No accounts, no ads, no analytics, no telemetry.
 - Photos, videos, edits and face detection stay on your computer.
-- Piklin only goes online to back up to a destination you set up, and once a day to check whether a new version is out. You can turn that check off in Preferences.
+- Piklin only goes online to back up to, or keep in step with, a destination you set up, and at most once an hour to check whether a new version is out. You can turn that check off in Preferences.
 
 ## Install
 
