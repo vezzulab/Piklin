@@ -154,9 +154,12 @@ class PhotoGrid(Gtk.Box):
         self._items: list[PhotoItem] = []
         self._by_id: dict[int, PhotoItem] = {}
         self._selected: set[int] = set()
-        # (photo id, time) of the last plain click, to recognise a double
-        # click that GTK counted as two single ones (see _on_tile_click).
-        self._last_click = None
+        # (photo id, time) of the last plain press, to recognise a double
+        # click that GTK counted as two single ones (see _on_tile_press),
+        # and the photo a double click just opened, whose release then
+        # changes nothing.
+        self._last_press = None
+        self._opened_on_press = None
         self._tile_widgets: dict[int, list] = {}
         # Separate from _tile_widgets (which holds the PhotoTile used
         # for painting thumbnails): this holds each tile's outer
@@ -619,6 +622,7 @@ class PhotoGrid(Gtk.Box):
         list_item._tiles.append((item.id, picture, container))
 
         click = Gtk.GestureClick()
+        click.connect("pressed", self._on_tile_press, item)
         click.connect("released", self._on_tile_click, container, item)
         container.add_controller(click)
         rclick = Gtk.GestureClick(button=Gdk.BUTTON_SECONDARY)
@@ -929,36 +933,49 @@ class PhotoGrid(Gtk.Box):
                 self.tile_px, self._columns, adj.get_page_size(), adj.get_upper(),
                 self.get_width(), type(focus).__name__ if focus is not None else "nothing")
 
+    def _on_tile_press(self, gesture, n_press, _x, _y, item):
+        """A double click opens the photo, on its second press.
+
+        Opening on the release lost double clicks: the slightest movement
+        between press and release starts dragging the photo (a trackpad
+        click on a Mac nearly always moves a little), and a drag never
+        delivers the release. Two presses on the same photo within the
+        double-click time open it, however GTK counted them - and the
+        gesture is claimed, so no drag starts from that press.
+        """
+        state = gesture.get_current_event_state()
+        if state & (PRIMARY_MASK | Gdk.ModifierType.SHIFT_MASK):
+            return
+        now = GLib.get_monotonic_time()
+        limit = (Gtk.Settings.get_default().get_property("gtk-double-click-time") or 400) * 1000
+        last, self._last_press = self._last_press, (item.id, now)
+        quick_again = last is not None and last[0] == item.id and now - last[1] <= limit
+        if n_press >= 2 or quick_again:
+            self._last_press = None
+            self._opened_on_press = item.id
+            gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+            self.emit("activated", item)
+
     def _on_tile_click(self, gesture, n_press, x, y, button, item):
+        """A single click chooses the photo, as in Photos on a Mac: clicking it
+        again keeps it chosen - it used to unchoose it, so a double click a
+        little slower than the system's marked and unmarked the photo and
+        never opened it. ⌘ (Ctrl) adds or removes one; Shift chooses a range."""
+        if self._opened_on_press == item.id:
+            self._opened_on_press = None           # the release of a double click
+            return
         self._click_mark = (GLib.get_monotonic_time(),
                             self.scroller.get_vadjustment().get_value(), item.id)
         self.grab_focus()
         state = gesture.get_current_event_state()
         ctrl = bool(state & PRIMARY_MASK)
         shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
-
-        # A click on a photo, then a quick double click on it, opened nothing:
-        # the first click shows the selection bar, and GTK counted the
-        # presses after it as fresh single clicks - selecting, deselecting,
-        # never opening. Two presses on the same photo within the desktop's
-        # double-click time open it, however GTK counted them.
-        now = GLib.get_monotonic_time()
-        limit = (Gtk.Settings.get_default().get_property("gtk-double-click-time") or 400) * 1000
-        last, self._last_click = self._last_click, (item.id, now)
-        quick_again = last is not None and last[0] == item.id and now - last[1] <= limit
-        if (n_press >= 2 or quick_again) and not (ctrl or shift):
-            self._last_click = None
-            self.emit("activated", item)
-            return
         if ctrl:
             self._toggle(item)
         elif shift and self._selected:
             self._select_range(item)
         else:
-            if self._selected == {item.id}:
-                self._set_selection(set())
-            else:
-                self._set_selection({item.id})
+            self._set_selection({item.id})
 
     def _on_tile_right_click(self, gesture, _n, x, y, container, item):
         """Right-click acts on the photo under the pointer - and on the
@@ -991,6 +1008,12 @@ class PhotoGrid(Gtk.Box):
     def _set_selection(self, ids: set):
         changed = ids.symmetric_difference(self._selected)
         self._selected = ids
+        # The check marks show only while several photos are being chosen;
+        # one photo clicked is simply framed, as in Photos.
+        if len(ids) > 1:
+            self.add_css_class("pika-choosing")
+        else:
+            self.remove_css_class("pika-choosing")
         for item_id in changed:
             for container in self._tile_containers.get(item_id, []):
                 if item_id in ids:

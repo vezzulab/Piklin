@@ -1408,7 +1408,9 @@ menubutton.pika-sidebar-add > button:checked image { color: #000000; }
   color: #ffffff;
   box-shadow: 0 0 0 2px #ffffff, 0 1px 4px alpha(#000000, 0.35);
 }
-.pika-tile-button.selected .pika-select-check { opacity: 1; }
+/* Only while several photos are chosen (see PhotoGrid._set_selection): a
+   single photo clicked is framed, without a check. */
+.pika-choosing .pika-tile-button.selected .pika-select-check { opacity: 1; }
 /* The frame is an outline on the tile's container: outlines are painted
    after the children, so it sits on top of the photo. An inset box-shadow
    is painted underneath the widget's content and the photo covered it. */
