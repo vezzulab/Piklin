@@ -18,7 +18,10 @@ library of 100,000 photos with 400 favourites writes 400 entries, not
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
+
+from . import sync
 
 FORMAT = "pikalicious-state"
 VERSION = 1
@@ -92,8 +95,12 @@ def write_photo_state(library, catalog) -> None:
             entry["trashed_at"] = r["trashed_at"]
         if entry:
             photos[r["path"]] = entry
-    _write_json(photo_state_path(library),
-                {"format": FORMAT, "version": VERSION, "photos": photos})
+    path = photo_state_path(library)
+    # When each photo's marks changed, and which were cleared: what lets two
+    # computers sharing a backup merge them (see sync.py).
+    payload = sync.stamp_marks(_read_json(path) or None,
+                               {"format": FORMAT, "version": VERSION, "photos": photos})
+    _write_json(path, payload)
 
 
 def restore_photo_state(library, catalog) -> int:
@@ -143,8 +150,10 @@ def write_folders(library, catalog) -> None:
         "created_at": r["created_at"],
         "position": r["position"],
     } for r in rows]
-    _write_json(folders_path(library),
-                {"format": FORMAT, "version": VERSION, "folders": folders})
+    path = folders_path(library)
+    _write_json(path, sync.stamp_list(
+        _read_json(path) or None,
+        {"format": FORMAT, "version": VERSION, "folders": folders}, "folders"))
 
 
 def restore_folders(library, catalog) -> int:
@@ -211,8 +220,10 @@ def write_smart_albums(library, catalog) -> None:
         "folder_uuid": folders.get(r["folder_id"]),
         "created_at": r["created_at"],
     } for r in catalog.smart_albums()]
-    _write_json(smart_albums_path(library),
-                {"format": FORMAT, "version": VERSION, "smart_albums": items})
+    path = smart_albums_path(library)
+    _write_json(path, sync.stamp_list(
+        _read_json(path) or None,
+        {"format": FORMAT, "version": VERSION, "smart_albums": items}, "smart_albums"))
 
 
 def restore_smart_albums(library, catalog) -> int:
@@ -250,6 +261,30 @@ def restore_removed(library, catalog) -> int:
                if isinstance(p, str) and isinstance(t, (int, float))]
     catalog.set_removed(entries)
     return len(entries)
+
+
+# -- deleted albums ---------------------------------------------------------
+def deleted_albums_path(library) -> Path:
+    return library.albums / "_deleted.json"
+
+
+def note_album_deleted(library, album_uuid: str, when: float | None = None) -> None:
+    """Remember that an album was deleted, so a computer sharing the backup
+    deletes it too instead of bringing it back."""
+    path = deleted_albums_path(library)
+    data = _read_json(path)
+    albums = dict(data.get("albums") or {})
+    albums[album_uuid] = time.time() if when is None else when
+    _write_json(path, {"format": FORMAT, "version": VERSION, "albums": albums})
+
+
+def forget_album_deletion(library, album_uuid: str) -> None:
+    """An album that exists again (brought back by a restore) is no longer deleted."""
+    path = deleted_albums_path(library)
+    data = _read_json(path)
+    albums = dict(data.get("albums") or {})
+    if albums.pop(album_uuid, None) is not None:
+        _write_json(path, {"format": FORMAT, "version": VERSION, "albums": albums})
 
 
 def write_all(library, catalog) -> None:

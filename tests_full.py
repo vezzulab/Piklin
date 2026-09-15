@@ -1237,6 +1237,51 @@ if _rc_zip is not None:
             if _v is None: os.environ.pop(_k, None)
             else: os.environ[_k] = _v
 
+# Two computers sharing a backup: the rules that merge what each changed.
+from piklin import sync as _sy
+_a0 = {"format": "pikalicious-album", "uuid": "trip", "name": "Trip", "photos": ["/L/p1.jpg", "/L/p2.jpg"]}
+_mac = _sy.stamp_album(_a0, dict(_a0, photos=["/L/p1.jpg"]), now=200)            # p2 removed on the Mac
+_lin = _sy.stamp_album(_a0, dict(_a0, photos=["/L/p1.jpg", "/L/p2.jpg", "/L/p3.jpg"]), now=150)
+_merged = _sy.merge_album(_mac, _lin)
+check("an album keeps what both computers added and drops what was removed later",
+      _merged["photos"] == ["/L/p1.jpg", "/L/p3.jpg"], _merged["photos"])
+_back = _sy.merge_album(_sy.stamp_album(_mac, dict(_mac, photos=["/L/p1.jpg", "/L/p2.jpg"]), now=300), _lin)
+check("a photo added back after it was removed is in the album again",
+      _back["photos"] == ["/L/p1.jpg", "/L/p2.jpg", "/L/p3.jpg"], _back["photos"])
+_renamed = _sy.merge_album(_sy.stamp_album(_a0, dict(_a0, name="Trip 2024"), now=400), _lin)
+check("an album's latest name wins", _renamed["name"] == "Trip 2024")
+_f0 = {"folders": [{"uuid": "fam", "name": "Family"}, {"uuid": "old", "name": "Old"}]}
+_fa = _sy.stamp_list(_f0, {"folders": [{"uuid": "fam", "name": "Family"}]}, "folders", now=500)   # Old deleted
+_fb = _sy.stamp_list(_f0, {"folders": [{"uuid": "fam", "name": "Familia"}, {"uuid": "old", "name": "Old"},
+                                       {"uuid": "new", "name": "New"}]}, "folders", now=450)
+_fm = _sy.merge_list(_fa, _fb, "folders")
+check("folders: a deletion wins, a rename and a new folder come through",
+      sorted((e["uuid"], e["name"]) for e in _fm["folders"]) == [("fam", "Familia"), ("new", "New")]
+      and "old" in _fm["deleted"], _fm)
+_fc = _sy.stamp_list(_fb, {"folders": [{"uuid": "fam", "name": "Familia"}, {"uuid": "old", "name": "Old kept"},
+                                       {"uuid": "new", "name": "New"}]}, "folders", now=600)
+check("a folder changed after it was deleted elsewhere is kept",
+      any(e["uuid"] == "old" for e in _sy.merge_list(_fa, _fc, "folders")["folders"]))
+_ma = _sy.stamp_marks({"photos": {"/L/p1.jpg": {"favorite": True}}}, {"photos": {}}, now=700)       # unfavourited
+_mb = _sy.stamp_marks(None, {"photos": {"/L/p1.jpg": {"favorite": True}, "/L/p2.jpg": {"rating": 5}}}, now=650)
+_mm = _sy.merge_marks(_ma, _mb)
+check("marks: the latest change wins, a cleared mark stays cleared",
+      _mm["photos"] == {"/L/p2.jpg": {"rating": 5, "modified_at": 650}}, _mm["photos"])
+check("photos removed on either computer stay removed",
+      _sy.merge_removed({"photos": {"/a": 1}}, {"photos": {"/b": 2, "/a": 3}})["photos"] == {"/a": 3, "/b": 2})
+check("paths written on Linux point at this library",
+      _sy.adopt_paths({"photos": ["/home/oem/Pictures/Piklin Library.piklin/Originals/2024/x.jpg"]},
+                      "/Users/ana/Pictures/Piklin Library.piklin")["photos"]
+      == [os.path.join("/Users/ana/Pictures/Piklin Library.piklin", "Originals", "2024", "x.jpg")])
+_st = _Lm(Path(TMP) / "stamp-lib" / "Piklin Library.piklin").ensure(); _stc = _Cm(_st.db)
+_gone = _stc.create_folder("Gone"); _scm.write_all(_st, _stc)
+_text1 = (_st.albums / "_folders.json").read_text(); _scm.write_all(_st, _stc)
+_same = (_st.albums / "_folders.json").read_text() == _text1
+_gone_uuid = _stc.q1("SELECT uuid FROM folders WHERE id=?", (_gone,))["uuid"]
+_stc.delete_folder(_gone); _scm.write_all(_st, _stc)
+check("the folder list records deletions, and an unchanged list is not rewritten",
+      _same and _gone_uuid in json.loads((_st.albums / "_folders.json").read_text())["deleted"])
+
 section("10. Settings")
 from piklin.settings import Settings
 s1 = Settings(os.path.join(TMP,"s.json"))

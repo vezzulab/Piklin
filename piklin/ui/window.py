@@ -2993,17 +2993,23 @@ class MainWindow(Adw.ApplicationWindow):
         safe = "".join(c if c.isalnum() or c in " -_" else "_"
                        for c in row["name"])[:80] or row["uuid"]
         try:
+            from .. import sync
             self.library.albums.mkdir(parents=True, exist_ok=True)
             target = self.library.albums / f"{safe}.json"
+            previous = None
             for existing in self.library.albums.glob("*.json"):
-                if existing == target:
-                    continue
                 try:
                     data = json.loads(existing.read_text())
                 except (OSError, ValueError):
                     continue
-                if data.get("uuid") == row["uuid"]:
+                if data.get("uuid") != row["uuid"]:
+                    continue
+                previous = data if previous is None or existing == target else previous
+                if existing != target:
                     existing.unlink(missing_ok=True)
+            # When each photo came in or left: what lets two computers sharing
+            # a backup merge the album (see sync.py).
+            payload = sync.stamp_album(previous, payload)
             text = json.dumps(payload, indent=2)
             # unchanged albums are not rewritten: a rewrite would look like
             # a change and send the file to the backup again
@@ -3025,6 +3031,8 @@ class MainWindow(Adw.ApplicationWindow):
                 continue
             if data.get("uuid") == album_uuid:
                 existing.unlink(missing_ok=True)
+        # another computer sharing the backup deletes it too
+        sidecars.note_album_deleted(self.library, album_uuid)
 
     # -- photo menu & rename ---------------------------------------------
     def _on_rename_photo(self):
