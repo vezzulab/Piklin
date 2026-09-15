@@ -33,9 +33,11 @@ SHARE = USR / "share"
 # Needed by the Python standard library, never run by Piklin.
 PY_SKIP = {"test", "idlelib", "tkinter", "turtledemo", "ensurepip", "lib2to3",
            "__pycache__", "venv", "pydoc_data"}
-# Taken from the computer too: the Vulkan loader finds the computer's own
-# graphics drivers, which a bundled copy could not.
-EXTRA_EXCLUDE = {"libvulkan.so.1"}
+# Nothing beyond the AppImage project's own list. GTK 4 is linked against
+# the Vulkan loader, which not every system has (Fedora without a Vulkan
+# driver package), and the bundled loader still finds the computer's own
+# drivers where there are some.
+EXTRA_EXCLUDE: set[str] = set()
 # The type libraries Piklin uses. Copying every one Ubuntu has also brought
 # the libraries they name (systemd, curl, Kerberos...), none of them needed.
 TYPELIBS = ("GLib-2.0", "GObject-2.0", "Gio-2.0", "GModule-2.0", "GIRepository-2.0",
