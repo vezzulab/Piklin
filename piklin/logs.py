@@ -89,10 +89,17 @@ def setup(version: str) -> None:
                    f"{Adw.get_minor_version()}")
     except Exception:
         toolkit = "GTK unknown"
-    try:
-        distro = platform.freedesktop_os_release().get("PRETTY_NAME", "Linux")
-    except Exception:
-        distro = "Linux"
+    if sys.platform == "darwin":
+        # A Mac has no os-release: it was logged as "Linux".
+        chip = "Apple Silicon" if platform.machine() == "arm64" else "Intel"
+        distro = f"macOS {platform.mac_ver()[0] or ''} ({chip})".replace("  ", " ")
+        session = "Aqua"
+    else:
+        try:
+            distro = platform.freedesktop_os_release().get("PRETTY_NAME", "Linux")
+        except Exception:
+            distro = "Linux"
+        session = os.environ.get("XDG_SESSION_TYPE", "unknown session")
     build = ""
     try:
         from . import updates
@@ -101,8 +108,7 @@ def setup(version: str) -> None:
         pass
     log.info("---- Piklin %s%s started · %s · Python %s · %s · %s",
              version, f" (build {build})" if build else "", distro,
-             platform.python_version(), toolkit,
-             os.environ.get("XDG_SESSION_TYPE", "unknown session"))
+             platform.python_version(), toolkit, session)
 
     def crashed(kind, value, tb):
         log.critical("Unexpected error", exc_info=(kind, value, tb))
