@@ -418,6 +418,7 @@ class SettingsDialog(Adw.PreferencesDialog):
                 actions.append((_("Use a Secure Connection…"), self._on_secure_remote))
             if r.config.get("encrypted"):
                 actions.append((_("Show Recovery Key…"), self._on_show_recovery_key))
+                actions.append((_("Delete Unencrypted Copy…"), self._on_delete_plain_copy))
             else:
                 actions.append((_("Encrypt This Backup…"), self._on_encrypt_remote))
             actions += [(_("Restore Missing Files…"), self._on_restore_remote),
@@ -530,6 +531,49 @@ class SettingsDialog(Adw.PreferencesDialog):
                 self._show_recovery_key(new_cfg, key, first=True)
             else:
                 self._toast(_("The encrypted backup is open on this computer."))
+            return False
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_delete_plain_copy(self, cfg, row, _push):
+        """Once the encrypted backup is complete, the unencrypted one made
+        before it can go, so the destination doesn't keep both."""
+        r = remote_mod.Remote.from_dict(cfg)
+        row.set_subtitle(_("Checking the backup…"))
+
+        def work():
+            GLib.idle_add(ask, remote_mod.plain_backup_exists(r))
+
+        def ask(exists):
+            row.set_subtitle(self._describe(r))
+            if not exists:
+                self._toast(_("There is no unencrypted copy left at this destination."))
+                return False
+            dlg = Adw.AlertDialog(
+                heading=_("Delete the Unencrypted Copy?"),
+                body=_("Your encrypted backup stays. The copy made before encryption, in the "
+                       "folder “{folder}”, is deleted from “{backup}”, which frees its space.\n\n"
+                       "Do this only once Back Up Now has finished without errors.").format(
+                           folder=remote_mod.BACKUP_SUBFOLDER, backup=cfg.get("name") or ""))
+            dlg.add_response("cancel", _("Cancel"))
+            dlg.add_response("delete", _("Delete Unencrypted Copy"))
+            dlg.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
+            dlg.set_close_response("cancel")
+            dlg.connect("response", lambda _d, response: response == "delete" and run())
+            dlg.present(self.get_root())
+            return False
+
+        def run():
+            row.set_subtitle(_("Deleting the unencrypted copy…"))
+
+            def delete():
+                ok, problem = remote_mod.delete_plain_backup(r)
+                GLib.idle_add(done, ok, problem)
+            threading.Thread(target=delete, daemon=True).start()
+
+        def done(ok, problem):
+            row.set_subtitle(self._describe(r) if ok else problem)
+            if ok:
+                self._toast(_("The unencrypted copy was deleted. Your encrypted backup stays."))
             return False
         threading.Thread(target=work, daemon=True).start()
 

@@ -1,10 +1,39 @@
 # Changelog
 
+## 1.0.7
+
+### All your computers, in step
+- Computers that back up to the same NAS or cloud folder keep each other up to date: new photos and videos, albums, folders, Smart Albums, favourites, marks and edits made on one appear on the others, on Mac and Linux alike. Changes are brought in before every automatic backup and every ten minutes while Piklin is open
+- When two computers change the same thing, the latest change wins: a photo added back to an album after it was removed stays, a folder deleted on one computer is deleted on the others unless it changed afterwards, and a cleared favourite stays cleared
+
+### Backups
+- Cloud backups need nothing else installed: Piklin carries rclone. Choose Google Drive, OneDrive, Dropbox, pCloud or Box and sign in once, in your browser
+- Encrypted backups: Encrypt This Backup encrypts your photos and videos on your computer before they leave it, so the NAS or cloud service only holds unreadable data. A recovery key, shown once to write down, opens the backup on another computer. Once the encrypted backup is complete, Delete Unencrypted Copy frees the space of the copy made before
+- The access a cloud service grants Piklin is kept in an encrypted file, with its key in the password manager
+- A NAS reached over plain http:// is marked as not encrypted, and Use a Secure Connection finds its https:// address and asks to confirm its certificate
+- A restore brings back your folders, favourites and Smart Albums even when Piklin had already written its own empty lists, and the rebuild after it works when the library is inside a watched Pictures folder. A rebuild that fails is tried again on the next start
+- A new or empty library connected to an existing backup never replaces the backup's folders or favourites with blank lists, and albums deleted on another computer don't come back with a restore
+
+### Photos and albums
+- A double click always opens a photo, on its second press: before, the slightest movement while clicking started a drag, and a photo could take many clicks to open
+- One click frames a photo, as in Photos on a Mac. Clicking it again keeps it chosen, and the check marks show only while several photos are chosen
+- Albums, Smart Albums and folders can be moved to any folder, or back to the top: right-click and choose Move To…, or drag them onto a folder in the sidebar, or onto the Albums heading to take them out of every folder. Several albums chosen inside a folder move together. A folder is never moved inside itself, and backups keep where everything was moved
+
+### Light on any computer
+- Thumbnails, reading photos, imports and compression, video, exports and backups run at low priority, with only as many at once as the computer can spare: a core stays free, and each large photo gets its share of memory. Older computers stay responsive, and the processor doesn't race on a battery
+
+### Mac
+- Dragging photos onto an album, or an album onto a folder, no longer freezes Piklin on macOS 26: the app carries GTK 4.20.4
+- Close, minimise and zoom sit in the top-left corner, where a Mac puts them, and answer the first click
+- Reopen Now, after a restore, reopens Piklin
+
+### Updates
+- Update Available never offers an older build of the same version
+
 ## 1.0.5
 
 ### Piklin on the Mac
 - Piklin runs on Mac: one download for Apple Silicon and Intel Macs with macOS 14 or newer, a disk image to drag into Applications. It is the same Piklin as on Linux - the same library, editor, video tools, backups and languages
-- Dragging photos onto an album, or an album onto a folder, no longer freezes Piklin on macOS 26: the Mac app now carries GTK 4.20.4, which also reads clicks next to the window buttons correctly
 - The window looks at home on a Mac: close, minimise and zoom at the top left, the Piklin name at the top of the sidebar, and dialogs sized to fit smaller screens
 - Keyboard shortcuts use ⌘ on a Mac (⌘E to export, ⌘R to rotate), ⌘-click adds to a selection, and the delete key moves photos to Recently Deleted
 - Backup passwords are kept in the Mac's Keychain
@@ -26,7 +55,7 @@
 - Video always plays with sound: the package now asks for the small library miniaudio needs, which some minimal installations lacked
 
 ### Everywhere
-- Albums, Smart Albums and folders can be moved to any folder, or back to the top: right-click and choose Move To…, or drag them onto a folder in the sidebar, or onto the Albums heading to take them out of every folder. Several albums chosen inside a folder move together. A folder is never moved inside itself, and backups keep where everything was moved
+- Restore onto any computer: a backup restored on another computer - a Mac, Linux, another user name - brings back your albums, their folders, favourites and edits, not only the photos. A restore also goes on when one file can't be put back
 - A video is never refused when the image library cannot open it: Piklin reads it through its own video engine instead
 
 ## 1.0.4

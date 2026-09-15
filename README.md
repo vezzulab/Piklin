@@ -202,4 +202,4 @@ Piklin and the Piklin logo are trademarks of Vezzu Studio.
 
 ---
 
-<p align="center">Made with care by <a href="https://vezzu.studio">Vezzu Studio</a> in Boston.</p>
+<p align="center">Made with care by <a href="https://vezzu.studio">Vezzu Studio</a> in Boston, MA 🇺🇸</p>

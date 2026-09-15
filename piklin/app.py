@@ -22,7 +22,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from .paths import APP_ID, LIBRARY_EXT, Library, remember_library
 
-VERSION = "1.0.5"
+VERSION = "1.0.7"
 
 
 def _load_bundled_fonts():

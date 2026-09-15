@@ -463,6 +463,10 @@ class Backend:
     def _drop_version(self, stamp: str) -> None:
         pass
 
+    def delete_backup(self) -> None:
+        """Delete this destination's Piklin backup folder, and nothing else."""
+        raise NotImplementedError
+
     def _prune_versions(self, keep_days: int) -> None:
         cutoff = (datetime.date.today() - datetime.timedelta(days=keep_days)).isoformat()
         for stamp in self._version_days():
@@ -786,6 +790,12 @@ class LocalBackend(Backend):
         """Where the backup is: the Piklin folder inside the chosen one."""
         c = self.chosen
         return c if c.name.lower() == BACKUP_SUBFOLDER.lower() else c / BACKUP_SUBFOLDER
+
+    def delete_backup(self) -> None:
+        base = self.base
+        if base.name.lower() != BACKUP_SUBFOLDER.lower() or not base.is_dir():
+            raise OSError(_("There is no unencrypted backup here"))
+        shutil.rmtree(base)
 
     def _prepare(self) -> None:
         chosen, base = self.chosen, self.base
@@ -1317,6 +1327,12 @@ class WebDavBackend(Backend):
     def _drop_version(self, stamp: str) -> None:
         self._request("DELETE", f"{VERSIONS_DIR}/{stamp}/")
 
+    def delete_backup(self) -> None:
+        base = self.base_path
+        if base.rsplit("/", 1)[-1].lower() != BACKUP_SUBFOLDER.lower():
+            raise OSError(_("There is no unencrypted backup here"))
+        self._request_path("DELETE", base + "/")
+
     def put(self, local: Path, rel: str) -> bool:
         parent = "/".join(rel.split("/")[:-1])
         try:
@@ -1735,6 +1751,15 @@ class RcloneBackend(Backend):
             subprocess.run([exe, "purge", self._sub(f"{VERSIONS_DIR}/{stamp}")],
                            capture_output=True, text=True, timeout=600, env=self._env())
 
+    def delete_backup(self) -> None:
+        exe = rclone_path()
+        if not exe or self._base().rsplit("/", 1)[-1].lower() != BACKUP_SUBFOLDER.lower():
+            raise OSError(_("There is no unencrypted backup here"))
+        out = subprocess.run([exe, "purge", self.target], capture_output=True, text=True,
+                             timeout=3600, env=self._env(), stdin=subprocess.DEVNULL)
+        if out.returncode != 0:
+            raise OSError((out.stderr or "rclone purge failed").strip().splitlines()[-1][:300])
+
     def push(self, root: Path, files, on_progress=None,
              keep_versions_days: int = 0) -> SyncProgress:
         """Send what is missing or modified, in one rclone run.
@@ -1998,6 +2023,34 @@ class EncryptedBackend(RcloneBackend):
             return TestResult(False, _("This backup is encrypted"),
                               _("Enter its recovery key on this computer to use it"))
         return super().test()
+
+
+def plain_backup_exists(remote: Remote) -> bool:
+    """Whether the unencrypted backup made before encryption is still at the
+    destination (its Piklin folder, beside the encrypted one)."""
+    plain = dict(remote.to_dict(), config={k: v for k, v in remote.config.items() if k != "encrypted"})
+    backend = make_backend(Remote.from_dict(plain))
+    try:
+        return backend.test().ok and bool(backend.listing())
+    except Exception:
+        return False
+
+
+def delete_plain_backup(remote: Remote) -> tuple[bool, str]:
+    """Delete the unencrypted backup once the encrypted one is there: only its
+    own Piklin folder, never the encrypted folder beside it."""
+    if not remote.config.get("encrypted"):
+        return False, _("This backup isn't encrypted")
+    if not load_secret(encryption_secret_id(remote.id)):
+        return False, _("The recovery key isn't on this computer")
+    plain = Remote.from_dict(dict(remote.to_dict(),
+                                  config={k: v for k, v in remote.config.items() if k != "encrypted"}))
+    backend = make_backend(plain)
+    try:
+        backend.delete_backup()
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)[:300]
 
 
 def encrypted_backup_exists(remote: Remote) -> bool:

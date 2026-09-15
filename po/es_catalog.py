@@ -990,6 +990,17 @@ ES = {
     "New Album Here…": "Nuevo álbum aquí…",
     "New Folder Here…": "Nueva carpeta aquí…",
     "Move Out of “{folder}”": "Sacar de “{folder}”",
+    "Updating from {name}…": "Actualizando desde {name}…",
+    "Delete Unencrypted Copy…": "Borrar la copia sin cifrar…",
+    "Delete Unencrypted Copy": "Borrar la copia sin cifrar",
+    "Delete the Unencrypted Copy?": "¿Borrar la copia sin cifrar?",
+    "Your encrypted backup stays. The copy made before encryption, in the folder “{folder}”, is deleted from “{backup}”, which frees its space.\n\nDo this only once Back Up Now has finished without errors.":
+        "Tu copia cifrada se queda. La copia hecha antes del cifrado, en la carpeta “{folder}”, se borra de “{backup}”, y su espacio queda libre.\n\nHazlo solo cuando Copiar ahora haya terminado sin errores.",
+    "Deleting the unencrypted copy…": "Borrando la copia sin cifrar…",
+    "The unencrypted copy was deleted. Your encrypted backup stays.": "Se borró la copia sin cifrar. Tu copia cifrada se queda.",
+    "There is no unencrypted copy left at this destination.": "Ya no queda ninguna copia sin cifrar en este destino.",
+    "There is no unencrypted backup here": "Aquí no hay una copia sin cifrar",
+    "This backup isn't encrypted": "Esta copia no está cifrada",
     # -- encrypted backups ------------------------------------------------------
     "Encrypt This Backup…": "Cifrar esta copia…",
     "Encrypt This Backup?": "¿Cifrar esta copia?",
