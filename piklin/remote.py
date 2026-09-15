@@ -228,6 +228,80 @@ STATE_FILES = {"photo-state.json", "removed-photos.json", "watched-folders.json"
 VERSIONS_DIR = ".piklin-versions"
 # Rebuilt from the rest on every backup: no point keeping old copies.
 NO_VERSIONS = {"catalog.db"}
+# The library's own lists - folders, Smart Albums, marks, removed photos,
+# watched folders - as (list key, what identifies an entry; None for a map
+# keyed by photo path). A restore merges these with the computer's copy: a
+# Piklin opened before the restore has written its own, empty ones, and
+# skipping the backup's because one already existed lost every folder.
+MERGED_STATE = {
+    "Albums/_folders.json": ("folders", "uuid"),
+    "Albums/_smart.json": ("smart_albums", "uuid"),
+    "photo-state.json": ("photos", None),
+    "removed-photos.json": ("photos", None),
+    "watched-folders.json": ("folders", "path"),
+}
+
+
+def _state_entries(path: Path, rel: str):
+    """The entries of a library list file, or None when it can't be read."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    entries = data.get(MERGED_STATE[rel][0]) if isinstance(data, dict) else None
+    return entries if isinstance(entries, (list, dict)) else None
+
+
+def merge_state_file(rel: str, local: Path, incoming: Path) -> bool:
+    """Add to the library's list file ``local`` the entries of the backup's
+    copy ``incoming`` it lacks. What this computer already has stays as it
+    is. True when anything was added."""
+    key, ident = MERGED_STATE[rel]
+    try:
+        mine = json.loads(Path(local).read_text(encoding="utf-8"))
+        theirs = json.loads(Path(incoming).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(mine, dict) or not isinstance(theirs, dict):
+        return False
+    ours, backup = mine.get(key), theirs.get(key)
+    if ident is None:
+        ours = ours if isinstance(ours, dict) else {}
+        if not isinstance(backup, dict):
+            return False
+        added = {k: v for k, v in backup.items() if k not in ours}
+        ours.update(added)
+    else:
+        ours = ours if isinstance(ours, list) else []
+        if not isinstance(backup, list):
+            return False
+        have = {e.get(ident) for e in ours if isinstance(e, dict)}
+        added = [e for e in backup if isinstance(e, dict) and e.get(ident) not in have]
+        ours.extend(added)
+    if not added:
+        return False
+    mine[key] = ours
+    for field_name in ("format", "version"):
+        if field_name not in mine and field_name in theirs:
+            mine[field_name] = theirs[field_name]
+    tmp = Path(local).with_name(Path(local).name + ".part")
+    tmp.write_text(json.dumps(mine, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(local)
+    return True
+
+
+def _empty_over_backup(local: Path, rel: str, remote_index: dict) -> bool:
+    """A library list with nothing in it, about to replace a bigger copy at
+    the destination: a new, still empty library connected to an existing
+    backup. It is not sent - the backup's copy is the one worth keeping."""
+    if rel not in MERGED_STATE or rel not in remote_index:
+        return False
+    entries = _state_entries(local, rel)
+    try:
+        size = Path(local).stat().st_size
+    except OSError:
+        return False
+    return entries is not None and not entries and remote_index[rel][0] > size
 # The folders a backup writes at the destination (see library_files). A
 # backup folder may be shared with other things - a NAS photo share with a
 # Lightroom catalog beside it - so a listing reads only these and the
@@ -484,6 +558,10 @@ class Backend:
 
         manifest = self._load_manifest(root)
         todo, p.skipped = self._plan(root, files, remote_index, manifest)
+        kept = [t for t in todo if _empty_over_backup(t[0], t[1], remote_index)]
+        if kept:
+            todo = [t for t in todo if t not in kept]
+            p.skipped += len(kept)
         stamp = datetime.date.today().isoformat()
         p.phase = "uploading"
         p.total_files = len(todo)
@@ -584,13 +662,16 @@ class Backend:
             return (0 if "/" not in rel or rel.startswith(("Edits/", "Albums/"))
                     else 1, rel)
 
-        todo = []
+        todo, merge = [], []
         for rel in sorted(index, key=order):
             parts = rel.split("/")
             if (not rel or ".." in parts or parts[0].startswith(".")
                     or rel.endswith(".part") or rel in NEVER_RESTORE):
                 continue
             local = root / rel
+            if rel in MERGED_STATE and local.exists():
+                merge.append(rel)
+                continue
             if local.exists() and not (overwrite_state and rel in STATE_FILES):
                 p.present += 1
                 continue
@@ -606,6 +687,26 @@ class Backend:
             on_progress(p)
         if todo:
             self._fetch_many(root, todo, p, manifest, on_progress)
+        # The library's lists already here get what the backup adds to them.
+        for rel in merge:
+            if self.cancel.is_set():
+                p.phase = "cancelled"
+                break
+            incoming = root / ".cache" / "restore" / rel
+            try:
+                fetched = self.get(rel, incoming)
+                added = fetched and merge_state_file(rel, root / rel, incoming)
+            except Exception:
+                fetched = added = False
+            finally:
+                incoming.unlink(missing_ok=True)
+            if not fetched:
+                p.errors += 1
+            elif added:
+                p.restored += 1
+                p.restored_state = True
+            else:
+                p.present += 1
         self._save_manifest(root, manifest)
 
         if p.phase != "cancelled":

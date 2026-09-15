@@ -171,6 +171,18 @@ class Indexer:
                 root_ids[originals] = self.catalog.add_root(
                     originals, in_library=True)
 
+        # Registering a folder can take over another one given here - the
+        # library's Originals inside a watched ~/Pictures - and that root's
+        # row is gone. Each folder is filed under the root that covers it
+        # now: photos written with the removed id failed the whole scan
+        # ("FOREIGN KEY constraint failed"), and a restore rebuilt nothing.
+        current = [(Path(r["path"]), int(r["id"])) for r in self.catalog.roots()]
+        for folder in list(root_ids):
+            covering = [(path, rid) for path, rid in current
+                        if folder == path or folder.is_relative_to(path)]
+            if covering:
+                root_ids[folder] = min(covering, key=lambda c: len(c[0].parts))[1]
+
         # What the catalog already knows, so unchanged files can be skipped
         # without opening them.
         known: dict[str, tuple[int, float, int]] = {

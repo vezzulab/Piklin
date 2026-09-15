@@ -1114,6 +1114,40 @@ if _cfg_before is None:
 else:
     os.environ["XDG_CONFIG_HOME"] = _cfg_before
 
+# A Piklin opened before its restore writes its own, empty folder list. The
+# backup's folders must still come back, and that empty library must never
+# have replaced them at the destination in the first place.
+from piklin import remote as _rm
+from piklin import sidecars as _scm
+from piklin.catalog import Catalog as _Cm
+from piklin.paths import Library as _Lm
+_mdir = Path(TMP) / "merge-restore"
+_src = _Lm(_mdir / "src" / "Piklin Library.piklin").ensure(); _csrc = _Cm(_src.db)
+_fam = _csrc.create_folder("Family"); _csrc.create_folder("Trips", parent_id=_fam)
+_scm.write_all(_src, _csrc)
+_dest = _rm.Remote(id="merge-test", name="Merge", kind="local",
+                   config={"path": str(_mdir / "nas")}).backend()
+_dest.push(_src.root, _rm.library_files(_src.root))
+_new = _Lm(_mdir / "new" / "Piklin Library.piklin").ensure(); _cnew = _Cm(_new.db)
+_scm.write_all(_new, _cnew)                     # its own, empty lists
+_pushed = _dest.push(_new.root, _rm.library_files(_new.root))
+_nas_folders = _dest.listing().get("Albums/_folders.json", (0, 0))[0]
+check("a new, empty library never replaces the backup's folders",
+      _nas_folders == (_src.albums / "_folders.json").stat().st_size, (_nas_folders, _pushed.skipped))
+_back = _dest.restore(_new.root)
+_names = sorted(f["name"] for f in json.loads((_new.albums / "_folders.json").read_text())["folders"])
+check("a restore brings the backup's folders into a library that already had a folder list",
+      _names == ["Family", "Trips"] and _back.restored_state, (_names, _back.restored_state))
+_mine = Path(TMP) / "merge-mine.json"; _theirs = Path(TMP) / "merge-theirs.json"
+_mine.write_text(json.dumps({"format": "pikalicious-state", "version": 1,
+                             "photos": {"/a.jpg": {"favorite": 1}}}))
+_theirs.write_text(json.dumps({"format": "pikalicious-state", "version": 1,
+                               "photos": {"/a.jpg": {"favorite": 0}, "/b.jpg": {"favorite": 1}}}))
+check("merging marks keeps this computer's and adds the backup's missing ones",
+      _rm.merge_state_file("photo-state.json", _mine, _theirs)
+      and json.loads(_mine.read_text())["photos"] == {"/a.jpg": {"favorite": 1}, "/b.jpg": {"favorite": 1}}
+      and not _rm.merge_state_file("photo-state.json", _mine, _theirs))
+
 section("10. Settings")
 from piklin.settings import Settings
 s1 = Settings(os.path.join(TMP,"s.json"))
@@ -1421,6 +1455,33 @@ rowsW = cW.q("SELECT path, thumb_state FROM photos ORDER BY path")
 check("imported photo inside a watched folder is not flagged missing",
       len(rowsW) == 2 and all(r["thumb_state"] != 3 for r in rowsW),
       str([(os.path.basename(r["path"]), r["thumb_state"]) for r in rowsW]))
+
+# A restore rebuilds a library that sits inside a watched ~/Pictures: the
+# watched folder takes over the Originals root, and the scan must file every
+# photo under the root that remains, or the rebuild fails and no album returns.
+_home = os.path.join(TMP, "restore-home", "Pictures"); os.makedirs(_home)
+libN = _L(os.path.join(_home, LIBRARY_NAME)).ensure()
+(libN.originals / "2019").mkdir(parents=True)
+shutil.copy2(SRC[1], libN.originals / "2019" / "kept.jpg")
+shutil.copy2(SRC[2], os.path.join(_home, "loose.jpg"))
+(libN.root / "watched-folders.json").write_text(json.dumps(
+    {"format": "pikalicious-state", "version": 1,
+     "folders": [{"path": _home, "in_library": False, "enabled": True}]}))
+(libN.albums / "Kept.json").write_text(json.dumps(
+    {"format": "pikalicious-album", "version": 1, "uuid": "nested-1", "name": "Kept",
+     "photos": [str(libN.originals / "2019" / "kept.jpg")]}))
+try:
+    with _ctxr.redirect_stdout(io.StringIO()):
+        _statusN = _rebuild(libN)
+    _errN = ""
+except Exception as _e:
+    _statusN, _errN = None, repr(_e)
+cN = _C(libN.db)
+_keptN = cN.q1("SELECT id FROM albums WHERE uuid='nested-1'")
+check("a restore rebuilds a library inside a watched Pictures folder",
+      _statusN == 0 and _keptN is not None and len(cN.album_photo_paths(_keptN["id"])) == 1
+      and cN.scalar("SELECT COUNT(*) FROM photos", (), 0) == 2,
+      (_statusN, _errN, cN.scalar("SELECT COUNT(*) FROM photos", (), 0)))
 
 # ===================================================================
 section("Renaming a photo renames the file")
