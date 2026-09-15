@@ -177,7 +177,7 @@ fetch "https://github.com/pantoniou/libfyaml/releases/download/v0.9/libfyaml-0.9
 fetch "https://github.com/hughsie/libxmlb/releases/download/0.3.25/libxmlb-0.3.25.tar.xz" libxmlb-0.3.25.tar.xz
 fetch "https://www.freedesktop.org/software/appstream/releases/AppStream-1.1.2.tar.xz" AppStream-1.1.2.tar.xz
 fetch "$G/librsvg/2.62/librsvg-2.62.0.tar.xz" librsvg-2.62.0.tar.xz
-fetch "$G/gtk/4.20/gtk-4.20.3.tar.xz" gtk-4.20.3.tar.xz
+fetch "$G/gtk/4.20/gtk-4.20.4.tar.xz" gtk-4.20.4.tar.xz
 fetch "$G/libadwaita/1.8/libadwaita-1.8.4.tar.xz" libadwaita-1.8.4.tar.xz
 fetch "$G/adwaita-icon-theme/49/adwaita-icon-theme-49.0.tar.xz" adwaita-icon-theme-49.0.tar.xz
 fetch "https://files.pythonhosted.org/packages/source/p/pycairo/pycairo-1.29.0.tar.gz" pycairo-1.29.0.tar.gz
@@ -261,7 +261,7 @@ meson_pkg librsvg librsvg-2.62.0.tar.xz -Dintrospection=enabled -Dpixbuf=enabled
     -Dpixbuf-loader=enabled -Drsvg-convert=disabled -Ddocs=disabled -Dvala=disabled \
     -Dtests=false -Davif=disabled -Dtriplet="$TRIPLE"
 
-meson_pkg gtk gtk-4.20.3.tar.xz -Dmacos-backend=true -Dx11-backend=false \
+meson_pkg gtk gtk-4.20.4.tar.xz -Dmacos-backend=true -Dx11-backend=false \
     -Dwayland-backend=false -Dbroadway-backend=false -Dmedia-gstreamer=disabled \
     -Dvulkan=disabled -Dprint-cups=disabled -Dprint-cpdb=disabled -Dcolord=disabled \
     -Dcloudproviders=disabled -Dsysprof=disabled -Dtracker=disabled -Daccesskit=disabled \

@@ -4,6 +4,7 @@
 
 ### Piklin on the Mac
 - Piklin runs on Mac: one download for Apple Silicon and Intel Macs with macOS 14 or newer, a disk image to drag into Applications. It is the same Piklin as on Linux - the same library, editor, video tools, backups and languages
+- Dragging photos onto an album, or an album onto a folder, no longer freezes Piklin on macOS 26: the Mac app now carries GTK 4.20.4, which also reads clicks next to the window buttons correctly
 - The window looks at home on a Mac: close, minimise and zoom at the top left, the Piklin name at the top of the sidebar, and dialogs sized to fit smaller screens
 - Keyboard shortcuts use ⌘ on a Mac (⌘E to export, ⌘R to rotate), ⌘-click adds to a selection, and the delete key moves photos to Recently Deleted
 - Backup passwords are kept in the Mac's Keychain
