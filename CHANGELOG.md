@@ -2,6 +2,12 @@
 
 ## 1.0.8
 
+### Restoring brings your library back as it was
+- A restore now leaves the library exactly as the backup had it. Folders that came back stayed missing from the sidebar, because the albums, folders and marks a restore brings back only reach the catalog when it is rebuilt, and until then Piklin wrote its emptier catalog back over the restored files
+- Worse, those folders were taken as folders you had deleted, and the next backup carried that deletion to your other computers. Piklin no longer guesses a deletion from something missing: a folder or smart album you delete is written down the moment you delete it, the way albums already were
+- A library waiting to be rebuilt after a restore leaves its restored files alone until the rebuild has run
+- A restore that stops halfway - a full disk, a connection lost - still rebuilds on the next start, instead of leaving the library half restored and silent
+
 ### Albums
 - An album's name stays at the top while you scroll through its photos, so the back arrow to its folder is always one click away
 - An album with photos and videos has a switch at the right of that bar - All, Photos, Videos - to see only one kind. Albums with only photos, or only videos, don't show it

@@ -1137,6 +1137,14 @@ class SettingsDialog(Adw.PreferencesDialog):
             if test is not None and test.fingerprint:
                 self._ask_trust(cfg, test, retry=self._run_restore)
             if p is not None and p.restored:
+                # Whatever came back, the catalog is now behind the files on
+                # disk: mark the rebuild at once, even for a restore that
+                # stopped halfway (a full disk, a lost connection). Until it
+                # runs, the library stops mirroring the catalog back over the
+                # restored files (see sidecars.write_all).
+                flag = self.library.rebuild_flag
+                flag.parent.mkdir(parents=True, exist_ok=True)
+                flag.touch()
                 # Albums, edits or marks that came back only take effect once
                 # the catalog is rebuilt from them - into an empty library or not.
                 if empty or p.restored_state:

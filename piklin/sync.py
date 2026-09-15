@@ -113,9 +113,18 @@ def merge_album(mine: dict | None, theirs: dict | None) -> dict | None:
 
 # -- folders and Smart Albums -------------------------------------------------------
 def stamp_list(previous: dict | None, current: dict, key: str,
-               now: float | None = None) -> dict:
+               now: float | None = None, note_missing: bool = False) -> dict:
     """A list file (``key`` "folders" or "smart_albums"), just written from the
-    catalog, with when each item last changed and which were deleted."""
+    catalog, with when each item last changed and which were deleted.
+
+    An item that is in the file but not in the catalog is *not* taken as
+    deleted: a library whose catalog has not been rebuilt yet - after a
+    restore, or after catalog.db was thrown away - knows nothing of the
+    folders its own files describe, and inferring deletions from that
+    emptiness wiped restored folders and then sent the wipe to every other
+    computer through the backup. Deletions are recorded where they happen,
+    by ``sidecars.note_folder_deleted``. ``note_missing`` is for the tests
+    that check the old inference still behaves."""
     now = time.time() if now is None else now
     prev = previous or {}
     before = {e["uuid"]: e for e in prev.get(key) or []
@@ -131,9 +140,10 @@ def stamp_list(previous: dict | None, current: dict, key: str,
         entries.append(dict(entry, modified_at=_time(old) if same else now))
     present = {e.get("uuid") for e in entries}
     deleted = dict(prev.get("deleted") or {})
-    for uuid_ in before:
-        if uuid_ not in present:
-            deleted.setdefault(uuid_, now)
+    if note_missing:
+        for uuid_ in before:
+            if uuid_ not in present:
+                deleted.setdefault(uuid_, now)
     out = dict(current)
     out[key] = entries
     out["deleted"] = {u: t for u, t in deleted.items() if u not in present}

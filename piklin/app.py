@@ -390,7 +390,7 @@ def main(argv=None):
 
     # Set after files were restored into an empty library: the catalog is
     # rebuilt from them before the window opens.
-    restored = library.root / ".cache" / "rebuild-after-restore"
+    restored = library.rebuild_flag
     if args.rebuild_index or restored.exists():
         status = rebuild_index(library)
         # Only a rebuild that finished clears the request: one that failed

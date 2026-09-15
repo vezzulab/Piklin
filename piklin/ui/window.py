@@ -2678,8 +2678,24 @@ class MainWindow(Adw.ApplicationWindow):
         subtree = find_subtree(self.catalog.tree(), folder_id) or []
         album_uuids = collect_album_uuids(subtree)
 
+        # The folders going with it, this one and any inside it: each
+        # deletion is written down where it happens, so the backup carries
+        # it to the other computers (see sidecars.note_folder_deleted).
+        def collect_folder_uuids(nodes):
+            uuids = []
+            for n in nodes:
+                if n["kind"] == "folder":
+                    uuids.append(n["row"]["uuid"])
+                    uuids.extend(collect_folder_uuids(n["children"]))
+            return uuids
+
+        row = self.catalog.q1("SELECT uuid FROM folders WHERE id=?", (folder_id,))
+        folder_uuids = ([row["uuid"]] if row else []) + collect_folder_uuids(subtree)
+
         def done(d, response):
             if response == "delete":
+                for u in folder_uuids:
+                    sidecars.note_folder_deleted(self.library, u)
                 self.catalog.delete_folder(folder_id)
                 for u in album_uuids:
                     self._delete_album_sidecar(u)
@@ -2896,6 +2912,9 @@ class MainWindow(Adw.ApplicationWindow):
         def done(_d, response):
             if response != "delete":
                 return
+            row = self.catalog.q1("SELECT uuid FROM smart_albums WHERE id=?", (smart_id,))
+            if row:
+                sidecars.note_smart_album_deleted(self.library, row["uuid"])
             self.catalog.delete_smart_album(smart_id)
             self._mirror_state()
             if self._scope == "smart" and self._smart_id == smart_id:

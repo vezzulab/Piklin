@@ -1251,7 +1251,8 @@ check("a photo added back after it was removed is in the album again",
 _renamed = _sy.merge_album(_sy.stamp_album(_a0, dict(_a0, name="Trip 2024"), now=400), _lin)
 check("an album's latest name wins", _renamed["name"] == "Trip 2024")
 _f0 = {"folders": [{"uuid": "fam", "name": "Family"}, {"uuid": "old", "name": "Old"}]}
-_fa = _sy.stamp_list(_f0, {"folders": [{"uuid": "fam", "name": "Family"}]}, "folders", now=500)   # Old deleted
+_fa = _sy.stamp_list(_f0, {"folders": [{"uuid": "fam", "name": "Family"}]}, "folders", now=500,
+                     note_missing=True)                                            # Old deleted here
 _fb = _sy.stamp_list(_f0, {"folders": [{"uuid": "fam", "name": "Familia"}, {"uuid": "old", "name": "Old"},
                                        {"uuid": "new", "name": "New"}]}, "folders", now=450)
 _fm = _sy.merge_list(_fa, _fb, "folders")
@@ -1278,9 +1279,30 @@ _gone = _stc.create_folder("Gone"); _scm.write_all(_st, _stc)
 _text1 = (_st.albums / "_folders.json").read_text(); _scm.write_all(_st, _stc)
 _same = (_st.albums / "_folders.json").read_text() == _text1
 _gone_uuid = _stc.q1("SELECT uuid FROM folders WHERE id=?", (_gone,))["uuid"]
-_stc.delete_folder(_gone); _scm.write_all(_st, _stc)
+_scm.note_folder_deleted(_st, _gone_uuid); _stc.delete_folder(_gone); _scm.write_all(_st, _stc)
 check("the folder list records deletions, and an unchanged list is not rewritten",
       _same and _gone_uuid in json.loads((_st.albums / "_folders.json").read_text())["deleted"])
+
+# A restore brings folders back as files; the catalog only learns of them when
+# it is rebuilt. Until then nothing may mirror that emptiness over them - the
+# bug that wiped twelve folders and sent the wipe to the other computers.
+_rs = _Lm(Path(TMP) / "restore-lib" / "Piklin Library.piklin").ensure(); _rsc = _Cm(_rs.db)
+_kept = _rsc.create_folder("Familia"); _scm.write_all(_rs, _rsc)
+_kept_uuid = _rsc.q1("SELECT uuid FROM folders WHERE id=?", (_kept,))["uuid"]
+_rs.rebuild_flag.parent.mkdir(parents=True, exist_ok=True); _rs.rebuild_flag.touch()
+_rsc.delete_folder(_kept)                      # as a catalog rebuilt from nothing looks
+_scm.write_all(_rs, _rsc)
+_after = json.loads((_rs.albums / "_folders.json").read_text())
+check("a library waiting to be rebuilt after a restore keeps its folders",
+      [e["uuid"] for e in _after["folders"]] == [_kept_uuid] and not _after["deleted"], _after)
+_rs.rebuild_flag.unlink()
+_scm.write_all(_rs, _rsc)
+_after2 = json.loads((_rs.albums / "_folders.json").read_text())
+check("a folder missing from the catalog is never taken as deleted on its own",
+      [e["uuid"] for e in _after2["folders"]] == [_kept_uuid] and not _after2["deleted"], _after2)
+check("a restored folder survives the merge with a backup that recorded it deleted",
+      [e["uuid"] for e in _sy.merge_list(_after2, {"folders": [], "deleted": {_kept_uuid: 1.0}},
+                                         "folders")["folders"]] == [_kept_uuid])
 
 # Two computers sharing one backup folder keep each other up to date.
 from piklin.indexer import Indexer as _IxS

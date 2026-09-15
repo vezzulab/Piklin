@@ -239,6 +239,15 @@ class Library:
         return self.cache / "thumbnails"
 
     @property
+    def rebuild_flag(self) -> Path:
+        """Set by a restore: the catalog is behind the files on disk until
+        the next start rebuilds it from them."""
+        return self.cache / "rebuild-after-restore"
+
+    def rebuild_pending(self) -> bool:
+        return self.rebuild_flag.exists()
+
+    @property
     def settings(self) -> Path:
         # Settings live with the library, not in ~/.config, so that moving
         # the library to another machine carries them along.

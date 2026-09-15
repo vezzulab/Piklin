@@ -159,6 +159,7 @@ def write_folders(library, catalog) -> None:
         "position": r["position"],
     } for r in rows]
     path = folders_path(library)
+    folders = _keep_unknown(path, "folders", folders)
     _write_json(path, sync.stamp_list(
         _read_json(path) or None,
         {"format": FORMAT, "version": VERSION, "folders": folders}, "folders"))
@@ -229,6 +230,7 @@ def write_smart_albums(library, catalog) -> None:
         "created_at": r["created_at"],
     } for r in catalog.smart_albums()]
     path = smart_albums_path(library)
+    items = _keep_unknown(path, "smart_albums", items)
     _write_json(path, sync.stamp_list(
         _read_json(path) or None,
         {"format": FORMAT, "version": VERSION, "smart_albums": items}, "smart_albums"))
@@ -372,7 +374,50 @@ def forget_album_deletion(library, album_uuid: str) -> None:
         _write_json(path, {"format": FORMAT, "version": VERSION, "albums": albums})
 
 
+def _keep_unknown(path: Path, key: str, current: list[dict]) -> list[dict]:
+    """The list as the catalog has it, plus what only the file knows.
+
+    A folder or smart album the catalog has never heard of - restored from a
+    backup into a library not rebuilt yet, or written by another computer -
+    is kept as it stands. Only an entry with a deletion recorded beside it
+    (see ``note_folder_deleted``) is dropped, so mirroring the catalog can
+    never quietly lose what it does not know about.
+    """
+    data = _read_json(path)
+    deleted = data.get("deleted") or {}
+    have = {e.get("uuid") for e in current}
+    extra = [e for e in (data.get(key) or [])
+             if isinstance(e, dict) and e.get("uuid")
+             and e["uuid"] not in have and e["uuid"] not in deleted]
+    return current + extra
+
+
+def note_folder_deleted(library, folder_uuid: str, when: float | None = None) -> None:
+    """Record a folder the person deleted here, so the deletion travels
+    through the backup instead of being guessed from a missing row."""
+    _note_list_deleted(folders_path(library), "folders", folder_uuid, when)
+
+
+def note_smart_album_deleted(library, smart_uuid: str, when: float | None = None) -> None:
+    _note_list_deleted(smart_albums_path(library), "smart_albums", smart_uuid, when)
+
+
+def _note_list_deleted(path: Path, key: str, uuid_: str, when: float | None) -> None:
+    data = _read_json(path)
+    deleted = dict(data.get("deleted") or {})
+    deleted[uuid_] = time.time() if when is None else when
+    items = [e for e in (data.get(key) or [])
+             if not (isinstance(e, dict) and e.get("uuid") == uuid_)]
+    _write_json(path, dict(data, format=FORMAT, version=VERSION,
+                           **{key: items}, deleted=deleted))
+
+
 def write_all(library, catalog) -> None:
+    # A library waiting to be rebuilt after a restore has a catalog that
+    # knows less than its own files do: mirroring it back over them would
+    # throw away what the restore just brought.
+    if library.rebuild_pending():
+        return
     write_photo_state(library, catalog)
     write_removed(library, catalog)
     write_folders(library, catalog)
