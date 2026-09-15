@@ -176,7 +176,7 @@ Piklin is © 2026 [Vezzu Studio](https://vezzu.studio) and is source-available u
 - You may not modify, redistribute or sell Piklin or works based on it.
 - Your photos, edits and everything you make with Piklin are yours.
 
-Why its own license: Piklin installs updates by itself, so every copy should come from the official downloads, signed by Vezzu Studio. Repackaged copies from elsewhere can carry anything; the license keeps it simple: get Piklin from [GitHub](https://github.com/vezzulab/Piklin/releases) or [vezzu.studio](https://vezzu.studio), and use it however you like.
+**Why Piklin has its own license.** Piklin is free for everyone, including for work, and its source code is public so anyone can read and check what it does with their photos. It isn't open source, though: it can't be modified or redistributed. That keeps a single official Piklin, from [GitHub](https://github.com/vezzulab/Piklin/releases) and [vezzu.studio](https://vezzu.studio), whose updates are signed by Vezzu Studio, so what you download is always the real Piklin.
 
 Third-party components keep their own licences; see [NOTICE.md](NOTICE.md).
 
