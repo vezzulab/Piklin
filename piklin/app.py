@@ -130,6 +130,13 @@ def _forgiving_clicks():
 
 class PikaliciousApp(Adw.Application):
     def __init__(self, library_root=None):
+        # GTK keeps the pictures it has drawn on the graphics card for 15
+        # seconds after they leave the screen; scrolling a big library piled
+        # up some 200 MB of them. Three seconds still makes scrolling back
+        # instant and gives the memory back soon after. Read when the first
+        # window is drawn, so it is set before that; a value set by the
+        # person running Piklin wins.
+        os.environ.setdefault("GSK_CACHE_TIMEOUT", "3")
         super().__init__(application_id=APP_ID,
                          flags=Gio.ApplicationFlags.HANDLES_OPEN)
         self.library_root = library_root

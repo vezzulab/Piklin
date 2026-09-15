@@ -11,8 +11,10 @@
 - One click chooses a photo as soon as it is pressed
 
 ### Memory
-- Piklin uses far less memory: scrolling through a big library no longer keeps every thumbnail it has shown. Photos that leave the screen let go of their pictures, only a small cache is kept - at most a sixty-fourth of the computer's memory, and never more than 128 MB - and memory Piklin is done with goes back to the computer. Scrolling through 1,500 photos went from 1.2 GB to about 520 MB
+- Piklin stays light however much you browse. Scrolling through 1,500 photos used to add about 950 MB; now it adds about 20 MB, and Piklin rests at about 270 MB on a Mac instead of more than a gigabyte
+- Rows of photos far from the screen let go of their thumbnails, and photos that leave the screen let go of their pictures. A thumbnail no longer on screen is read again from the thumbnail folder when you come back to it, in milliseconds; only about a screen of them is kept ready, 16 to 32 MB
 - Thumbnails are decoded at the size they are shown, in the grid, Years and Months, folders and the sidebar: an album cover in the sidebar is 22 points, not a 400-pixel picture
+- The graphics card is asked to let go of pictures that left the screen after 3 seconds instead of 15, and memory Piklin is done with goes back to the computer after thumbnails are made
 
 ### First steps
 - The first time Piklin opens, a short guide asks one thing at a time, in five numbered steps: the language, where the library lives, where your photos are - or a backup to restore from - and where to keep a copy. The guide changes language as soon as you choose one, and nothing happens until the last step, so Back can change any answer

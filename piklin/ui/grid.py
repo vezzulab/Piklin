@@ -54,13 +54,14 @@ MAX_PER_SECTION = 36
 # Thumbnails already decoded, kept across views so going back to an album
 # or to All Photos shows them at once: photo path -> (thumbnail file,
 # texture, bytes). The only place decoded thumbnails are kept - a tile holds
-# its picture only while it is on screen - and bounded, oldest first out:
-# a sixty-fourth of the computer's memory, between 48 and 128 MB. Before,
-# every photo kept the picture it had once shown, and scrolling a library
-# of thousands left gigabytes of them behind.
+# its picture only while it is near the screen - and small, oldest first out:
+# about a screen of photos, between 16 and 32 MB (a 256th of the computer's
+# memory). A thumbnail it no longer has is read again from the thumbnail
+# folder in milliseconds. Before, every photo kept the picture it had once
+# shown, and scrolling a library of thousands left gigabytes of them behind.
 def _texture_budget() -> int:
     from .. import system
-    return max(48 * 1024 * 1024, min(128 * 1024 * 1024, system.total_memory() // 64))
+    return max(16 * 1024 * 1024, min(32 * 1024 * 1024, system.total_memory() // 256))
 
 
 _TEXTURE_BUDGET = _texture_budget()
@@ -250,6 +251,8 @@ class PhotoGrid(Gtk.Box):
                                                 self._maybe_load_more)
         # rows bound but not yet given their tiles (see _on_bind)
         self._pending_rows = set()
+        # rows that have their tiles, to empty again when they are far away
+        self._built_rows = set()
         self._build_scheduled = False
         self.scroller.get_vadjustment().connect("value-changed", self._schedule_build)
         # Notes in the activity log when the photos jump soon after a click,
@@ -670,6 +673,7 @@ class PhotoGrid(Gtk.Box):
                 cell.update_property([Gtk.AccessibleProperty.LABEL],
                                      [getattr(item, "filename", "") or _("Photo")])
         flow.set_size_request(-1, -1)
+        self._built_rows.add(list_item)
 
     def _schedule_build(self, *_args) -> None:
         if not self._build_scheduled:
@@ -680,10 +684,26 @@ class PhotoGrid(Gtk.Box):
         """Give tiles to the rows on screen, and to a screen's worth above
         and below, so scrolling finds them ready."""
         self._build_scheduled = False
-        if not self._pending_rows:
-            return GLib.SOURCE_REMOVE
         view_h = self.scroller.get_height() or 800
         origin = Graphene.Point().init(0, 0)
+        # Rows far from the screen give their tiles back. The list keeps a
+        # few hundred rows bound, far more than it shows, and every row
+        # scrolled past kept its tiles and thumbnails: 700 tiles for 120 on
+        # screen after scrolling 1,500 photos. The band they are released
+        # beyond is wider than the one they are built in, so a row at the
+        # edge is not built and emptied over and over.
+        for list_item in list(self._built_rows):
+            box = list_item.get_child()
+            far = box is None or not box.get_mapped()
+            if not far:
+                ok, pt = box.compute_point(self.scroller, origin)
+                far = ok and (pt.y + box.get_height() < -3 * view_h or pt.y > 4 * view_h)
+            if far:
+                self._release_row(list_item)
+                self._reserve_height(list_item)
+                self._pending_rows.add(list_item)
+        if not self._pending_rows:
+            return GLib.SOURCE_REMOVE
         near = []
         for list_item in self._pending_rows:
             box = list_item.get_child()
@@ -703,6 +723,11 @@ class PhotoGrid(Gtk.Box):
             section.sub_label = None
         self._pending_rows.discard(list_item)
         list_item._flow.set_size_request(-1, -1)
+        self._release_row(list_item)
+
+    def _release_row(self, list_item) -> None:
+        """Take a row's tiles out and let them go, with their thumbnails."""
+        self._built_rows.discard(list_item)
         flow = list_item._flow
         while (child := flow.get_first_child()) is not None:
             flow.remove(child)
