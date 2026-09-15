@@ -349,8 +349,12 @@ def main(argv=None):
     # rebuilt from them before the window opens.
     restored = library.root / ".cache" / "rebuild-after-restore"
     if args.rebuild_index or restored.exists():
-        restored.unlink(missing_ok=True)
         status = rebuild_index(library)
+        # Only a rebuild that finished clears the request: one that failed
+        # is tried again on the next start, instead of leaving the library
+        # without the albums and folders the restore brought back.
+        if status == 0:
+            restored.unlink(missing_ok=True)
         if args.rebuild_index:
             return status
 
@@ -363,11 +367,13 @@ def main(argv=None):
     if target:
         from .updates import _appimage, launcher
         start = launcher()
-        if ((getattr(app, "relaunch_update", False) or _appimage() is not None)
+        if ((getattr(app, "relaunch_update", False) or _appimage() is not None
+                or os.environ.get("PIKLIN_BUNDLE_CONTENTS"))
                 and os.access(start, os.X_OK)):
             # Just updated: start through the new package's own launcher, which
-            # picks the libraries that version shipped. An AppImage always
-            # starts through its file: its Python alone can't find Piklin.
+            # picks the libraries that version shipped. An AppImage and
+            # Piklin.app always start through their launcher: the Python they
+            # carry can't find Piklin on its own.
             os.execv(start, [start, "--library", target])
         os.execv(sys.executable, [sys.executable, "-s", "-m",
                                   "piklin.app", "--library", target])
