@@ -106,14 +106,14 @@ class SummaryView(Gtk.ScrolledWindow):
             tile.set_size_request(w, h)
             frame.append(tile)
             if photos:
-                self._thumb(photos[0]["path"], tile)
+                self._thumb(photos[0]["path"], tile, max(w, h))
         else:
             grid = Gtk.Grid(column_spacing=2, row_spacing=2)
             half = (w - 2) // 2
             for i, ph in enumerate(photos[:4]):
                 tile = PhotoTile(half)
                 grid.attach(tile, i % 2, i // 2, 1, 1)
-                self._thumb(ph["path"], tile)
+                self._thumb(ph["path"], tile, half)
             frame.append(grid)
         box.append(frame)
 
@@ -133,17 +133,19 @@ class SummaryView(Gtk.ScrolledWindow):
         box.add_controller(click)
         return box
 
-    def _thumb(self, path, tile):
+    def _thumb(self, path, tile, px):
+        """Decoded off the UI thread, at the size the card draws it."""
+        from .grid import thumb_texture
+        need = int(px * max(1, self.get_scale_factor()))
+
         def done(p):
-            def apply():
-                if p is None:
-                    return False
-                try:
-                    tile.set_paintable(Gdk.Texture.new_from_filename(str(p)))
-                except Exception:
-                    pass
-                return False
-            GLib.idle_add(apply)
+            if p is None:
+                return
+            try:
+                texture = thumb_texture(p, need)
+            except Exception:
+                return
+            GLib.idle_add(lambda: (tile.set_paintable(texture), False)[1])
         self.thumbs.request(path, GRID_SIZE, done)
 
     # -- navigation ------------------------------------------------------

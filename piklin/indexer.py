@@ -431,6 +431,8 @@ class Indexer:
             with self.catalog.write() as cur:
                 cur.executemany("UPDATE photos SET thumb_state=? WHERE id=?",
                                 [(s, i) for i, s in results])
+        # decoding every photo left freed memory with Piklin: give it back
+        system.release_memory()
         p.phase = "done"
         if on_progress:
             on_progress(p)

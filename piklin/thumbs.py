@@ -62,6 +62,8 @@ class ThumbCache:
                                              initializer=system.lower_thread_priority)
         self._inflight: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
+        self._queued = 0          # requests waiting or running
+        self._done = 0            # finished since memory was last given back
 
     def shutdown(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)
@@ -238,11 +240,25 @@ class ThumbCache:
         The callback runs on a worker thread; a GTK caller must hop back
         to the main loop itself.
         """
+        with self._lock:
+            self._queued += 1
+
         def work():
             try:
                 callback(self.generate(src, size, mtime))
             except Exception:
                 callback(None)
+            finally:
+                with self._lock:
+                    self._queued -= 1
+                    self._done += 1
+                    burst_over = self._queued == 0 and self._done >= 20
+                    if burst_over:
+                        self._done = 0
+                if burst_over:
+                    # decoding photos leaves freed memory with Piklin: give it back
+                    from . import system
+                    system.release_memory()
         (self._slow_pool if self._slow(src) else self._pool).submit(work)
 
     def size_on_disk(self) -> int:

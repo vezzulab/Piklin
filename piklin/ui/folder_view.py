@@ -318,14 +318,17 @@ class FolderView(Gtk.ScrolledWindow):
         cr.stroke()
 
     def _thumb(self, path, tile):
+        from .grid import thumb_texture
         gen = self._generation
+        # decoded at the size the card draws it, not as a 400-pixel picture
+        need = int(getattr(tile, "_size", GRID_SIZE) * max(1, self.get_scale_factor()))
 
         def done(p):
             # decoded on the worker thread, only painted on the UI thread
             if p is None or gen != self._generation:
                 return
             try:
-                texture = Gdk.Texture.new_from_filename(str(p))
+                texture = thumb_texture(p, need)
             except Exception:
                 return
 

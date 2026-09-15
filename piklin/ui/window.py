@@ -1388,7 +1388,7 @@ class MainWindow(Adw.ApplicationWindow):
         """A tiny rounded picture of an album's cover for its sidebar row.
         Shown from the thumbnails already decoded when there is one, else
         fetched and decoded off the UI thread, so the sidebar never waits."""
-        from .grid import _cached_texture, _remember_texture
+        from .grid import _cached_texture, thumb_texture
         from .tile import PhotoTile
         from ..thumbs import GRID_SIZE
         tile = PhotoTile(22, radius=5.0)
@@ -1398,15 +1398,17 @@ class MainWindow(Adw.ApplicationWindow):
         if hit is not None:
             tile.set_paintable(hit[1])
             return tile
+        # decoded at the 22 points it is drawn, not as a 400-pixel picture,
+        # and kept out of the grid's cache, where it would be too small
+        need = 22 * max(1, self.get_scale_factor())
 
         def done(thumb):
             if thumb is None:
                 return
             try:
-                texture = Gdk.Texture.new_from_filename(str(thumb))
+                texture = thumb_texture(thumb, need)
             except Exception:
                 return
-            _remember_texture(path, str(thumb), texture)
             GLib.idle_add(lambda: (tile.set_paintable(texture), False)[1])
         self.thumbs.request(path, GRID_SIZE, done)
         return tile

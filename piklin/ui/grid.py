@@ -53,8 +53,17 @@ MAX_PER_SECTION = 36
 
 # Thumbnails already decoded, kept across views so going back to an album
 # or to All Photos shows them at once: photo path -> (thumbnail file,
-# texture, bytes). Bounded by memory, oldest first out.
-_TEXTURE_BUDGET = 256 * 1024 * 1024
+# texture, bytes). The only place decoded thumbnails are kept - a tile holds
+# its picture only while it is on screen - and bounded, oldest first out:
+# a sixty-fourth of the computer's memory, between 48 and 128 MB. Before,
+# every photo kept the picture it had once shown, and scrolling a library
+# of thousands left gigabytes of them behind.
+def _texture_budget() -> int:
+    from .. import system
+    return max(48 * 1024 * 1024, min(128 * 1024 * 1024, system.total_memory() // 64))
+
+
+_TEXTURE_BUDGET = _texture_budget()
 _textures: OrderedDict = OrderedDict()
 _texture_bytes = 0
 _texture_lock = threading.Lock()
@@ -90,6 +99,53 @@ def _remember_texture(photo_path, thumb_path, texture) -> None:
         while _texture_bytes > _TEXTURE_BUDGET and len(_textures) > 1:
             _key, (_thumb, _tex, gone) = _textures.popitem(last=False)
             _texture_bytes -= gone
+
+
+def _drop_controllers(widget) -> None:
+    """Remove a widget's event controllers, and with them the Python
+    handlers that refer back to the widget."""
+    controllers = widget.observe_controllers()
+    for i in reversed(range(controllers.get_n_items())):
+        widget.remove_controller(controllers.get_item(i))
+
+
+def _forget_texture(photo_path) -> None:
+    global _texture_bytes
+    with _texture_lock:
+        old = _textures.pop(photo_path, None)
+        if old is not None:
+            _texture_bytes -= old[2]
+
+
+def _big_enough(texture, px: int) -> bool:
+    """Whether a decoded thumbnail is sharp in a tile of ``px`` device pixels."""
+    w, h = texture.get_width(), texture.get_height()
+    return min(w, h) >= px * 0.9 or max(w, h) >= GRID_SIZE * 0.95
+
+
+def thumb_texture(thumb_path, px: int):
+    """Decode a thumbnail no larger than it is drawn: its shorter side
+    ``px`` device pixels (enough to fill a square tile). A 400-pixel
+    thumbnail in a 200-pixel tile took four times the memory it showed.
+    Runs on any thread."""
+    path = str(thumb_path)
+    try:
+        gi.require_version("GdkPixbuf", "2.0")
+        from gi.repository import GdkPixbuf
+        fmt, w, h = GdkPixbuf.Pixbuf.get_file_info(path)
+        if fmt is not None and w and h:
+            scale = px / min(w, h)
+            if scale < 0.9:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                    path, max(1, round(w * scale)), max(1, round(h * scale)), False)
+                return Gdk.MemoryTexture.new(
+                    pixbuf.get_width(), pixbuf.get_height(),
+                    Gdk.MemoryFormat.R8G8B8A8 if pixbuf.get_has_alpha()
+                    else Gdk.MemoryFormat.R8G8B8,
+                    pixbuf.read_pixel_bytes(), pixbuf.get_rowstride())
+    except Exception:
+        pass
+    return Gdk.Texture.new_from_filename(path)
 
 
 class DaySection(GObject.Object):
@@ -179,6 +235,8 @@ class PhotoGrid(Gtk.Box):
         factory.connect("setup", self._on_setup)
         factory.connect("bind", self._on_bind)
         factory.connect("unbind", self._on_unbind)
+        # a row GTK throws away no longer counts among the rows to resize
+        factory.connect("teardown", self._on_teardown)
 
         self.view = Gtk.ListView(
             model=Gtk.NoSelection(model=self.sections), factory=factory,
@@ -655,7 +713,18 @@ class PhotoGrid(Gtk.Box):
             clst = self._tile_containers.get(item_id)
             if clst and container in clst:
                 clst.remove(container)
+            # A tile off screen lets go of its picture and its gestures. The
+            # gestures' handlers name the tile, and that loop between GTK and
+            # Python kept every tile ever shown alive with its thumbnail:
+            # 1,556 tiles for 120 on screen after scrolling 1,500 photos.
+            picture.set_paintable(None)
+            _drop_controllers(container)
         list_item._tiles = []
+
+    def _on_teardown(self, _factory, list_item):
+        flow = getattr(list_item, "_flow", None)
+        if flow in self._flows:
+            self._flows.remove(flow)
 
     def _make_tile(self, item, list_item):
         # A plain Box, not a Gtk.Button: GtkButton owns its own internal
@@ -761,16 +830,16 @@ class PhotoGrid(Gtk.Box):
         drag.connect("drag-begin", self._on_drag_begin, item)
         container.add_controller(drag)
 
-        if item.texture is not None:
-            picture.set_paintable(item.texture)
-        elif not item.missing:
+        if not item.missing:
             # Seen before in this session: shown at once, then checked in
-            # the background in case the photo was edited since.
+            # the background in case the photo was edited since (or was
+            # decoded smaller than this tile needs). Nothing is kept on the
+            # photo itself.
             hit = _cached_texture(item.path)
             if hit is not None:
-                item.texture = hit[1]
                 picture.set_paintable(hit[1])
-            self._request_thumb(item, picture, known=hit[0] if hit else None)
+            fresh = hit is not None and _big_enough(hit[1], self._texture_px())
+            self._request_thumb(item, picture, known=hit[0] if fresh else None)
         return container
 
     # -- video preview under the pointer ---------------------------------
@@ -816,8 +885,9 @@ class PhotoGrid(Gtk.Box):
         if preview is not None:
             engine, item, picture = preview
             threading.Thread(target=engine.unload, daemon=True).start()
-            if item.texture is not None:
-                picture.set_paintable(item.texture)
+            hit = _cached_texture(item.path)
+            if hit is not None:
+                picture.set_paintable(hit[1])
 
     # -- right-click on empty space, and choosing by dragging a rectangle -------
     def _on_tile_at(self, x, y) -> bool:
@@ -943,11 +1013,17 @@ class PhotoGrid(Gtk.Box):
             if pictures:
                 self._request_thumb(item, pictures[0])
             else:
-                item.texture = None     # not on screen: fetched when it is
+                _forget_texture(item.path)   # not on screen: fetched again when it is
+
+    def _texture_px(self) -> int:
+        """Device pixels a tile is drawn with: its size times the screen's scale."""
+        return int(self.tile_px * max(1, self.get_scale_factor()))
 
     def _request_thumb(self, item, picture, known=None):
         """Fetch the thumbnail and paint it. ``known``: the thumbnail file
         already on screen from the cache - nothing to do if it is current."""
+        need = self._texture_px()
+
         def done(path):
             # Runs on a thumbnail worker thread.
             if path is None:
@@ -958,13 +1034,12 @@ class PhotoGrid(Gtk.Box):
             try:
                 # Decoded here, off the UI thread: decoding hundreds of
                 # JPEGs on it is what made opening a big album take seconds.
-                texture = Gdk.Texture.new_from_filename(str(path))
+                texture = thumb_texture(path, need)
             except Exception:
                 return
             _remember_texture(item.path, str(path), texture)
 
             def apply():
-                item.texture = texture
                 # The tile may have been recycled; paint every live widget
                 # currently showing this photo.
                 for w in self._tile_widgets.get(item.id, []):
@@ -1012,8 +1087,9 @@ class PhotoGrid(Gtk.Box):
         overlay.add_css_class("pika-drag-icon")
         tile = PhotoTile(84, radius=8.0)
         tile.set_size_request(84, 84)
-        if item.texture is not None:
-            tile.set_paintable(item.texture)
+        hit = _cached_texture(item.path)
+        if hit is not None:
+            tile.set_paintable(hit[1])
         overlay.set_child(tile)
         if len(ids) > 1:
             badge = Gtk.Label(label=f"{len(ids):,}", halign=Gtk.Align.END,
@@ -1387,6 +1463,16 @@ class PhotoGrid(Gtk.Box):
         self.sections.remove_all()
         self._show_heading()
         self._load_page()
+        # the tiles of the view before are gone: give their memory back
+        if getattr(self, "_release_timer", 0):
+            GLib.source_remove(self._release_timer)
+
+        def release():
+            self._release_timer = 0
+            from .. import system
+            system.release_memory()
+            return GLib.SOURCE_REMOVE
+        self._release_timer = GLib.timeout_add(1500, release)
 
     def _on_heading_back(self, _btn, list_item):
         section = list_item.get_item()

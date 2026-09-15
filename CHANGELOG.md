@@ -10,6 +10,10 @@
 - A click counts even when the pointer slips a little while pressing, as it often does on a trackpad or a high-resolution screen: buttons, album cards, sidebar rows and photos no longer need a second or third click, on Mac and Linux
 - One click chooses a photo as soon as it is pressed
 
+### Memory
+- Piklin uses far less memory: scrolling through a big library no longer keeps every thumbnail it has shown. Photos that leave the screen let go of their pictures, only a small cache is kept - at most a sixty-fourth of the computer's memory, and never more than 128 MB - and memory Piklin is done with goes back to the computer. Scrolling through 1,500 photos went from 1.2 GB to about 520 MB
+- Thumbnails are decoded at the size they are shown, in the grid, Years and Months, folders and the sidebar: an album cover in the sidebar is 22 points, not a 400-pixel picture
+
 ### First steps
 - The first time Piklin opens, a short guide asks one thing at a time, in five numbered steps: the language, where the library lives, where your photos are - or a backup to restore from - and where to keep a copy. The guide changes language as soon as you choose one, and nothing happens until the last step, so Back can change any answer
 

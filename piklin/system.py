@@ -38,6 +38,23 @@ def total_memory() -> int:
         return 8192 * _MB
 
 
+def release_memory() -> None:
+    """Hand memory Piklin has finished with back to the computer.
+
+    Freed memory otherwise stays with the process, ready for reuse: after a
+    burst of thumbnails, the activity monitor went on showing gigabytes that
+    Piklin no longer used. Cheap; call it when a burst of work ends."""
+    try:
+        if IS_LINUX:
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        elif IS_MAC:
+            libc = ctypes.CDLL(None)
+            libc.malloc_zone_pressure_relief.restype = ctypes.c_size_t
+            libc.malloc_zone_pressure_relief(None, ctypes.c_size_t(0))
+    except (OSError, AttributeError):
+        pass
+
+
 def work_budget(kind: str = "images") -> int:
     """How many pieces of ``kind`` of work may run at once on this computer:
     a core is always left for the person using it, and each large photo in
