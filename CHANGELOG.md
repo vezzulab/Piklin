@@ -14,6 +14,7 @@
 - Piklin stays light however much you browse. Scrolling through 1,500 photos used to add about 950 MB; now it adds about 20 MB, and Piklin rests at about 270 MB on a Mac instead of more than a gigabyte
 - Rows of photos far from the screen let go of their thumbnails, and photos that leave the screen let go of their pictures. A thumbnail no longer on screen is read again from the thumbnail folder when you come back to it, in milliseconds; only about a screen of them is kept ready, 16 to 32 MB
 - Thumbnails are decoded at the size they are shown, in the grid, Years and Months, folders and the sidebar: an album cover in the sidebar is 22 points, not a 400-pixel picture
+- On Linux, the threads that make thumbnails, scan and back up no longer each keep a pool of memory after their work is done: with a library of 5,000 photos, Piklin went from 782 MB to 312 MB once it had settled
 - The graphics card is asked to let go of pictures that left the screen after 3 seconds instead of 15, and memory Piklin is done with goes back to the computer after thumbnails are made
 
 ### First steps

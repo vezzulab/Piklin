@@ -137,6 +137,8 @@ class PikaliciousApp(Adw.Application):
         # window is drawn, so it is set before that; a value set by the
         # person running Piklin wins.
         os.environ.setdefault("GSK_CACHE_TIMEOUT", "3")
+        from . import system
+        system.tune_malloc()          # already done by main(); here for other launchers
         super().__init__(application_id=APP_ID,
                          flags=Gio.ApplicationFlags.HANDLES_OPEN)
         self.library_root = library_root
@@ -374,6 +376,9 @@ def main(argv=None):
     GLib.set_prgname("piklin")
     GLib.set_application_name("Piklin")
 
+    # Before any thread starts: how memory is shared out between them.
+    from . import system
+    system.tune_malloc()
     # The language comes first: every window and message is built in it.
     from . import i18n
     i18n.setup()
