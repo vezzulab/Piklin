@@ -1816,6 +1816,10 @@ try:
           and not _upd.update_available(_upd.Release("1.0.4", "u", build=""), "1.0.4")
           and _upd.update_available(_upd.Release("1.0.5", "u"), "1.0.4")
           and not _upd.update_available(_upd.Release("1.0.3", "u", build="z"), "1.0.4"))
+    _upd.installed_build = lambda: "621c6445d47a-20260915043411"
+    check("an older published build of the same version is never offered as an update",
+          not _upd.update_available(_upd.Release("1.0.4", "u", build="88bb2e06a68b-20260915003219"), "1.0.4")
+          and _upd.update_available(_upd.Release("1.0.4", "u", build="aaaa11112222-20260916101010"), "1.0.4"))
 finally:
     _upd.installed_build = _orig_ib
 

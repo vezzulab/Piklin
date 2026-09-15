@@ -112,7 +112,17 @@ def update_available(release: "Release", current: str) -> bool:
     if is_newer(current, release.version):
         return False
     mine = installed_build()
-    return bool(release.build and mine and release.build != mine)
+    if not (release.build and mine and release.build != mine):
+        return False
+    # A build id ends in the time it was made (commit-YYYYMMDDhhmmss). Only
+    # a later build of the same version is an update: a copy built after the
+    # published one - a fix being tried before it is released - must not be
+    # replaced by the older, published build.
+    made = lambda build: build.rsplit("-", 1)[-1] if "-" in build else ""
+    theirs, ours = made(release.build), made(mine)
+    if theirs.isdigit() and ours.isdigit() and len(theirs) == len(ours):
+        return theirs > ours
+    return True
 
 
 def parse_version(text: str) -> tuple[int, ...]:
