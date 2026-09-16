@@ -244,8 +244,13 @@ class PhotoGrid(Gtk.Box):
             vexpand=True, single_click_activate=False)
         self.view.add_css_class("pika-grid")
 
+        # EXTERNAL, not NEVER: no horizontal scrollbar either way, but NEVER
+        # also makes the photos' width the window's minimum width. The rows
+        # ask for exactly as many columns as fit, so once maximized the
+        # window could not go back to its own size - and the width never
+        # changing, the columns never re-fitted to let it.
         self.scroller = Gtk.ScrolledWindow(
-            hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
+            hscrollbar_policy=Gtk.PolicyType.EXTERNAL, vexpand=True)
         self.scroller.set_child(self.view)
         self.scroller.get_vadjustment().connect("value-changed",
                                                 self._maybe_load_more)
@@ -466,6 +471,10 @@ class PhotoGrid(Gtk.Box):
         for flow in self._flows:
             flow.set_min_children_per_line(cols)
             flow.set_max_children_per_line(cols)
+        # The window narrowed before the columns followed: for a frame the
+        # rows were wider than the view, and nothing may be left scrolled
+        # sideways once they fit again.
+        self.scroller.get_hadjustment().set_value(0)
         for list_item in list(self._pending_rows):
             self._reserve_height(list_item)
         self._schedule_build()
