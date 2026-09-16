@@ -16,6 +16,11 @@
 ### Albums
 - An album's name stays at the top while you scroll through its photos, so the back arrow to its folder is always one click away
 - An album with photos and videos has a switch at the right of that bar - All, Photos, Videos - to see only one kind. Albums with only photos, or only videos, don't show it
+- An album's count is the photos it shows. A photo moved to Recently Deleted, or hidden, stayed in the number, so deleting from an album never brought its count down; an album's cover is never a deleted photo either
+- Dragging photos from an album onto another album moves them. They used to be added to the new album and left in the old one, so one count went up and the other never came down. Add to Album still keeps a photo in both
+
+### Window
+- A window made larger - maximized, or with a double click on its bar - goes back to the size it had. The photos' width had become the window's smallest width, so on Linux it could no longer shrink and jumped around the screen instead
 
 ### Clicks
 - A click counts even when the pointer slips a little while pressing, as it often does on a trackpad or a high-resolution screen: buttons, album cards, sidebar rows and photos no longer need a second or third click, on Mac and Linux

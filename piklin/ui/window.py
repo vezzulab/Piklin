@@ -1366,6 +1366,14 @@ class MainWindow(Adw.ApplicationWindow):
                     return False
                 self.catalog.album_add(album_id, ids)
                 self._write_album_sidecar(album_id)
+                # Dragged out of the album on screen into another one: they
+                # move, as dragging does everywhere else. Only adding left
+                # them in both, so the album they left never counted down.
+                # Add to Album is still there to keep a photo in two albums.
+                source = self._album_id if self._scope == "album" else None
+                if source is not None and source != album_id:
+                    self.catalog.album_remove(source, ids)
+                    self._write_album_sidecar(source)
                 self._refresh()
                 return True
             dragged = self._dragged_item(value)

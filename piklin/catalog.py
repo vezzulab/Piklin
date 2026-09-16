@@ -1145,15 +1145,25 @@ class Catalog:
             return int(cur.lastrowid)
 
     def albums(self) -> list[sqlite3.Row]:
+        # An album's count and cover are the photos it shows (see photos():
+        # not in Recently Deleted, not hidden, not the moving half of a live
+        # photo). Counting every row it had kept a deleted photo in the
+        # number, so deleting from an album never brought the count down.
         return self.q("""
-            SELECT a.*, COUNT(ai.photo_id) AS n,
+            SELECT a.*, COUNT(p.id) AS n,
                    COALESCE(
                      -- the cover chosen with Make Album Cover, while it is still in the album
-                     (SELECT p.path FROM album_items x JOIN photos p ON p.id=x.photo_id
-                       WHERE x.album_id=a.id AND x.photo_id=a.cover_id),
-                     (SELECT p.path FROM album_items x JOIN photos p ON p.id=x.photo_id
-                       WHERE x.album_id=a.id ORDER BY x.position LIMIT 1)) AS cover_path
-            FROM albums a LEFT JOIN album_items ai ON ai.album_id=a.id
+                     (SELECT c.path FROM album_items x JOIN photos c ON c.id=x.photo_id
+                       WHERE x.album_id=a.id AND x.photo_id=a.cover_id
+                         AND c.paired_to IS NULL AND c.trashed_at IS NULL AND c.hidden=0),
+                     (SELECT c.path FROM album_items x JOIN photos c ON c.id=x.photo_id
+                       WHERE x.album_id=a.id
+                         AND c.paired_to IS NULL AND c.trashed_at IS NULL AND c.hidden=0
+                       ORDER BY x.position LIMIT 1)) AS cover_path
+            FROM albums a
+            LEFT JOIN album_items ai ON ai.album_id=a.id
+            LEFT JOIN photos p ON p.id=ai.photo_id AND p.paired_to IS NULL
+                              AND p.trashed_at IS NULL AND p.hidden=0
             GROUP BY a.id ORDER BY a.folder_id, a.position, a.name COLLATE NOCASE""")
 
     def album_add(self, album_id: int, photo_ids: Sequence[int]) -> None:

@@ -210,6 +210,25 @@ check("scopes filter", len(cat.browse(scope="favorites")) == 2 and
 check("search by filename", len(cat.browse(search=os.path.basename(SRC[0])[:6])) >= 1)
 aid = cat.create_album("Test"); cat.album_add(aid, [1,2,3])
 check("albums work", len(cat.browse(scope="album", album_id=aid)) == 3)
+# An album's count is what it shows: deleting, hiding or taking a photo out
+# brings it down (a deleted photo used to stay in the number).
+_ca = cat.create_album("Counts"); cat.album_add(_ca, [4, 5, 6, 8])   # 8 is in Recently Deleted
+_n = lambda a: next(r["n"] for r in cat.albums() if r["id"] == a)
+check("an album counts only the photos it shows, not one in Recently Deleted",
+      _n(_ca) == 3 == len(cat.browse(scope="album", album_id=_ca)), _n(_ca))
+with cat.write() as _cur:
+    _cur.execute("UPDATE photos SET hidden=1 WHERE id=6")
+_hidden_n = _n(_ca)
+with cat.write() as _cur:
+    _cur.execute("UPDATE photos SET hidden=0 WHERE id=6")
+cat.album_remove(_ca, [5])
+check("hiding or taking a photo out brings the album's count down",
+      _hidden_n == 2 and _n(_ca) == 2, (_hidden_n, _n(_ca)))
+cat.set_album_cover(_ca, 8)
+_cover = next(r["cover_path"] for r in cat.albums() if r["id"] == _ca)
+check("a photo in Recently Deleted is never an album's cover",
+      _cover == cat.photo(4)["path"], _cover)
+cat.delete_album(_ca)
 cat.upsert_photos([iio.probe(SRC[0], rid)])
 check("rescan preserves user state", bool(cat.photo(1)["favorite"]))
 import threading
