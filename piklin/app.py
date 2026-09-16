@@ -230,8 +230,13 @@ class PikaliciousApp(Adw.Application):
         }.get(theme, Adw.ColorScheme.PREFER_LIGHT))
 
 
-def rebuild_index(library: Library) -> int:
-    """Reconstruct catalog.db from the originals and sidecars."""
+def rebuild_index(library: Library, on_progress=None) -> int:
+    """Reconstruct catalog.db from the originals and sidecars.
+
+    ``on_progress`` is handed the indexer's progress as it reads the photos
+    back in, so a rebuild asked for by a restore can show itself instead of
+    running behind a window that has not opened yet.
+    """
     import json
     from .catalog import Catalog
     from .indexer import Indexer
@@ -297,7 +302,7 @@ def rebuild_index(library: Library) -> int:
     n_removed = sidecars.restore_removed(library, catalog)
     if n_removed:
         print(f"  kept {n_removed} removed photos out of the library")
-    progress = indexer.scan(roots, lambda p: None)
+    progress = indexer.scan(roots, on_progress)
     print(f"  indexed {progress.added} photos")
 
     restored = 0
@@ -378,6 +383,66 @@ def rebuild_index(library: Library) -> int:
     return 0
 
 
+def _rebuild_showing_progress(library: Library) -> int:
+    """Rebuild after a restore with a window open, so it can be seen.
+
+    Reading a restored library back in takes minutes, and it has to finish
+    before the main window can open. Doing that silently left Piklin with
+    no window at all: on a MacBook restoring 5,000 photos it looked frozen,
+    and force quitting it only started the whole rebuild again.
+    """
+    import threading
+    from .i18n import _
+
+    Gtk.init()
+    window = Gtk.Window(title="Piklin", resizable=False,
+                        default_width=440, default_height=150)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                  margin_top=24, margin_bottom=24,
+                  margin_start=24, margin_end=24)
+    title = Gtk.Label(label=_("Putting your library back together"), xalign=0)
+    title.add_css_class("title-4")
+    bar = Gtk.ProgressBar()
+    step = Gtk.Label(label=_("Reading your photos…"), xalign=0)
+    step.add_css_class("dim-label")
+    for child in (title, bar, step):
+        box.append(child)
+    window.set_child(box)
+    window.present()
+
+    loop = GLib.MainLoop()
+    outcome = {}
+
+    def report(p):
+        def show():
+            name = {"scanning": _("Looking for photos"),
+                    "probing": _("Reading photo details"),
+                    "thumbnails": _("Preparing previews")}.get(p.phase, p.phase)
+            step.set_text(
+                _("{step} — {done} of {total}").format(
+                    step=name, done=f"{p.done:,}", total=f"{p.total:,}")
+                if p.total else f"{name} — {p.done:,}")
+            bar.set_fraction(p.fraction)
+            return False
+        GLib.idle_add(show)
+
+    def work():
+        try:
+            outcome["status"] = rebuild_index(library, report)
+        except Exception as exc:                 # the next start tries again
+            print(f"Rebuild failed: {exc}")
+            outcome["status"] = 1
+        GLib.idle_add(loop.quit)
+
+    threading.Thread(target=work, daemon=True).start()
+    loop.run()
+    window.destroy()
+    # Anything still queued for the window that is about to close.
+    while GLib.MainContext.default().pending():
+        GLib.MainContext.default().iteration(False)
+    return outcome.get("status", 1)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="piklin", description="Photo library and editor")
@@ -410,7 +475,10 @@ def main(argv=None):
     # rebuilt from them before the window opens.
     restored = library.rebuild_flag
     if args.rebuild_index or restored.exists():
-        status = rebuild_index(library)
+        # Asked for on the command line it prints and says nothing on screen;
+        # asked for by a restore, it shows itself while the person waits.
+        status = (rebuild_index(library) if args.rebuild_index
+                  else _rebuild_showing_progress(library))
         # Only a rebuild that finished clears the request: one that failed
         # is tried again on the next start, instead of leaving the library
         # without the albums and folders the restore brought back.
