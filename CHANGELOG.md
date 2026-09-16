@@ -7,6 +7,8 @@
 - Worse, those folders were taken as folders you had deleted, and the next backup carried that deletion to your other computers. Piklin no longer guesses a deletion from something missing: a folder or smart album you delete is written down the moment you delete it, the way albums already were
 - A library waiting to be rebuilt after a restore leaves its restored files alone until the rebuild has run
 - A restore that stops halfway - a full disk, a connection lost - still rebuilds on the next start, instead of leaving the library half restored and silent
+- A restore that will not fit says so before it starts, naming what it needs and what the disk has, instead of filling the disk and stopping partway. Half a gigabyte is kept back for the thumbnails and the rebuilt catalog
+- Rebuilding after a restore shows a window with a progress bar naming each step. It used to run before any window opened, so Piklin looked frozen for minutes on a large library, and force quitting it started the rebuild over
 
 ### The interface reads as it should on every Mac
 - Piklin is drawn in the Inter it carries, on a Mac with fonts installed too. The typeface was registered through whichever fontconfig the Mac had, and inside Piklin.app there is none, so on a Mac with many fonts installed - a designer's Mac, with Adobe's fonts - the interface came out in heavy display faces that read as bold capitals. The app's own fontconfig now lists the typeface itself, and registering it falls back through every library Piklin carries
