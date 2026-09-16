@@ -133,6 +133,10 @@ class MainWindow(Adw.ApplicationWindow):
         from ..autobackup import AutoBackup
         self.autobackup = AutoBackup(library, self.settings, self._on_backup_status,
                                      sync=self._sync_from_backup)
+        from ..healthwatch import HealthWatch
+        self.health_watch = HealthWatch(library, self.catalog, self.settings,
+                                        self.autobackup, self.indexer,
+                                        self._on_health_result)
         GLib.idle_add(self._first_run)
 
     # ==================================================================
@@ -3390,6 +3394,54 @@ class MainWindow(Adw.ApplicationWindow):
         self.footer_backup.set_tooltip_text(text or None)
         self.footer_backup.set_visible(bool(text))
 
+    # -- photo health -------------------------------------------------------
+    def _on_health_result(self, _report, mending):
+        """What the last check did, said once: photos put back from the
+        backup, and photos found damaged with nothing good to put back."""
+        if mending.mended:
+            n = len(mending.mended)
+            self.toasts.add_toast(Adw.Toast(title=ngettext(
+                "Repaired {count} damaged photo from your backup",
+                "Repaired {count} damaged photos from your backup", n).format(count=n),
+                timeout=8))
+        if mending.no_copy:
+            n = len(mending.no_copy)
+            toast = Adw.Toast(title=ngettext(
+                "{count} photo is damaged, with no good copy in your backup",
+                "{count} photos are damaged, with no good copy in your backup", n).format(count=n),
+                button_label=_("Show"), timeout=0)
+            toast.connect("button-clicked", lambda *_a: self.show_damaged_photos())
+            self.toasts.add_toast(toast)
+
+    def show_damaged_photos(self):
+        from ..healthwatch import damaged_rows
+        rows = damaged_rows(self.health_watch.health)
+        dialog = Adw.AlertDialog(
+            heading=_("Damaged Photos"),
+            body=_("These photos changed on their own, the way a disk wears out, and "
+                   "there is no good copy of them in your backup yet. Piklin has not "
+                   "touched them. If you have another copy of one, put it back in its place."))
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        for row in rows[:200]:
+            path = self.health_watch.health.path(row["key"])
+            item = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            name = Gtk.Label(label=path.name, xalign=0, ellipsize=3)
+            where = Gtk.Label(label=str(path.parent), xalign=0, ellipsize=1,
+                              tooltip_text=str(path.parent))
+            where.add_css_class("dim-label")
+            where.add_css_class("caption")
+            item.append(name)
+            item.append(where)
+            box.append(item)
+        if not rows:
+            box.append(Gtk.Label(label=_("No damaged photos."), xalign=0))
+        scroll = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER,
+                                    min_content_height=min(320, 44 * max(1, len(rows))),
+                                    child=box)
+        dialog.set_extra_child(scroll)
+        dialog.add_response("ok", _("OK"))
+        dialog.present(self)
+
     def _maybe_offer_backup(self):
         """Once, at the start: where should a copy of the photos go?"""
         if self.settings.get("backup_onboarding_done") or self.settings.get("remotes"):
@@ -3559,6 +3611,7 @@ class MainWindow(Adw.ApplicationWindow):
             dialog.connect("response", done)
             dialog.present(self)
             return True
+        self.health_watch.stop()
         self.indexer.stop(timeout=2.0)
         self.thumbs.shutdown()
         self.editor.shutdown()

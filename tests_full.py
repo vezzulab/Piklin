@@ -1492,6 +1492,11 @@ check("new view and export options survive a restart",
 _s1.set("video_sizes_checked_v3", True)
 check("the one-time check of video sizes is remembered after a restart",
       _S(_sp).get("video_sizes_checked_v3") is True)
+check("checking photos for damage is on by default",
+      _S(os.path.join(TMP, "fresh-health.json")).get("health_check") is True)
+_s1.set("health_check", False)
+check("turning off the damage check is remembered after a restart",
+      _S(_sp).get("health_check") is False)
 check("location is left out of exports by default",
       _S(os.path.join(TMP, "fresh-settings.json")).get("export_include_location") is False)
 
@@ -1859,6 +1864,222 @@ check("rename: a rescan sees the renamed photo, not a new one plus a missing one
       and all(r["thumb_state"] != 3 for r in _rowsR)
       and cR.photo(pidR)["path"].endswith("BEACH.jpg"),
       str([(Path(r["path"]).name, r["thumb_state"]) for r in _rowsR]))
+
+# ===================================================================
+section("Photo health: damage found, and mended from the backup")
+import functools as _ft, http.server as _hs, subprocess
+from piklin import health as _H
+_hT = Path(TMP) / "health"
+_hlib = _L(os.path.join(_hT, "Lib", LIBRARY_NAME)).ensure()
+_hday = _hlib.originals / "2014" / "2014-12-17"; _hday.mkdir(parents=True)
+_hold = time.time() - 3 * 86400
+_hp = []
+for _f in SRC[:6]:
+    _p = _hday / os.path.basename(_f); shutil.copy2(_f, _p); os.utime(_p, (_hold, _hold))
+    _hp.append(_p.resolve())
+_hout = _hT / "Watched"; _hout.mkdir()
+_hext = _hout / "outside.jpg"; shutil.copy2(SRC[0], _hext); os.utime(_hext, (_hold, _hold))
+_hp.append(_hext.resolve())
+_hgood = {p: p.read_bytes() for p in _hp}
+
+def _hflip(p, at=None):
+    st = p.stat(); data = bytearray(p.read_bytes())
+    i = at if at is not None else len(data) // 2
+    data[i] ^= 0xFF; data[i + 1] ^= 0x5A
+    p.write_bytes(bytes(data)); os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
+
+def _hdamage(h, p, at=None):
+    # Damage as a disk does it: only the content changes. A write moves the
+    # change time, so the record takes the new one - as if never written.
+    _hflip(p, at)
+    with h._lock, h._con:
+        h._con.execute("UPDATE files SET ctime_ns=? WHERE key=?", (p.stat().st_ctime_ns, h.key(p)))
+
+_hdest = _hT / "NAS"; _hdest.mkdir()
+_hb = rem.Remote(id="hnas", name="NAS", kind="local", config={"path": str(_hdest)}).backend()
+_hb.push(_hlib.root, rem.library_files(_hlib.root))
+_h = _H.Health(_hlib)
+_hnow = time.time() + _H.SETTLE_SECONDS + 60
+_r = _h.check(_hp, 10**12, now=_hnow)
+check("the first check records every photo and finds nothing", _r.recorded == len(_hp) and not _r.damaged, _r)
+check("a photo checked recently is not read again", _h.check(_hp, 10**12, now=_hnow + 60).checked == 0)
+_ht = _hnow + 31 * 86400
+_r = _h.check(_hp, 10**12, now=_ht)
+check("a month later every photo is read again, all healthy",
+      _r.checked == len(_hp) and not _r.damaged and _r.recorded == 0, _r)
+_hed = _hp[1]
+_hed.write_bytes(_hgood[_hed] + b"xmp"); os.utime(_hed, (_hold + 5, _hold + 5)); _hgood[_hed] = _hed.read_bytes()
+_ht += 31 * 86400
+_r = _h.check(_hp, 10**12, now=_ht)
+check("a photo changed on purpose is recorded again, not taken for damage", _r.recorded == 1 and not _r.damaged, _r)
+
+_hv = _hp[2]; _hk = _h.key(_hv)
+_hdamage(_h, _hv)
+_ht += 31 * 86400
+_r = _h.check(_hp, 10**12, now=_ht)
+check("damage that keeps the size and the date is found", _r.damaged == [_hk], _r)
+_pp = _hb.push(_hlib.root, rem.library_files(_hlib.root))
+check("the backup never sends a damaged photo over its good copy",
+      _pp.uploaded == 1 and (_hdest / "Piklin" / _hk).read_bytes() == _hgood[_hv], _pp.uploaded)
+_hbad = _hv.read_bytes()
+_m = _h.mend([_hb], now=_ht + 10)
+check("a damaged photo is put back from the backup, byte for byte, with its own date",
+      _m.mended == [_hk] and _hv.read_bytes() == _hgood[_hv]
+      and _hv.stat().st_mtime_ns == _h._get(_hk)["mtime_ns"], _m)
+_haside = list((_H.health_dir(_hlib) / "damaged").rglob(_hv.name))
+check("the damaged file is kept aside, never thrown away",
+      len(_haside) == 1 and _haside[0].read_bytes() == _hbad, _haside)
+check("after mending, the next backup sends nothing",
+      _hb.push(_hlib.root, rem.library_files(_hlib.root)).uploaded == 0)
+
+_hv2 = _hp[3]; _hk2 = _h.key(_hv2)
+_hdamage(_h, _hv2); _hflip(_hdest / "Piklin" / _hk2, at=100)
+_ht += 31 * 86400
+_h.check(_hp, 10**12, now=_ht)
+_hb4 = _hv2.read_bytes()
+_m = _h.mend([_hb], now=_ht + 10)
+check("with no good copy in the backup the photo is left exactly as it is",
+      _m.no_copy == [_hk2] and _hv2.read_bytes() == _hb4 and _h._get(_hk2)["state"] == _H.NO_COPY, _m)
+class _HCount:
+    def __init__(self, inner): self.inner, self.calls = inner, 0
+    def get(self, rel, local): self.calls += 1; return self.inner.get(rel, local)
+_hc = _HCount(_hb)
+_h.mend([_hc], now=_ht + 3600)
+_c1 = _hc.calls
+_h.mend([_hc], now=_ht + 25 * 3600)
+check("a photo with no good copy is looked for again once a day, not at every check",
+      _c1 == 0 and _hc.calls == 1, (_c1, _hc.calls))
+
+_hdamage(_h, _hext)
+_ht += 62 * 86400
+_r = _h.check(_hp, 10**12, now=_ht)
+_hkx = _h.key(_hext); _hxb = _hext.read_bytes()
+_m = _h.mend([_hb], now=_ht + 10)
+check("damage outside the library is reported and never touched",
+      _hkx in _r.damaged and _hkx in _m.no_copy and _hext.read_bytes() == _hxb)
+
+_hv3 = _hp[4]; _hk3 = _h.key(_hv3)
+_hdamage(_h, _hv3)
+_ht += 62 * 86400
+_h.check(_hp, 10**12, now=_ht)
+class _HDown:
+    def get(self, rel, local): raise OSError("no route to host")
+_m = _h.mend([_HDown()], now=_ht + 10)
+check("with the backup out of reach a photo stays damaged, to try again",
+      not _m.mended and not _m.no_copy and _h._get(_hk3)["state"] == _H.DAMAGED, _m)
+check("once the backup answers, it is mended",
+      _h.mend([_hb], now=_ht + 20).mended == [_hk3] and _hv3.read_bytes() == _hgood[_hv3])
+
+_hv4 = _hp[5]
+_hreal = _H.digest; _hcalls = {"n": 0}
+def _hflaky(p):
+    _hcalls["n"] += 1
+    return "0" * 64 if _hcalls["n"] == 1 else _hreal(p)
+_H.digest = _hflaky
+try:
+    _r = _h.check([_hv4], 10**12, now=_ht + 62 * 86400)
+finally:
+    _H.digest = _hreal
+check("a read that goes wrong once is not taken for damage", not _r.damaged and _hcalls["n"] == 2, _r)
+
+_hfresh = _hday / "arriving.jpg"; shutil.copy2(SRC[0], _hfresh)
+_r = _h.check([_hfresh.resolve()], 10**12, now=time.time())
+check("a photo still arriving (an import keeps its old date) waits for a later check",
+      _r.skipped == 1 and _r.checked == 0, _r)
+_r = _h.check([_hday / "gone.jpg"], 10**12, now=time.time())
+check("a photo gone from the disk is not damage", _r.missing == 1 and not _r.damaged, _r)
+
+# a rewrite on purpose that keeps size and date (exiftool -P does) is never "mended" back
+_hv6 = _hp[1]; _hk6 = _h.key(_hv6)
+_hflip(_hv6); _hrew = _hv6.read_bytes()
+_ht += 124 * 86400
+_r = _h.check(_hp, 10**12, now=_ht)
+_m = _h.mend([_hb], now=_ht + 10)
+check("a photo a program rewrote on purpose, keeping its size and date, is not damage",
+      _hk6 not in _r.damaged and _hk6 not in _m.mended and _hv6.read_bytes() == _hrew
+      and _h._get(_hk6)["state"] == _H.OK, (_r.damaged, _m))
+
+_hv7 = _hp[4]; _hk7 = _h.key(_hv7)
+_hdamage(_h, _hv7)
+_ht += 62 * 86400
+_h.check(_hp, 10**12, now=_ht)
+_hbroken = _hv7.read_bytes()
+_hrepl = _H.os.replace
+def _hfail(a, b): raise OSError("disk full")
+_H.os.replace = _hfail
+try:
+    _m = _h.mend([_hb], now=_ht + 10)
+finally:
+    _H.os.replace = _hrepl
+_h.check(_hp, 10**12, now=_ht + 62 * 86400)
+check("a mend that fails leaves the photo as it was, still known as damaged",
+      not _m.mended and _hv7.read_bytes() == _hbroken and _h._get(_hk7)["state"] == _H.DAMAGED)
+check("and it is mended once it can be",
+      _h.mend([_hb], now=_ht + 62 * 86400 + 10).mended == [_hk7] and _hv7.read_bytes() == _hgood[_hv7])
+
+_hlib2 = _L(os.path.join(_hT, "Lib2", LIBRARY_NAME)).ensure(); _hd2 = _hlib2.originals / "x"; _hd2.mkdir(parents=True)
+_hp2 = []
+for _f in SRC[:6]:
+    _p = _hd2 / os.path.basename(_f); shutil.copy2(_f, _p); os.utime(_p, (_hold, _hold)); _hp2.append(_p.resolve())
+_h2 = _H.Health(_hlib2)
+_one = min(p.stat().st_size for p in _hp2)
+_seen, _rounds = 0, 0
+while True:
+    _rounds += 1
+    _r = _h2.check(_hp2, _one, now=_hnow)
+    _seen += _r.checked
+    if not _r.stopped or _rounds > 20:
+        break
+check("a check reads a slice at a time and carries on where it stopped",
+      _seen == len(_hp2) and _rounds > 2, (_seen, _rounds))
+
+# over WebDAV, from a real HTTP server
+_hroot = _hT / "http"; (_hroot / "dav").mkdir(parents=True)
+shutil.copytree(_hdest / "Piklin", _hroot / "dav" / "Piklin", dirs_exist_ok=True)
+(_hroot / "dav" / "Piklin" / _hk2).write_bytes(_hgood[_hv2])       # a good copy there
+class _HQuiet(_hs.SimpleHTTPRequestHandler):
+    def log_message(self, *a): pass
+_hsrv = _hs.ThreadingHTTPServer(("127.0.0.1", 0), _ft.partial(_HQuiet, directory=str(_hroot)))
+threading.Thread(target=_hsrv.serve_forever, daemon=True).start()
+try:
+    _hwb = rem.Remote(id="hwd", name="WebDAV", kind="webdav",
+                      config={"url": f"http://127.0.0.1:{_hsrv.server_address[1]}/dav"}).backend()
+    _m = _h.mend([_hwb], now=_ht + 200 * 86400)
+    check("a damaged photo is mended over WebDAV, from a real server",
+          _m.mended == [_hk2] and _hv2.read_bytes() == _hgood[_hv2], _m)
+finally:
+    _hsrv.shutdown()
+check("the record lives outside the catalog, so rebuilding the catalog keeps it",
+      (_H.health_dir(_hlib) / "health.db").is_file() and "catalog" not in str(_H.health_dir(_hlib)))
+_h.close(); _h2.close()
+
+# Every text the app shows is in the translation template: new ones left out
+# of it stayed in English and no check noticed.
+_xg = shutil.which("xgettext")
+if _xg:
+    _here = os.path.dirname(os.path.abspath(__file__))
+    _srcs = sorted(str(p) for p in Path(_here, "piklin").rglob("*.py") if "__pycache__" not in p.parts)
+    _pot_now = os.path.join(TMP, "now.pot")
+    subprocess.run([_xg, "--from-code=UTF-8", "--language=Python", "--keyword=_", "--keyword=N_",
+                    "--keyword=ngettext:1,2", "--keyword=pgettext:1c,2", "-o", _pot_now] + _srcs,
+                   check=True, capture_output=True)
+    def _msgids(path):
+        import re as _re
+        out = set()
+        for block in open(path, encoding="utf-8").read().split("\n\n"):
+            m = _re.search(r'^msgid ((?:".*"\n?)+)', block, _re.M)
+            c = _re.search(r'^msgctxt ((?:".*"\n?)+)', block, _re.M)
+            if m:
+                s = "".join(_re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1)))
+                ctx = "".join(_re.findall(r'"((?:[^"\\]|\\.)*)"', c.group(1))) if c else ""
+                if s:
+                    out.add((ctx, s))
+        return out
+    _missing_ids = _msgids(_pot_now) - _msgids(os.path.join(_here, "po", "piklin.pot"))
+    check("every text in the app is in the translation template", not _missing_ids,
+          sorted(s for _c, s in _missing_ids)[:5])
+else:
+    print("  SKIP  translation template check (no xgettext on this system)")
 
 # ===================================================================
 section("Removed photos stay removed")

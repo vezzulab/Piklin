@@ -30,6 +30,9 @@ DEFAULTS: dict[str, Any] = {
     # from this list, the note was dropped at every launch and every video was
     # measured again each time Piklin opened, with a jump in memory.
     "video_sizes_checked_v3": False,
+    # Reading the photos now and then for damage, mended from the backup
+    # (health.py). On unless turned off in Backup.
+    "health_check": True,
     "export_profile": "visually_lossless",
     "export_format": "keep",           # keep | jpeg | webp | avif | png
     "export_strip_metadata": False,

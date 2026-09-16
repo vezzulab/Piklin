@@ -357,6 +357,8 @@ class SettingsDialog(Adw.PreferencesDialog):
         auto.add(keep)
         page.add(auto)
 
+        page.add(self._health_group())
+
         add_group = Adw.PreferencesGroup(title=_("Add a Place to Back Up"))
         for kind, label, help_text in remote_mod.describe_providers():
             row = Adw.ActionRow(title=label, subtitle=help_text)
@@ -376,6 +378,46 @@ class SettingsDialog(Adw.PreferencesDialog):
         note.add(krow)
         page.add(note)
         return page
+
+    def _health_group(self):
+        """Photo Health: whether Piklin looks for damaged photos, and what
+        it has found."""
+        group = Adw.PreferencesGroup(
+            title=_("Photo Health"),
+            description=_("Disks wear out and can damage a photo without anyone noticing. "
+                          "Piklin reads your photos now and then, a few at a time, and puts "
+                          "back any that were damaged from your backup."))
+        switch = Adw.SwitchRow(title=_("Check Photos for Damage"),
+                               active=bool(self.settings.get("health_check", True)))
+        switch.connect("notify::active",
+                       lambda row, _p: self.settings.set("health_check", row.get_active()))
+        group.add(switch)
+
+        watch = getattr(self._window, "health_watch", None)
+        s = watch.summary() if watch is not None else {"files": 0, "last": None,
+                                                       "damaged": 0, "mended": 0}
+        if s["files"] and s["last"]:
+            from ..autobackup import describe_last
+            status = ngettext("{count} photo checked, last {when}",
+                              "{count} photos checked, last {when}", s["files"]).format(
+                count=f"{s['files']:,}", when=describe_last(s["last"]))
+        else:
+            status = _("Not checked yet: the first check starts a few minutes after Piklin opens")
+        if s["mended"]:
+            status += "\n" + ngettext("{count} damaged photo repaired from your backup",
+                                      "{count} damaged photos repaired from your backup",
+                                      s["mended"]).format(count=s["mended"])
+        row = Adw.ActionRow(title=_("Your Photos"), subtitle=status)
+        if s["damaged"] and watch is not None:
+            row.set_subtitle(status + "\n" + ngettext(
+                "{count} photo is damaged, with no good copy in your backup",
+                "{count} photos are damaged, with no good copy in your backup",
+                s["damaged"]).format(count=s["damaged"]))
+            show = Gtk.Button(label=_("Show"), valign=Gtk.Align.CENTER)
+            show.connect("clicked", lambda *_a: self._window.show_damaged_photos())
+            row.add_suffix(show)
+        group.add(row)
+        return group
 
     def _refresh_remotes(self):
         # Remove exactly the rows this method added. An AdwPreferencesGroup's

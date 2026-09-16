@@ -13,6 +13,11 @@
 ### The interface reads as it should on every Mac
 - Piklin is drawn in the Inter it carries, on a Mac with fonts installed too. The typeface was registered through whichever fontconfig the Mac had, and inside Piklin.app there is none, so on a Mac with many fonts installed - a designer's Mac, with Adobe's fonts - the interface came out in heavy display faces that read as bold capitals. The app's own fontconfig now lists the typeface itself, and registering it falls back through every library Piklin carries
 
+### Photo health
+- Piklin looks after your photos' content. Now and then, a few at a time and at low priority, it reads each photo in full and compares it with what it recorded; a photo the disk damaged - same size, same date, different content - is put back from your backup, byte for byte and with its own date, and the damaged file is kept aside rather than thrown away. A whole library of 5,000 photos is read in under half a minute on an SSD, using about 30 MB of memory
+- It never undoes a change you made: a photo another program rewrote, even keeping its size and date, is taken as changed on purpose. A photo whose backup copy is damaged too is left exactly as it is and listed in Backup, and photos outside the library, which have no copy in the backup, are reported rather than touched
+- The check waits while a backup, a sync or a scan is reading the disk and while battery saver is on, and can be turned off in Backup › Photo Health
+
 ### Albums
 - An album's name stays at the top while you scroll through its photos, so the back arrow to its folder is always one click away
 - An album with photos and videos has a switch at the right of that bar - All, Photos, Videos - to see only one kind. Albums with only photos, or only videos, don't show it

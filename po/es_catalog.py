@@ -1278,6 +1278,34 @@ ES = {
     'This is how Piklin starts. You can change any of it later in Preferences.': 'Así empezará Piklin. Puedes cambiar cualquier cosa después en Preferencias.',
     'Choose Where to Keep the Library': 'Elige dónde guardar la biblioteca',
     "Piklin can't write in this folder. Choose another.": 'Piklin no puede escribir en esta carpeta. Elige otra.',
+
+    # -- restoring: room on the disk, rebuilding --------------------------------
+    "Not Enough Room": "No hay espacio suficiente",
+    "This restore needs {needed} and there is {free} free on this disk. Make room, or put your library on a disk with space, and try again.":
+        "Esta restauración necesita {needed} y en este disco quedan {free} libres. Haz espacio, o pon tu biblioteca en un disco con espacio, y vuelve a intentarlo.",
+    "Putting your library back together": "Recomponiendo tu biblioteca",
+    "Reading your photos…": "Leyendo tus fotos…",
+
+    # -- photo health -----------------------------------------------------------
+    "Photo Health": "Salud de las fotos",
+    "Disks wear out and can damage a photo without anyone noticing. Piklin reads your photos now and then, a few at a time, and puts back any that were damaged from your backup.":
+        "Los discos se desgastan y pueden dañar una foto sin que nadie lo note. Piklin lee tus fotos de vez en cuando, unas pocas cada vez, y recupera de tu copia de seguridad las que se hayan dañado.",
+    "Check Photos for Damage": "Revisar si hay fotos dañadas",
+    "{count} photo checked, last {when}": ("{count} foto revisada, la última vez {when}",
+                                          "{count} fotos revisadas, la última vez {when}"),
+    "Not checked yet: the first check starts a few minutes after Piklin opens":
+        "Aún sin revisar: la primera revisión empieza unos minutos después de abrir Piklin",
+    "{count} damaged photo repaired from your backup": ("{count} foto dañada recuperada de tu copia de seguridad",
+                                                       "{count} fotos dañadas recuperadas de tu copia de seguridad"),
+    "{count} photo is damaged, with no good copy in your backup": ("{count} foto está dañada y no hay una copia buena en tu copia de seguridad",
+                                                                  "{count} fotos están dañadas y no hay una copia buena en tu copia de seguridad"),
+    "Show": "Ver",
+    "Repaired {count} damaged photo from your backup": ("Se recuperó {count} foto dañada de tu copia de seguridad",
+                                                       "Se recuperaron {count} fotos dañadas de tu copia de seguridad"),
+    "Damaged Photos": "Fotos dañadas",
+    "These photos changed on their own, the way a disk wears out, and there is no good copy of them in your backup yet. Piklin has not touched them. If you have another copy of one, put it back in its place.":
+        "Estas fotos cambiaron solas, como pasa cuando un disco se desgasta, y todavía no hay una copia buena de ellas en tu copia de seguridad. Piklin no las ha tocado. Si tienes otra copia de alguna, ponla en su lugar.",
+    "No damaged photos.": "No hay fotos dañadas.",
 }
 
 
