@@ -1136,6 +1136,13 @@ class SettingsDialog(Adw.PreferencesDialog):
             row.set_subtitle(text)
             if test is not None and test.fingerprint:
                 self._ask_trust(cfg, test, retry=self._run_restore)
+            if p is not None and p.phase == "no_space":
+                # Said out loud, not left in a subtitle: a restore that cannot
+                # fit is the one thing the person has to act on before trying
+                # again, and a quiet line is what let a disk fill up unnoticed.
+                full = Adw.AlertDialog(heading=_("Not Enough Room"), body=p.message)
+                full.add_response("ok", _("OK"))
+                full.present(self.get_root())
             if p is not None and p.restored:
                 # Whatever came back, the catalog is now behind the files on
                 # disk: mark the rebuild at once, even for a restore that

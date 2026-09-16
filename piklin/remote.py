@@ -169,6 +169,24 @@ def keyring_ready() -> bool:
 # ==========================================================================
 # results
 # ==========================================================================
+def _size(n: float) -> str:
+    """A size as a person reads it, for a message about a full disk."""
+    for unit in ("B", "KB", "MB", "GB"):
+        if abs(n) < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit in ("B", "KB") else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} GB"
+
+
+def free_space(path) -> int | None:
+    """Room left where this library lives, or None if it can't be measured."""
+    try:
+        st = os.statvfs(path)
+        return st.f_bavail * st.f_frsize
+    except (OSError, AttributeError, ValueError):
+        return None
+
+
 @dataclass
 class SyncProgress:
     phase: str = "idle"
@@ -186,6 +204,9 @@ class SyncProgress:
     unreachable: bool = False       # the destination could not be reached
     # Albums, edits or marks came back: the catalog must be rebuilt from them.
     restored_state: bool = False
+    # What a restore needs and what the disk has, when it doesn't fit.
+    needed_bytes: int = 0
+    free_bytes: int = 0
 
     @property
     def fraction(self) -> float:
@@ -222,6 +243,11 @@ def _pairs(root: Path, files) -> Iterable[tuple[Path, str]]:
 
 # Never copied back into an open library: Piklin is using them.
 NEVER_RESTORE = {"catalog.db", "settings.json"}
+
+# Room left over after a restore: thumbnails, the rebuilt catalog and the
+# computer's own breathing space. A disk filled to the last byte is what
+# left one library half restored and unable to open at all.
+SPACE_MARGIN = 512 * 1024 * 1024
 # Replaced from the backup only when the library is empty.
 STATE_FILES = {"photo-state.json", "removed-photos.json", "watched-folders.json"}
 # Where a destination keeps the copies a backup replaced, by day.
@@ -750,6 +776,23 @@ class Backend:
         p.phase = "downloading"
         p.total_files = len(todo)
         p.total_bytes = sum(max(size, 0) for _rel, size in todo)
+
+        # Room for it all, before a single file is fetched. A restore that
+        # filled the disk stopped halfway with nothing said, and left the
+        # library neither as it was nor as the backup had it.
+        free = free_space(root) if todo else None
+        if free is not None and free < p.total_bytes + SPACE_MARGIN:
+            p.phase = "no_space"
+            p.needed_bytes = p.total_bytes
+            p.free_bytes = free
+            p.message = _(
+                "This restore needs {needed} and there is {free} free on this disk. "
+                "Make room, or put your library on a disk with space, and try again."
+            ).format(needed=_size(p.total_bytes), free=_size(free))
+            if on_progress:
+                on_progress(p)
+            return p
+
         if on_progress:
             on_progress(p)
         if todo:

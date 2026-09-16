@@ -753,6 +753,23 @@ check("restore leaves out photos deleted on purpose",
 check("restore never touches the open catalog",
       (lib.root/"catalog.db").read_bytes() == catalog_bytes
       and not (lib.root/"catalog.db.part").exists())
+
+# A restore that cannot fit says so before it starts, instead of filling the
+# disk and stopping halfway (which is what happened on a full MacBook).
+_gone2 = lib.edits/"x.jpg.json"
+_gone2.unlink(missing_ok=True)
+_real_statvfs = os.statvfs
+os.statvfs = lambda _p: type("S", (), {"f_bavail": 2, "f_frsize": 4096})()
+try:
+    _tight = b.restore(lib.root)
+finally:
+    os.statvfs = _real_statvfs
+check("a restore that doesn't fit stops before writing anything, and says why",
+      _tight.phase == "no_space" and not _gone2.exists()
+      and _tight.free_bytes == 8192 and "free" in _tight.message,
+      f"{_tight.phase}: {_tight.message}")
+check("with room again, that same restore goes through",
+      b.restore(lib.root).phase == "done" and _gone2.exists())
 pp = b.push(lib.root, rem.library_files(lib.root))
 check("restored files are not uploaded again", pp.uploaded == 1,
       f"{pp.uploaded} sent (only the newer local file should go)")
