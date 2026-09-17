@@ -28,7 +28,8 @@ _current = "en"
 
 
 def _config_file() -> Path:
-    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    from .paths import config_dir
+    base = config_dir()
     return base / "piklin" / "language.json"
 
 

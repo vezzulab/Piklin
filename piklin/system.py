@@ -273,6 +273,104 @@ def keychain_load(account: str) -> str | None:
         sec.SecKeychainItemFreeContent(None, data)
 
 
+# -- Windows Credential Manager ---------------------------------------------------
+# What the login Keychain is on a Mac and libsecret is on Linux: the place
+# the system keeps passwords for an application, locked to the account.
+# Backup passwords go there and nowhere else - never into Piklin's own
+# files, which travel with the library.
+_CRED_TYPE_GENERIC = 1
+_CRED_PERSIST_LOCAL_MACHINE = 2
+_CRED_TARGET = "Piklin:{account}"
+
+
+class _Credential(ctypes.Structure):
+    _fields_ = [("Flags", ctypes.c_uint32), ("Type", ctypes.c_uint32),
+                ("TargetName", ctypes.c_wchar_p), ("Comment", ctypes.c_wchar_p),
+                ("LastWritten", ctypes.c_uint64),
+                ("CredentialBlobSize", ctypes.c_uint32),
+                ("CredentialBlob", ctypes.POINTER(ctypes.c_char)),
+                ("Persist", ctypes.c_uint32), ("AttributeCount", ctypes.c_uint32),
+                ("Attributes", ctypes.c_void_p), ("TargetAlias", ctypes.c_wchar_p),
+                ("UserName", ctypes.c_wchar_p)]
+
+
+def _advapi():
+    if not IS_WINDOWS:
+        raise OSError("not Windows")
+    return ctypes.WinDLL("advapi32", use_last_error=True)
+
+
+def credential_store(account: str, secret: str) -> bool:
+    """Put a password in the Windows Credential Manager."""
+    try:
+        api = _advapi()
+    except (OSError, AttributeError):
+        return False
+    blob = secret.encode("utf-16-le")
+    cred = _Credential(
+        Flags=0, Type=_CRED_TYPE_GENERIC,
+        TargetName=_CRED_TARGET.format(account=account),
+        Comment="Piklin backup", LastWritten=0,
+        CredentialBlobSize=len(blob),
+        CredentialBlob=ctypes.cast(ctypes.create_string_buffer(blob, len(blob)),
+                                   ctypes.POINTER(ctypes.c_char)),
+        Persist=_CRED_PERSIST_LOCAL_MACHINE, AttributeCount=0, Attributes=None,
+        TargetAlias=None, UserName=account)
+    try:
+        return bool(api.CredWriteW(ctypes.byref(cred), 0))
+    except Exception:
+        return False
+
+
+def credential_load(account: str) -> str | None:
+    """The password stored for ``account``, or None."""
+    try:
+        api = _advapi()
+    except (OSError, AttributeError):
+        return None
+    ptr = ctypes.POINTER(_Credential)()
+    try:
+        if not api.CredReadW(_CRED_TARGET.format(account=account),
+                             _CRED_TYPE_GENERIC, 0, ctypes.byref(ptr)):
+            return None
+        cred = ptr.contents
+        size = int(cred.CredentialBlobSize)
+        if not size:
+            return ""
+        raw = ctypes.string_at(cred.CredentialBlob, size)
+        return raw.decode("utf-16-le", "replace")
+    except Exception:
+        return None
+    finally:
+        if ptr:
+            try:
+                api.CredFree(ptr)
+            except Exception:
+                pass
+
+
+def credential_forget(account: str) -> bool:
+    try:
+        api = _advapi()
+    except (OSError, AttributeError):
+        return False
+    try:
+        return bool(api.CredDeleteW(_CRED_TARGET.format(account=account),
+                                    _CRED_TYPE_GENERIC, 0))
+    except Exception:
+        return False
+
+
+def credential_available() -> bool:
+    if not IS_WINDOWS:
+        return False
+    try:
+        _advapi()
+        return True
+    except (OSError, AttributeError):
+        return False
+
+
 # -- drives -----------------------------------------------------------------------
 # USB drives, memory cards and cameras in mass-storage mode. On Linux GIO
 # reports them (the desktop mounts them in /media); a Mac mounts them in
@@ -398,6 +496,21 @@ def on_battery() -> bool:
                 elif kind == "Battery":
                     batteries.append(s)
             return bool(batteries) and not any(mains)
-    except (OSError, ValueError, subprocess.SubprocessError):
+        if IS_WINDOWS:
+            # GetSystemPowerStatus: ACLineStatus 0 means the mains are
+            # not supplying it, 255 that the machine does not know.
+            class _Power(ctypes.Structure):
+                _fields_ = [("ACLineStatus", ctypes.c_ubyte),
+                            ("BatteryFlag", ctypes.c_ubyte),
+                            ("BatteryLifePercent", ctypes.c_ubyte),
+                            ("SystemStatusFlag", ctypes.c_ubyte),
+                            ("BatteryLifeTime", ctypes.c_uint32),
+                            ("BatteryFullLifeTime", ctypes.c_uint32)]
+            status = _Power()
+            if ctypes.WinDLL("kernel32").GetSystemPowerStatus(ctypes.byref(status)):
+                # 128 in BatteryFlag means there is no battery at all.
+                return status.ACLineStatus == 0 and status.BatteryFlag != 128
+            return False
+    except (OSError, ValueError, AttributeError, subprocess.SubprocessError):
         pass
     return False

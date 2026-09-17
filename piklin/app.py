@@ -53,6 +53,9 @@ def _load_bundled_fonts():
                           "usr/share/piklin/data/fonts")
     candidates.append(_P(__file__).resolve().parent.parent / "data" / "fonts")
     candidates.append(_P("/usr/share/piklin/fonts"))
+    if os.name == "nt":
+        # The installed program: Piklin\app\piklin\app.py -> Piklin\data\fonts
+        candidates.append(_P(__file__).resolve().parents[2] / "data" / "fonts")
 
     font_dir = next((c for c in candidates if c.is_dir()), None)
     if font_dir is None:
@@ -75,7 +78,9 @@ def _load_bundled_fonts():
     found = ctypes.util.find_library("fontconfig")
     if found:
         names.append(found)
-    names += ["libfontconfig.1.dylib", "libfontconfig.so.1"]
+    names += ["libfontconfig.1.dylib", "libfontconfig.so.1",
+              # Windows: the GTK runtime beside the program carries it.
+              "libfontconfig-1.dll", "fontconfig-1.dll", "libfontconfig.dll"]
 
     for name in names:
         try:

@@ -132,11 +132,38 @@ except the ones you explicitly export.
 """
 
 
+def config_dir() -> Path:
+    """Where the few things that live outside a library are kept: which
+    library was open last, the chosen language, the list of backups.
+
+    Each system has its own idea of where that is. A Mac keeps Piklin's
+    in ~/.config like Linux, because that is where it has always been and
+    moving it would lose the library someone had open.
+    """
+    if os.name == "nt":
+        return Path(os.environ.get("APPDATA")
+                    or Path.home() / "AppData" / "Roaming")
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+
+
 def pictures_dir() -> Path:
     """The user's pictures folder, honouring XDG then falling back."""
+    if os.name == "nt":
+        # Windows lets this folder be moved - onto OneDrive, onto another
+        # disk - and records where it went.
+        try:
+            import winreg
+            key = r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key) as k:
+                found = Path(winreg.QueryValueEx(k, "My Pictures")[0])
+            if found.is_dir():
+                return found
+        except Exception:
+            pass
+        return Path.home() / "Pictures"
     # xdg-user-dirs writes this; read it directly rather than shelling out
     # to xdg-user-dir, which is not present in a minimal AppImage sandbox.
-    cfg = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    cfg = config_dir()
     dirs_file = cfg / "user-dirs.dirs"
     if dirs_file.is_file():
         try:
@@ -155,8 +182,7 @@ def pictures_dir() -> Path:
 
 
 def _pointer_file() -> Path:
-    cfg = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    return cfg / "piklin" / "library.json"
+    return config_dir() / "piklin" / "library.json"
 
 
 def remembered_library() -> Path | None:

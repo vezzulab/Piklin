@@ -564,6 +564,8 @@ def _font_dir() -> Path | None:
     source tree alike."""
     here = Path(__file__).resolve().parent
     candidates = [here.parent / "data" / "fonts", Path("/usr/share/piklin/fonts")]
+    if os.name == "nt":
+        candidates.append(here.parents[1] / "data" / "fonts")
     if os.environ.get("APPDIR"):
         candidates.insert(0, Path(os.environ["APPDIR"]) / "usr/share/piklin/data/fonts")
     for c in candidates:

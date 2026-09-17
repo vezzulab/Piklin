@@ -33,7 +33,8 @@ BACKUP_KINDS = ("local", "webdav", "rclone")
 
 
 def _pending_file() -> Path:
-    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    from ..paths import config_dir
+    base = config_dir()
     return base / "piklin" / "first-steps.json"
 
 

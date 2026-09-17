@@ -108,6 +108,8 @@ def store_secret(remote_id: str, secret: str) -> bool:
     """Put a password in the system keyring. False if that is impossible."""
     if system.IS_MAC:
         return system.keychain_store(remote_id, secret)
+    if system.IS_WINDOWS:
+        return system.credential_store(remote_id, secret)
     Secret = _keyring()
     if Secret is None:
         return False
@@ -130,6 +132,8 @@ def store_secret(remote_id: str, secret: str) -> bool:
 def load_secret(remote_id: str) -> str | None:
     if system.IS_MAC:
         return system.keychain_load(remote_id)
+    if system.IS_WINDOWS:
+        return system.credential_load(remote_id)
     Secret = _keyring()
     if Secret is None:
         return None
@@ -147,6 +151,8 @@ def load_secret(remote_id: str) -> str | None:
 def keyring_available() -> bool:
     if system.IS_MAC:
         return system.keychain_available()
+    if system.IS_WINDOWS:
+        return system.credential_available()
     return _keyring() is not None
 
 
@@ -154,6 +160,8 @@ def keyring_ready() -> bool:
     """True when the keyring can be read: its service answers and the
     default collection is unlocked. Right after logging in it is often not
     yet, and a password that is there reads as missing."""
+    if system.IS_MAC or system.IS_WINDOWS:
+        return keyring_available()
     Secret = _keyring()
     if Secret is None:
         return False
@@ -1542,16 +1550,21 @@ def rclone_path() -> str | None:
     """The rclone Piklin carries - in Piklin.app's runtime, or beside the
     .deb's and the AppImage's libraries - else one installed on the system.
     Cloud backups work out of the box, with nothing else to install."""
+    exe = "rclone.exe" if system.IS_WINDOWS else "rclone"
     bundled = []
     runtime = os.environ.get("PIKLIN_RUNTIME")
     if runtime:
-        bundled.append(Path(runtime) / "bin" / "rclone")
+        bundled.append(Path(runtime) / "bin" / exe)
     # usr/share/piklin/piklin/remote.py -> usr/lib/piklin/rclone
-    bundled.append(Path(__file__).resolve().parents[3] / "lib" / "piklin" / "rclone")
+    bundled.append(Path(__file__).resolve().parents[3] / "lib" / "piklin" / exe)
+    if system.IS_WINDOWS:
+        # In the installed program: Piklin\app\piklin\remote.py -> Piklin\rclone.exe
+        bundled.append(Path(__file__).resolve().parents[2] / exe)
+        bundled.append(Path(__file__).resolve().parents[3] / exe)
     for path in bundled:
-        if path.is_file() and os.access(path, os.X_OK):
+        if path.is_file() and (system.IS_WINDOWS or os.access(path, os.X_OK)):
             return str(path)
-    return shutil.which("rclone")
+    return shutil.which(exe)
 
 
 # -- rclone's configuration -------------------------------------------------
@@ -1565,7 +1578,8 @@ RCLONE_KEY_ID = "rclone-config"
 
 
 def piklin_rclone_config() -> Path:
-    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    from .paths import config_dir
+    base = config_dir()
     return base / "piklin" / "rclone.conf"
 
 

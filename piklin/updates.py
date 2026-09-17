@@ -50,7 +50,15 @@ class UpdateError(Exception):
 def can_install_itself() -> bool:
     """True for Piklin installed from its .deb, carrying the update helper,
     and for Piklin.app or the AppImage in a folder it is allowed to replace
-    itself in."""
+    itself in.
+
+    Not on Windows: there Piklin is installed from its .msi, which is what
+    replaces it, and a program that overwrites its own installation behind
+    Windows Installer's back leaves it with a record of something that is
+    no longer there. Piklin still says when a new version exists.
+    """
+    if system.IS_WINDOWS:
+        return False
     image = _appimage()
     if image is not None:
         return (image.is_file() and os.access(image, os.W_OK)
@@ -374,7 +382,8 @@ def _install_mac(version: str) -> None:
 
 # -- remembered per person, not per library -----------------------------------
 def _state_file() -> Path:
-    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    from .paths import config_dir
+    base = config_dir()
     return base / "piklin" / "updates.json"
 
 
