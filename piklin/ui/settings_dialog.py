@@ -293,8 +293,59 @@ class SettingsDialog(Adw.PreferencesDialog):
         self.thumb_row.add_suffix(clear)
         disk.add(self.thumb_row)
         page.add(disk)
+        page.add(self._free_space_group())
         self._measure_usage()
         return page
+
+    def _free_space_group(self):
+        """Videos that could take less room, and the work under way."""
+        group = Adw.PreferencesGroup(title=_("Optimize Videos"))
+        self.space_row = Adw.ActionRow(title=_("Videos"), subtitle=_("Measuring…"))
+        group.add(self.space_row)
+        watch = getattr(self._window, "video_watch", None)
+        if watch is not None and watch.queue:
+            left = len(watch.queue)
+            self.space_row.set_subtitle(ngettext(
+                "{count} video left to optimize", "{count} videos left to optimize",
+                left).format(count=left) + ("  ·  " + _("Paused") if watch.paused else ""))
+            pause = Gtk.Button(label=_("Resume") if watch.paused else _("Pause"),
+                               valign=Gtk.Align.CENTER)
+
+            def toggle(btn):
+                watch.pause(not watch.paused)
+                btn.set_label(_("Resume") if watch.paused else _("Pause"))
+            pause.connect("clicked", toggle)
+            self.space_row.add_suffix(pause)
+            return group
+        review = Gtk.Button(label=_("Review…"), valign=Gtk.Align.CENTER, sensitive=False)
+        self.space_row.add_suffix(review)
+
+        def work():
+            from .. import videospace
+            try:
+                found = videospace.plan(self.catalog, self.library.originals)
+            except Exception:
+                found = []
+            GLib.idle_add(show, found)
+
+        def show(found):
+            from .videospace_dialog import fmt_size
+            if not found:
+                self.space_row.set_subtitle(_("Your videos already take little room"))
+                return False
+            self.space_row.set_subtitle(ngettext(
+                "{count} video could take {size} less", "{count} videos could take {size} less",
+                len(found)).format(count=len(found), size=fmt_size(sum(c.saving for c in found))))
+            review.set_sensitive(True)
+
+            def open_it(_b):
+                from .videospace_dialog import VideoSpaceDialog
+                self.close()
+                VideoSpaceDialog(self._window, found).present(self._window)
+            review.connect("clicked", open_it)
+            return False
+        threading.Thread(target=work, daemon=True).start()
+        return group
 
     def _on_profile(self, check, pid):
         if check.get_active():
@@ -309,8 +360,13 @@ class SettingsDialog(Adw.PreferencesDialog):
 
     def _show_usage(self, counts, thumb_bytes):
         total = counts.get("total", 0)
+        videos = int(counts.get("videos", 0))
+        photos = max(0, total - videos)
+        parts = [ngettext("{count} photo", "{count} photos", photos).format(count=f"{photos:,}")]
+        if videos:
+            parts.append(ngettext("{count} video", "{count} videos", videos).format(count=f"{videos:,}"))
         self.usage_row.set_subtitle(
-            ngettext("{count} photo", "{count} photos", total).format(count=f"{total:,}")
+            "  ·  ".join(parts)
             + "  ·  " + _("{size} of originals").format(size=_fmt(counts.get("bytes", 0))))
         self.thumb_row.set_subtitle(
             _fmt(thumb_bytes) + "  ·  " + _("rebuilt automatically when needed"))

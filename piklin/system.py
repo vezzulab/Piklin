@@ -373,3 +373,31 @@ def preferred_languages() -> list[str]:
 def rclone_install_command() -> str:
     """How to install rclone on this system, as typed in a terminal."""
     return "brew install rclone" if IS_MAC else "sudo apt install rclone"
+
+
+def on_battery() -> bool:
+    """Whether the computer is running on its battery right now. A desktop,
+    or anything that can't be read, counts as plugged in."""
+    import subprocess
+    from pathlib import Path
+    try:
+        if IS_MAC:
+            out = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True,
+                                 timeout=5).stdout
+            return "'Battery Power'" in out
+        if IS_LINUX:
+            supplies = Path("/sys/class/power_supply")
+            if not supplies.is_dir():
+                return False
+            mains, batteries = [], []
+            for s in supplies.iterdir():
+                kind = (s / "type").read_text().strip() if (s / "type").exists() else ""
+                if kind == "Mains":
+                    mains.append((s / "online").read_text().strip() == "1"
+                                 if (s / "online").exists() else False)
+                elif kind == "Battery":
+                    batteries.append(s)
+            return bool(batteries) and not any(mains)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return False

@@ -13,6 +13,14 @@
 ### The interface reads as it should on every Mac
 - Piklin is drawn in the Inter it carries, on a Mac with fonts installed too. The typeface was registered through whichever fontconfig the Mac had, and inside Piklin.app there is none, so on a Mac with many fonts installed - a designer's Mac, with Adobe's fonts - the interface came out in heavy display faces that read as bold capitals. The app's own fontconfig now lists the typeface itself, and registering it falls back through every library Piklin carries
 
+### Videos that take less room
+- Preferences › Storage › Optimize Videos lists the videos in your library that can take less room, how much each would save, and how long this computer would need. Nothing runs until you say so
+- A video is made smaller at a quality where the difference doesn't show at a normal viewing distance, and the smaller copy is kept only once it has been checked against the original: same length, sound still there, and the same picture at its start, middle and end. Albums, favourites, marks and edits stay with it
+- Your originals are not thrown away the moment a video is converted. On a NAS or a drive each original waits five days in a folder of its own, "Converted Originals", and goes only after the smaller video has been checked again there and here. With a paid cloud backup only the smaller video is uploaded, so you don't pay for both, and the original waits five days on this computer. With no backup at all, Piklin says so plainly before starting and the original waits five days here
+- The days count while Piklin runs, so nothing is let go behind your back: come back after a month away and the wait starts from the time it takes to check, not from a date on the calendar
+- The work runs in the background, a video at a time and at low priority, only while the computer is plugged in and not busy, and it carries on where it stopped after Piklin is closed and opened again. The footer names the video it is on; it can be paused from the same place it was started
+- Other computers on the same NAS replace their large copies with the smaller ones by themselves, each checking against its own original first
+
 ### Photo health
 - Piklin looks after your photos' content. Now and then, a few at a time and at low priority, it reads each photo in full and compares it with what it recorded; a photo the disk damaged - same size, same date, different content - is put back from your backup, byte for byte and with its own date, and the damaged file is kept aside rather than thrown away. A whole library of 5,000 photos is read in under half a minute on an SSD, using about 30 MB of memory
 - It never undoes a change you made: a photo another program rewrote, even keeping its size and date, is taken as changed on purpose. A photo whose backup copy is damaged too is left exactly as it is and listed in Backup, and photos outside the library, which have no copy in the backup, are reported rather than touched

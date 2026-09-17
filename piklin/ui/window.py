@@ -30,6 +30,14 @@ from .chrome import IS_MAC, PRIMARY_MASK, key_name
 from .chrome import SIDEBAR_MIN_WIDTH as SIDEBAR_MIN  # wider on a Mac: window buttons
 SIDEBAR_MAX = 420
 
+def _fmt_size(n: float) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit in ("B", "KB", "MB") else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} GB"
+
+
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app, library: Library):
         from .chrome import fit
@@ -137,6 +145,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.health_watch = HealthWatch(library, self.catalog, self.settings,
                                         self.autobackup, self.indexer,
                                         self._on_health_result)
+        from ..videowatch import VideoWatch
+        self.video_watch = VideoWatch(library, self.catalog, self.settings, self.autobackup,
+                                      self.indexer, self.health_watch, self._on_video_space)
         GLib.idle_add(self._first_run)
 
     # ==================================================================
@@ -3288,7 +3299,32 @@ class MainWindow(Adw.ApplicationWindow):
             item.filename = row["filename"]
             item.bytes = row["bytes"]
             self.grid.repaint_items([photo_id])
+        self._update_footer(self.catalog.counts())
         self._backup_soon()
+        return False
+
+    def _on_video_space(self, st):
+        """Optimize Videos, as it goes: in the footer, and once when it is done."""
+        state = st.get("state")
+        if state == "converting":
+            self.footer_videos.set_text(
+                _("Optimizing videos — {done} of {total} ({percent}%)").format(
+                    done=st["done"], total=st["total"],
+                    percent=int(max(0.0, min(1.0, st.get("fraction", 0.0))) * 100)))
+            self.footer_videos.set_visible(True)
+        elif state == "waiting":
+            text = {"battery": _("Optimizing videos waits until the computer is plugged in"),
+                    "power": _("Optimizing videos waits until battery saver is off"),
+                    "paused": _("Optimizing videos is paused")}.get(st.get("why"))
+            self.footer_videos.set_text(text or "")
+            self.footer_videos.set_visible(bool(text))
+        elif state == "converted":
+            self._video_shrunk(st["id"])
+        elif state == "finished":
+            self.footer_videos.set_visible(False)
+            if st.get("freed"):
+                self.toasts.add_toast(Adw.Toast(title=_("Videos optimized: {size} saved").format(
+                    size=_fmt_size(st["freed"])), timeout=8))
         return False
 
     def _video_shrink_done(self):
@@ -3612,6 +3648,7 @@ class MainWindow(Adw.ApplicationWindow):
             dialog.present(self)
             return True
         self.health_watch.stop()
+        self.video_watch.stop()
         self.indexer.stop(timeout=2.0)
         self.thumbs.shutdown()
         self.editor.shutdown()

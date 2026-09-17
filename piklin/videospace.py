@@ -132,10 +132,17 @@ def verify(src, out, min_similarity: float = 0.80) -> bool:
         return False
     import numpy as np
     for x, y in zip(fa, fb):
-        if x.shape != y.shape:
-            h, w = min(x.shape[0], y.shape[0]), min(x.shape[1], y.shape[1])
-            x, y = x[:h, :w], y[:h, :w]
-        if ssim(np.stack([x] * 3, -1), np.stack([y] * 3, -1)) < min_similarity:
+        # A phone's upright video is stored sideways with a rotation flag;
+        # its frames decode sideways while the smaller copy is written
+        # upright. Whichever turn lines them up is the one that counts.
+        best = 0.0
+        for k in range(4):
+            z = np.rot90(y, k)
+            if abs(z.shape[0] - x.shape[0]) > 2 or abs(z.shape[1] - x.shape[1]) > 2:
+                continue
+            h, w = min(x.shape[0], z.shape[0]), min(x.shape[1], z.shape[1])
+            best = max(best, ssim(np.stack([x[:h, :w]] * 3, -1), np.stack([z[:h, :w]] * 3, -1)))
+        if best < min_similarity:
             return False
     return True
 
@@ -482,3 +489,56 @@ def apply_incoming(library, catalog, backend, index: dict, now: float | None = N
         _save(root, data)
         counts["replaced"] += 1
     return counts
+
+
+# -- doing it --------------------------------------------------------------------
+def convert_one(library, catalog, candidate: Candidate, remotes, now: float | None = None,
+                on_progress=None, cancel=None) -> str:
+    """Make one planned video smaller, with everything that goes with it:
+    the check that the smaller copy is the same video, the original kept in
+    the library when no backup keeps it, and the record other backups and
+    computers follow. Returns what devices.shrink_video returns."""
+    import time
+    from . import devices
+    root = Path(library.root)
+    now = time.time() if now is None else now
+    old = Path(candidate.path)
+    if not old.is_file():
+        return "gone"
+    rel = _rel(root, old)
+    size = old.stat().st_size
+    hold = set_apart_locally(root, rel, now) if local_hold_needed(remotes) else None
+    result = devices.shrink_video(library, catalog, candidate.photo_id, on_progress=on_progress,
+                                  cancel=cancel, bit_rate=candidate.bit_rate, verify=verify,
+                                  set_apart=hold)
+    if result == "smaller":
+        row = catalog.photo(candidate.photo_id)
+        new = Path(row["path"]) if row is not None else old
+        record_conversion(root, old, new, size, candidate.duration, now)
+        if hold is not None and hold.is_file():
+            note_local_hold(root, rel, hold, now)
+    return result
+
+
+def measure_speed(candidate: Candidate, seconds: float = 5.0) -> float:
+    """How fast this computer makes video smaller: pixels of picture encoded
+    per second of waiting, measured on a few seconds of a real video."""
+    import tempfile
+    import time
+    from . import video_edit as ve
+    start = min(max(0.0, candidate.duration / 2 - seconds / 2), max(0.0, candidate.duration - seconds))
+    end = min(candidate.duration, start + seconds)
+    with tempfile.TemporaryDirectory() as tmp:
+        t0 = time.monotonic()
+        ve.export(candidate.path, Path(tmp) / "sample.mp4",
+                  ve.VideoEdit(duration=candidate.duration, start=start, end=end),
+                  fmt="mp4", bit_rate=candidate.bit_rate)
+        spent = max(time.monotonic() - t0, 0.05)
+    return max(1, candidate.width * candidate.height) * (end - start) / spent
+
+
+def estimate_seconds(candidates, speed: float) -> float:
+    """How long making all of ``candidates`` smaller would take at ``speed``."""
+    if speed <= 0:
+        return 0.0
+    return sum(c.work for c in candidates) / speed

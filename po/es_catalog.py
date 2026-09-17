@@ -1306,6 +1306,45 @@ ES = {
     "These photos changed on their own, the way a disk wears out, and there is no good copy of them in your backup yet. Piklin has not touched them. If you have another copy of one, put it back in its place.":
         "Estas fotos cambiaron solas, como pasa cuando un disco se desgasta, y todavía no hay una copia buena de ellas en tu copia de seguridad. Piklin no las ha tocado. Si tienes otra copia de alguna, ponla en su lugar.",
     "No damaged photos.": "No hay fotos dañadas.",
+
+    # -- free up space: videos made smaller ------------------------------------
+    "Optimize Videos": "Optimizar videos",
+    "{count} video left to optimize": ("Falta {count} video por optimizar", "Faltan {count} videos por optimizar"),
+    "Paused": "En pausa",
+    "Resume": "Continuar",
+    "Pause": "Pausar",
+    "Review…": "Revisar…",
+    "Your videos already take little room": "Tus videos ya ocupan poco espacio",
+    "{count} video could take {size} less": ("{count} video podría ocupar {size} menos",
+                                             "{count} videos podrían ocupar {size} menos"),
+    "about a minute": "alrededor de un minuto",
+    "about an hour": "alrededor de una hora",
+    "about {count} minute": ("{count} minuto aproximadamente", "unos {count} minutos"),
+    "about {count} hour": ("{count} hora aproximadamente", "unas {count} horas"),
+    "about {count} day": ("{count} día aproximadamente", "unos {count} días"),
+    "Your backup on {name} keeps each original for five days, then lets it go once the smaller video is checked there and here. This computer gets the room back at once.":
+        "Tu copia en {name} guarda cada original cinco días y luego lo borra, cuando el video pequeño está comprobado allí y aquí. Esta computadora recupera el espacio en el momento.",
+    "Your cloud backup keeps only the smaller videos, so you don't pay for both. Each original stays on this computer for five days, then goes once the smaller video is checked.":
+        "Tu copia en la nube guarda solo los videos pequeños, para que no pagues por los dos. Cada original se queda cinco días en esta computadora y luego se borra, cuando el video pequeño está comprobado.",
+    "You have no backup. Each original stays on this computer for five days, then goes for good once the smaller video is checked. Setting up a backup first, even on a USB drive, is safer.":
+        "No tienes copia de seguridad. Cada original se queda cinco días en esta computadora y luego se borra para siempre, cuando el video pequeño está comprobado. Es más seguro configurar antes una copia, aunque sea en una memoria USB.",
+    "{count} video can take {size} less": ("{count} video puede ocupar {size} menos",
+                                           "{count} videos pueden ocupar {size} menos"),
+    "Each video is made smaller at a quality where the difference doesn't show at a normal viewing distance, and is kept only once the smaller copy is checked to be the same video: its length, its sound and its picture. Albums, favourites and edits stay with it.":
+        "Cada video se achica con una calidad en la que la diferencia no se nota a una distancia normal, y solo se guarda cuando se comprueba que la copia pequeña es el mismo video: su duración, su sonido y su imagen. Los álbumes, favoritos y ediciones se quedan con él.",
+    "Measuring how fast this computer is…": "Midiendo la velocidad de esta computadora…",
+    "All videos": "Todos los videos",
+    "Optimize (saves {size})": "Optimizar (ahorra {size})",
+    "On this computer: {time}, only while it is plugged in and not busy. It carries on after Piklin is closed and opened again.":
+        "En esta computadora: {time}, solo mientras está enchufada y sin trabajo pesado. Sigue donde se quedó aunque cierres Piklin y lo vuelvas a abrir.",
+    "How long it takes depends on this computer; it runs only while it is plugged in and not busy.":
+        "Cuánto tarda depende de esta computadora; solo trabaja mientras está enchufada y sin trabajo pesado.",
+    "Optimizing videos in the background": "Optimizando videos en segundo plano",
+    "Optimizing videos — {done} of {total} ({percent}%)": "Optimizando videos — {done} de {total} ({percent}%)",
+    "Optimizing videos waits until the computer is plugged in": "La optimización de videos espera a que enchufes la computadora",
+    "Optimizing videos waits until battery saver is off": "La optimización de videos espera a que se apague el ahorro de batería",
+    "Optimizing videos is paused": "La optimización de videos está en pausa",
+    "Videos optimized: {size} saved": "Videos optimizados: {size} ahorrados",
 }
 
 

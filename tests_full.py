@@ -1893,6 +1893,30 @@ check("a video made smaller under the same name stays in the backup, not set apa
       and (_sn_nas / "Piklin" / _sn_rel).is_file()
       and (_sn_nas / "Piklin" / _sn_rel).read_bytes() == _snA_new.read_bytes(), (_sn_res, _sn_c))
 _syn.pull(_snB_lib, _snB_cat, _snA_remote_b := _sn_remote.backend())
+_nh_lib, _nh_cat, _nh_p = _video_lib("ConvertNoBackup.piklin")
+_nh_cand = _vs.Candidate(_nh_cat.photo_by_path(str(_nh_p.resolve()))["id"], str(_nh_p.resolve()),
+                         _nh_p.stat().st_size, 3.0, 640, 360, 800_000, 0)
+check("with no backup, converting keeps the original in the library for now",
+      _vs.convert_one(_nh_lib, _nh_cat, _nh_cand, []) == "smaller" and not _nh_p.exists()
+      and any(_vs.local_hold_dir(_nh_lib.root).rglob("*.MOV")))
+_cn_lib, _cn_cat, _cn_p = _video_lib("ConvertWithNAS.piklin")
+_cn_cand = _vs.Candidate(_cn_cat.photo_by_path(str(_cn_p.resolve()))["id"], str(_cn_p.resolve()),
+                         _cn_p.stat().st_size, 3.0, 640, 360, 800_000, 0)
+check("with a NAS keeping the original, converting frees this computer's room at once",
+      _vs.convert_one(_cn_lib, _cn_cat, _cn_cand, [rem.Remote(id="n", name="NAS", kind="webdav")]) == "smaller"
+      and not _vs.local_hold_dir(_cn_lib.root).exists() and not _cn_p.exists()
+      and _vs.shared_path(_cn_lib.root).is_file())
+_ms_lib, _ms_cat, _ms_p = _video_lib("MeasureLib.piklin")
+_ms_cand = _vs.Candidate(1, str(_ms_p), _ms_p.stat().st_size, 3.0, 640, 360, 800_000, 0)
+_ms_speed = _vs.measure_speed(_ms_cand, seconds=2.0)
+check("this computer's speed is measured on a real video, and the time estimated from it",
+      _ms_speed > 0 and abs(_vs.estimate_seconds([_ms_cand], _ms_speed) - _ms_cand.work / _ms_speed) < 1e-6,
+      round(_ms_speed))
+_qs = _S(os.path.join(TMP, "queue-settings.json"))
+_qs.set("videos_to_convert", [{"id": 7, "bit_rate": 1500000}]); _qs.set("videos_convert_paused", True)
+_qs2 = _S(os.path.join(TMP, "queue-settings.json"))
+check("the videos still to convert, and a pause, are remembered after a restart",
+      _qs2.get("videos_to_convert") == [{"id": 7, "bit_rate": 1500000}] and _qs2.get("videos_convert_paused") is True)
 check("and another computer replaces its copy under that name, keeping the new file",
       _snB_old.is_file() and _snB_old.read_bytes() == _snA_new.read_bytes()
       and _snB_cat.photo_by_path(str(_snB_old.resolve())) is not None)
