@@ -355,6 +355,9 @@ def rebuild_index(library: Library, on_progress=None) -> int:
     print(f"  restored {n_folders} folders")
     n_smart = sidecars.restore_smart_albums(library, catalog)
     print(f"  restored {n_smart} smart albums")
+    from . import creations as _creations
+    n_made = _creations.restore_sidecar(library, catalog)
+    print(f"  restored {n_made} creations")
 
     # Re-attach albums to the folders they belonged to, by uuid.
     import json as _json

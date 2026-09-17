@@ -25,6 +25,7 @@ DEFAULTS: dict[str, Any] = {
     # Videos copied in as they are, still to be made smaller (paths).
     "videos_to_shrink": [],
     # Videos chosen in Free Up Space, still to be made smaller: {id, bit_rate}.
+    "create_panel_open": False,
     "videos_to_convert": [],
     "videos_convert_paused": False,
     # Sizes of upright phone videos measured again once (see the window).

@@ -423,3 +423,7 @@ def write_all(library, catalog) -> None:
     write_folders(library, catalog)
     write_roots(library, catalog)
     write_smart_albums(library, catalog)
+    # Collages, posters and the rest: the recipe, so a creation opens
+    # again on the other computers and after a restore.
+    from . import creations
+    creations.write_sidecar(library, catalog)

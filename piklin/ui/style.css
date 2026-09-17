@@ -2092,3 +2092,39 @@ window.piklin button.suggested-action.pika-primary-pill:disabled { opacity: 0.35
    viewer's spacing around Edit made Continue narrower and further in. */
 window.piklin .pika-steps-footer button.suggested-action.pika-primary-pill,
 window.piklin .pika-steps-footer button.pika-step-back { margin: 0; padding-left: 0; padding-right: 0; }
+
+/* -- Create: the panel at the right, and the workshop ------------------
+ * The panel is the sidebar's twin on the other edge, so the window keeps
+ * its symmetry when it is open. */
+.pika-create-panel {
+  background: @pika_sidebar;
+  border-left: 1px solid @pika_hairline;
+}
+.pika-create-panel label { color: @pika_text; }
+window.piklin button.pika-create-kind {
+  border: 1px solid @pika_hairline;
+  border-radius: 12px;
+  background: @pika_wall;
+  box-shadow: none;
+  padding: 0;
+}
+window.piklin button.pika-create-kind:hover { background: alpha(#000000, 0.04); }
+window.piklin button.pika-create-kind:disabled { opacity: 0.45; }
+.pika-create-controls {
+  background: @pika_sidebar;
+  border-right: 1px solid @pika_hairline;
+}
+.pika-create-controls label { color: @pika_text; }
+/* The name sits in the middle of the bar, reading as a title until it is
+   clicked, not as a form field. */
+window.piklin entry.pika-create-name {
+  background: none;
+  border: none;
+  box-shadow: none;
+  font-weight: 600;
+  min-height: 28px;
+}
+window.piklin entry.pika-create-name:focus {
+  background: alpha(#000000, 0.05);
+  border-radius: 8px;
+}

@@ -152,6 +152,21 @@ CREATE TABLE IF NOT EXISTS photo_text (
 );
 CREATE INDEX IF NOT EXISTS photo_text_hay ON photo_text(haystack);
 
+-- Something made out of photos: a collage, a poster, a calendar. What is
+-- kept is the recipe - which photos, where on the page, in what words -
+-- and not only the picture it produced, so a creation can be opened and
+-- changed again months later, on this computer and on the others.
+CREATE TABLE IF NOT EXISTS creations (
+    id         INTEGER PRIMARY KEY,
+    uuid       TEXT NOT NULL UNIQUE,
+    name       TEXT NOT NULL,
+    kind       TEXT NOT NULL DEFAULT 'collage',
+    doc        TEXT NOT NULL DEFAULT '{}',    -- JSON: the pages
+    photo_id   INTEGER REFERENCES photos(id) ON DELETE SET NULL,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+
 -- Photos the user removed from the library whose files are still in a
 -- watched folder. Without this list the next scan finds the file again
 -- and adds it back as a brand-new photo, as if it had never been removed.
@@ -881,6 +896,10 @@ class Catalog:
             where.append(DUPLICATE_SQL)
         elif scope == "imports":
             where.append(IMPORT_SQL)
+        elif scope == "creations":
+            # The pictures Piklin's own Create made, newest first.
+            where.append("p.id IN (SELECT photo_id FROM creations "
+                         "WHERE photo_id IS NOT NULL)")
         elif scope == "album" and album_id is not None:
             joins += " JOIN album_items ai ON ai.photo_id=p.id AND ai.album_id=?"
             params.append(album_id)
@@ -1003,6 +1022,8 @@ class Catalog:
             FROM photos WHERE paired_to IS NULL""")
         out = {k: int(row[k] or 0) for k in row.keys()}
         out.update({k: int(extra[k] or 0) for k in extra.keys()})
+        out["creations"] = int(self.scalar(
+            "SELECT COUNT(*) FROM creations WHERE photo_id IS NOT NULL", default=0) or 0)
         return out
 
     def date_buckets(self, scope: str = "library") -> list[sqlite3.Row]:

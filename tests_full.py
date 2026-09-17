@@ -2708,6 +2708,132 @@ finally:
     if _saved_cfg is None: os.environ.pop("XDG_CONFIG_HOME", None)
     else: os.environ["XDG_CONFIG_HOME"] = _saved_cfg
 
+# ===================================================================
+section("Create: collages and posters")
+from piklin import create as _cr, creations as _crs
+_cdir = os.path.join(TMP, "create"); os.makedirs(_cdir)
+libCr = _L(os.path.join(_cdir, LIBRARY_NAME)).ensure()
+_cday = libCr.originals / "2024" / "2024-07-04"; _cday.mkdir(parents=True)
+for _i in range(6):
+    shutil.copy2(SRC[_i], _cday / f"c{_i}.jpg")
+cCr = _C(libCr.db); ixCr = _Ix(cCr, None, library_root=libCr.root)
+ixCr.add_files([str(p) for p in sorted(_cday.iterdir())])
+_crows = [dict(r) for r in cCr.q("SELECT id, path, width, height FROM photos ORDER BY path")]
+
+# -- the page underneath every creation
+_page = _cr.make_page(_crows, shape="square", style="mosaic")
+check("every photo gets a place on the page", len(_page.slots) == len(_crows))
+check("no photo falls off the page",
+      all(-1e-6 <= s.x and -1e-6 <= s.y and s.x + s.w <= 1.0001 and s.y + s.h <= 1.0001
+          for s in _page.slots))
+def _overlap(a, b):
+    return (min(a.x + a.w, b.x + b.w) - max(a.x, b.x) > 1e-3
+            and min(a.y + a.h, b.y + b.h) - max(a.y, b.y) > 1e-3)
+check("photos do not sit on top of each other",
+      not any(_overlap(a, b) for i, a in enumerate(_page.slots)
+              for b in _page.slots[i + 1:]))
+_rows_seen = {}
+for _s in _page.slots:
+    _rows_seen.setdefault(round(_s.y, 3), []).append(_s)
+check("a mosaic fills the page from top to bottom",
+      abs(sum(r[0].h for r in _rows_seen.values())
+          + _page.gap * (len(_rows_seen) - 1) - (1 - 2 * _page.margin)) < 0.02)
+# Photos of one shape must be shared out evenly: the bug this catches is
+# a row of seven stamps above a row of two billboards.
+_even = _cr.mosaic([1.5] * 12, 1.0, 0.012)
+_even_rows = {}
+for _x, _y, _w, _h in _even:
+    _even_rows.setdefault(round(_y, 4), []).append(_x)
+check("photos of the same shape are shared out evenly across rows",
+      max(len(v) for v in _even_rows.values())
+      - min(len(v) for v in _even_rows.values()) <= 1,
+      str([len(v) for v in _even_rows.values()]))
+_g = _cr.grid(7, 1.78, 0.012)
+_grows = {}
+for _x, _y, _w, _h in _g:
+    _grows.setdefault(round(_y, 4), []).append(_x)
+check("a grid of seven is 4 and 3, the short row centred",
+      [len(v) for v in _grows.values()] == [4, 3] and min(list(_grows.values())[-1]) > 0.01)
+check("one photo fills the page", len(_cr.grid(1, 1.0, 0.01)) == 1)
+
+# -- drawing it
+_shot = _cr.render(_page, 400)
+check("the page draws at the size asked for", _shot.size == (400, 400), str(_shot.size))
+_tall = _cr.make_page(_crows, shape="a4")
+check("a page keeps the shape of its paper",
+      abs(_cr.page_size(_tall, 600)[0] / _cr.page_size(_tall, 600)[1] - 210 / 297) < 0.01)
+_extra = _cr.Page(shape="square", slots=[_cr.Slot(path=str(_cday / "c0.jpg"), w=1.0, h=1.0)])
+_extra.slots.append(_cr.Slot(path=str(_cday / "missing.jpg"), x=0.5, w=0.5, h=0.5))
+check("a photo that will not open leaves its place empty, not the page",
+      _cr.render(_extra, 200) is not None)
+_jpg = os.path.join(_cdir, "out.jpg"); _cr.save([_page], _jpg, long_side=500)
+_pdf = os.path.join(_cdir, "out.pdf"); _cr.save([_page, _tall], _pdf, long_side=500)
+check("it writes a JPEG and a PDF", os.path.getsize(_jpg) > 5000 and
+      open(_pdf, "rb").read(4) == b"%PDF")
+check("nothing is left half-written", not os.path.exists(_jpg + ".part"))
+
+# -- faces stay in the picture
+if _cr.__name__ and __import__("piklin.engine.faces", fromlist=["x"]).available():
+    _wide = _cr.make_page(_crows, shape="wide", style="grid")
+    _before = [(s.cx, s.cy) for s in _wide.slots]
+    _moved = _cr.focus_slots(_wide)
+    check("photos are moved so the faces stay in", _moved > 0, f"{_moved} of {len(_wide.slots)}")
+    check("the crop stays inside the photo",
+          all(0.0 <= s.cx <= 1.0 and 0.0 <= s.cy <= 1.0 for s in _wide.slots))
+    # A place that is already the photo's own shape crops nothing, so
+    # there is nothing to move and the photo is left as it is.
+    _asis = _crows[0]["width"] / _crows[0]["height"]
+    _fits = _cr.Page(shape="wide" if abs(_asis - 16 / 9) < 0.1 else "square",
+                     slots=[_cr.Slot(path=_crows[0]["path"], w=1.0, h=1.0)])
+    if abs(_cr.shape_aspect(_fits.shape) - _asis) < 0.05:
+        check("a photo that is not cropped is left alone", _cr.focus_slots(_fits) == 0)
+
+# -- keeping it
+_made = _crs.new("collage", "Fourth of July")
+_made.pages = [_cr.make_page(_crows, shape="square")]
+_crs.save(libCr, cCr, _made, indexer=ixCr)
+_mrow = cCr.photo(_made.photo_id)
+check("a creation is saved into the library as a photo",
+      _mrow is not None and os.path.exists(_mrow["path"])
+      and "Originals" in _mrow["path"])
+check("it is written down so it can be opened again", _crs.count(cCr) == 1
+      and _crs.get(cCr, _made.uuid).name == "Fourth of July")
+check("the library gains one photo, not two",
+      cCr.scalar("SELECT COUNT(*) FROM photos") == len(_crows) + 1)
+_first_size = os.path.getsize(_mrow["path"])
+_made.pages = [_cr.make_page(_crows, shape="wide", style="grid")]
+_crs.save(libCr, cCr, _made, indexer=ixCr)
+check("saving it again changes the same picture, not a second one",
+      cCr.scalar("SELECT COUNT(*) FROM photos") == len(_crows) + 1
+      and cCr.photo(_made.photo_id)["width"] > cCr.photo(_made.photo_id)["height"])
+check("the catalog follows the new picture",
+      cCr.photo(_made.photo_id)["bytes"] == os.path.getsize(_mrow["path"]))
+check("Creations shows what was made",
+      [r["id"] for r in cCr.browse(scope="creations")] == [_made.photo_id]
+      and cCr.counts().get("creations") == 1)
+
+# -- and travels
+_sidecar = _crs.sidecar_path(libCr)
+check("the recipe is written beside the library", _sidecar.is_file())
+_cdir2 = os.path.join(_cdir, "other"); os.makedirs(_cdir2)
+libCr2 = _L(os.path.join(_cdir2, LIBRARY_NAME)).ensure()
+shutil.copytree(libCr.originals, libCr2.originals, dirs_exist_ok=True)
+shutil.copy2(_sidecar, _crs.sidecar_path(libCr2))
+cCr2 = _C(libCr2.db)
+_Ix(cCr2, None, library_root=libCr2.root).scan([libCr2.originals])
+_n = _crs.restore_sidecar(libCr2, cCr2)
+_there = _crs.all_creations(cCr2)[0]
+check("another computer takes the creation in", _n == 1 and _there.name == "Fourth of July")
+check("its photos point at that computer's own library",
+      all(str(libCr2.root) in s.path and s.photo_id for s in _there.pages[0].slots))
+check("and it can be drawn again there",
+      _cr.render(_there.pages[0], 200) is not None)
+_crs.restore_sidecar(libCr2, cCr2)
+check("taking it in twice does not make a second copy", _crs.count(cCr2) == 1)
+_crs.forget(cCr2, _there.uuid)
+check("forgetting a creation leaves its picture in the library",
+      _crs.count(cCr2) == 0 and cCr2.photo(_there.photo_id) is not None)
+
 print("\n" + "="*64)
 print(f"  {len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:

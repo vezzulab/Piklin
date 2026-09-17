@@ -116,6 +116,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.stack.add_named(self.viewer, "viewer")
         self.stack.add_named(self.editor, "editor")
         self.stack.add_named(self.video_editor, "video-editor")
+        from .creation_view import CreationView
+        self.creation_view = CreationView(self)
+        self.creation_view.connect("closed", lambda *_a: self._show("grid"))
+        self.creation_view.connect("saved", self._on_creation_saved)
+        self.stack.add_named(self.creation_view, "create")
         self.toasts = Adw.ToastOverlay()
         # The copy progress card floats over the bottom right of the window.
         overlay = Gtk.Overlay()
@@ -164,7 +169,18 @@ class MainWindow(Adw.ApplicationWindow):
         self.split.set_start_child(sidebar)
         self.split.set_resize_start_child(False)
         self.split.set_shrink_start_child(False)
-        self.split.set_end_child(self._build_content())
+        from .create_panel import CreatePanel
+        self.create_panel = CreatePanel(self)
+        self.create_reveal = Gtk.Revealer(
+            transition_type=Gtk.RevealerTransitionType.SLIDE_LEFT,
+            transition_duration=160, child=self.create_panel,
+            reveal_child=bool(self.settings.get("create_panel_open")))
+        beside = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        content = self._build_content()
+        content.set_hexpand(True)
+        beside.append(content)
+        beside.append(self.create_reveal)
+        self.split.set_end_child(beside)
         self.split.set_resize_end_child(True)
         self.split.set_shrink_end_child(False)
         width = int(self.settings.get("sidebar_width", 280) or 280)
@@ -436,6 +452,16 @@ class MainWindow(Adw.ApplicationWindow):
         self.aspect_btn.add_css_class("flat")
         self.aspect_btn.connect("toggled", self._on_aspect_toggled)
         header.pack_start(self.aspect_btn)
+
+        # Create: what can be made out of the photos chosen, at the right.
+        self.create_btn = Gtk.ToggleButton(
+            icon_name="applications-graphics-symbolic",
+            tooltip_text=_("Create (Ctrl+Shift+C)"),
+            active=bool(self.settings.get("create_panel_open")))
+        self.create_btn.add_css_class("flat")
+        self.create_btn.connect("toggled",
+                                lambda b: self.show_create_panel(b.get_active()))
+        header.pack_end(self.create_btn)
 
         self.action_bar = Gtk.ActionBar()
         self.action_bar.add_css_class("pika-toolbar")
@@ -766,6 +792,11 @@ class MainWindow(Adw.ApplicationWindow):
             counts.get("edited"))
         add("imports", _("Imports"), "document-save-symbolic",
             counts.get("imports"))
+        if counts.get("creations"):
+            # Only once there is something to find here: an empty row
+            # would be one more thing to explain on a new library.
+            add("creations", _("Creations"), "applications-graphics-symbolic",
+                counts.get("creations"))
 
         divider = Gtk.ListBoxRow(selectable=False, activatable=False,
                                  focusable=False)
@@ -1322,6 +1353,11 @@ class MainWindow(Adw.ApplicationWindow):
         except Exception:
             pass
 
+    def show_toast(self, text):
+        """The same passing message, under a name the views in other
+        files can call."""
+        self._show_toast(text)
+
     @staticmethod
     def _dragged_item(value):
         """("album" | "folder" | "smart", id) from a sidebar row's drag, else None."""
@@ -1587,6 +1623,7 @@ class MainWindow(Adw.ApplicationWindow):
             "check-updates": lambda *_: self._check_updates(quiet=False),
             "rotate-cw": lambda *_: self._on_rotate(1),
             "rotate-ccw": lambda *_: self._on_rotate(-1),
+            "create": lambda *_: self.toggle_create_panel(),
         })
         for name, cb in actions.items():
             act = Gio.SimpleAction.new(name, None)
@@ -1631,6 +1668,7 @@ class MainWindow(Adw.ApplicationWindow):
                               ("F11", "win.fullscreen"),
                               ("<Primary><Shift>f", "win.fullscreen"),
                               ("<Primary><Shift>a", "win.deselect"),
+                              ("<Primary><Shift>c", "win.create"),
                               ("<Primary>l", "win.hide"),
                               ("<Primary>i", "win.info"),
                               # F2 renames, as in every Linux file manager.
@@ -1946,6 +1984,57 @@ class MainWindow(Adw.ApplicationWindow):
             pass
         self._backup_soon()
 
+    # ==================================================================
+    # Create
+    # ==================================================================
+    def show_create_panel(self, on: bool) -> None:
+        self.create_reveal.set_reveal_child(bool(on))
+        if self.create_btn.get_active() != bool(on):
+            self.create_btn.set_active(bool(on))
+        self.settings.set("create_panel_open", bool(on))
+        if on:
+            self.create_panel.refresh()
+
+    def toggle_create_panel(self) -> None:
+        self.show_create_panel(not self.create_reveal.get_reveal_child())
+
+    def open_scope(self, scope: str) -> None:
+        """Stand somewhere in the sidebar, from anywhere."""
+        for row in self.sidebar_list:
+            if getattr(row, "_key", None) == scope:
+                self.sidebar_list.select_row(row)
+                self._show("grid")
+                return
+        self._scope = scope
+        self._album_id = None
+        self.grid.load(scope)
+        self._show("grid")
+
+    def open_creation(self, kind: str, items) -> None:
+        """Open the workshop on a new creation made of these photos."""
+        items = [i for i in items if not getattr(i, "is_video", False)]
+        if not items:
+            self._show_toast(_("Choose some photos first"))
+            return
+        self.creation_view.open(kind, items)
+        self._show("create")
+
+    def open_saved_creation(self, photo_id: int) -> bool:
+        """Reopen the creation a photo came from. False when it is an
+        ordinary photo, so the viewer opens instead."""
+        from .. import creations as _creations
+        for c in _creations.all_creations(self.catalog):
+            if c.photo_id == photo_id:
+                self.creation_view.open(c.kind, [], creation=c)
+                self._show("create")
+                return True
+        return False
+
+    def _on_creation_saved(self, _view, photo_id):
+        self._refresh()
+        self.create_panel.refresh()
+        return False
+
     def _refresh(self):
         if self._scope == "folder":
             self.folder_view.load(getattr(self, "_folder_id", None))
@@ -1958,6 +2047,11 @@ class MainWindow(Adw.ApplicationWindow):
 
     # -- photo flow ------------------------------------------------------
     def _on_photo_activated(self, _grid, item):
+        # In Creations, a picture Piklin made opens as the creation it
+        # is, ready to be changed - the photo behind it is one click
+        # further in, through the viewer, like any other photo.
+        if self._scope == "creations" and self.open_saved_creation(item.id):
+            return
         record = getattr(item, "record", None) or {}
         if record.get("camera") and not Path(item.path).exists():
             # Still on a Mac's camera or phone: copy this one off to open it.
@@ -2209,6 +2303,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._refresh()
 
     def _on_selection_changed(self, _grid):
+        if getattr(self, "create_panel", None) is not None:
+            self.create_panel.refresh()
         n = len(self.grid.selected_ids())
         # Recently Deleted always offers its two actions - on the selection,
         # or on everything when nothing is selected (Recover All / Delete All).
