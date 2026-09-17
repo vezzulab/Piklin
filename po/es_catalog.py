@@ -1435,6 +1435,7 @@ ES = {
     "Choose photos in your library, then press +":
         "Elige fotos en tu biblioteca y después toca +",
     "+ adds {count} more": ("+ añade {count} más", "+ añade {count} más"),
+    "The typeface for the words": "La letra de las palabras",
 }
 
 

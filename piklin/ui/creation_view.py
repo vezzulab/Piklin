@@ -145,6 +145,7 @@ class CreationView(Gtk.Box):
         self.title_entry = Gtk.Entry(placeholder_text=_("A title, a date, a name"))
         self.title_entry.connect("changed", lambda *_a: self._on_title())
         words.append(self.title_entry)
+        words.append(self._font_drop())
         box.append(words)
 
         self.faces = Gtk.CheckButton(label=_("Keep faces in the picture"),
@@ -163,6 +164,50 @@ class CreationView(Gtk.Box):
                                     vexpand=True, child=box)
         scroll.set_size_request(300, -1)
         return scroll
+
+    def _font_drop(self):
+        """The typeface for the words - every name written in the typeface
+        it names, because that is the only way to choose one."""
+        names = Gtk.StringList()
+        self._families = list(create.FAMILY_ORDER)
+        for key in self._families:
+            names.append(create.family_name(key))
+
+        factory = Gtk.SignalListItemFactory()
+
+        def setup(_f, item):
+            item.set_child(Gtk.Label(xalign=0.0, ellipsize=3))
+
+        def bind(_f, item):
+            label = item.get_child()
+            name = item.get_item().get_string()
+            label.set_text(name)
+            # Fontconfig has been told about the typefaces Piklin carries
+            # (see app.py), so the list can be drawn in them.
+            label.set_attributes(None)
+            from gi.repository import Pango
+            attrs = Pango.AttrList()
+            attrs.insert(Pango.attr_family_new(name))
+            attrs.insert(Pango.attr_size_new(int(13 * Pango.SCALE)))
+            label.set_attributes(attrs)
+
+        factory.connect("setup", setup)
+        factory.connect("bind", bind)
+        self.font_drop = Gtk.DropDown(model=names, factory=factory)
+        self.font_drop.set_tooltip_text(_("The typeface for the words"))
+        self.font_drop.connect("notify::selected", self._on_font)
+        return self.font_drop
+
+    def _on_font(self, drop, _p):
+        page = self.creation.page
+        if not page.texts:
+            return
+        key = self._families[drop.get_selected()]
+        for t in page.texts:
+            t.family = key
+            t.chosen_family = True
+        self._touch()
+        self._render_soon()
 
     def _drop(self, title, labels, on_change, box):
         group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -290,6 +335,7 @@ class CreationView(Gtk.Box):
         self.gap.set_value(page.gap)
         self.corner.set_value(page.corner)
         self.title_entry.set_text(page.texts[0].text if page.texts else "")
+        self._show_font()
 
     # ==================================================================
     # changing it
@@ -314,7 +360,15 @@ class CreationView(Gtk.Box):
         create.apply_theme(self.creation.page, THEMES[drop.get_selected()][0])
         self.gap.set_value(self.creation.page.gap)
         self.corner.set_value(self.creation.page.corner)
+        self._show_font()
         self._rearrange()
+
+    def _show_font(self):
+        """Point the typeface list at whatever the page is using."""
+        page = self.creation.page
+        key = page.texts[0].family if page.texts else "inter"
+        if key in self._families:
+            self.font_drop.set_selected(self._families.index(key))
 
     def _on_gap(self):
         self.creation.page.gap = self.gap.get_value()

@@ -86,6 +86,8 @@ class Text:
     w: float = 0.8
     size: float = 0.06            # of the page's height
     weight: str = "bold"          # regular | medium | semibold | bold
+    family: str = "inter"         # a key of create.FAMILIES
+    chosen_family: bool = False   # True once someone picked it themselves
     color: str = "#111111"
     align: str = "center"         # left | center | right
     tracking: float = 0.0         # extra space between letters, of the size
@@ -170,52 +172,58 @@ THEMES: dict[str, dict] = {
     "clean": {
         "name": "Clean", "background": "#ffffff", "margin": 0.035,
         "gap": 0.012, "corner": 0.008, "text_color": "#111111",
+        "family": "inter",
     },
     "gallery": {
         "name": "Gallery", "background": "#f7f6f4", "margin": 0.085,
         "gap": 0.022, "corner": 0.0, "frame": 0.004, "frame_color": "#ffffff",
         "shadow": 0.012, "text_color": "#111111", "text_weight": "medium",
-        "tracking": 0.22,
+        "tracking": 0.22, "family": "montserrat",
     },
     "polaroid": {
         "name": "Polaroid", "background": "#e9e4dc", "margin": 0.05,
         "gap": 0.028, "corner": 0.0, "frame": 0.012, "frame_foot": 0.03,
         "frame_color": "#fffdf8", "shadow": 0.016, "tilt": 2.6,
         "text_color": "#3a332b", "text_weight": "medium",
+        "family": "caveat",
     },
     "midnight": {
         "name": "Midnight", "background": "#0e1116,#1b2430", "margin": 0.04,
         "gap": 0.008, "corner": 0.004, "text_color": "#ffffff",
-        "tracking": 0.28,
+        "tracking": 0.28, "family": "montserrat",
     },
     "cream": {
         "name": "Cream", "background": "#f6efe4,#efe3d2", "margin": 0.06,
         "gap": 0.018, "corner": 0.014, "shadow": 0.008,
         "text_color": "#4a3f31", "text_weight": "medium", "tracking": 0.3,
+        "family": "cormorant",
     },
     "party": {
         "name": "Party", "background": "#2a1a52,#5b2a86", "margin": 0.055,
         "gap": 0.016, "corner": 0.02, "frame": 0.005, "frame_color": "#ffffff",
         "shadow": 0.012, "tilt": 1.6, "sprinkle": "dots",
         "sprinkle_color": "#ffd166", "text_color": "#ffffff",
+        "family": "bebas",
     },
     "hearts": {
         "name": "Hearts", "background": "#fdeef1,#f8dbe3", "margin": 0.06,
         "gap": 0.018, "corner": 0.03, "frame": 0.006, "frame_color": "#ffffff",
         "shadow": 0.01, "sprinkle": "hearts", "sprinkle_color": "#e8879c",
         "text_color": "#8a3a4e", "text_weight": "medium",
+        "family": "dancing",
     },
     "winter": {
         "name": "Winter", "background": "#0f3b33,#14524a", "margin": 0.055,
         "gap": 0.016, "corner": 0.012, "frame": 0.006, "frame_color": "#f7fbfa",
         "shadow": 0.012, "sprinkle": "snow", "sprinkle_color": "#ffffff",
-        "text_color": "#ffffff", "tracking": 0.24,
+        "text_color": "#ffffff", "tracking": 0.24, "family": "playfair",
     },
     "little": {
         "name": "Little One", "background": "#eef5fb,#e6eefb", "margin": 0.06,
         "gap": 0.02, "corner": 0.035, "frame": 0.006, "frame_color": "#ffffff",
         "shadow": 0.01, "sprinkle": "stars", "sprinkle_color": "#b9cdf0",
         "text_color": "#41597f", "text_weight": "medium",
+        "family": "josefin",
     },
 }
 
@@ -244,6 +252,11 @@ def apply_theme(page: Page, key: str) -> None:
         t.color = theme.get("text_color", "#111111")
         t.weight = theme.get("text_weight", "bold")
         t.tracking = float(theme.get("tracking", 0.08))
+        # A theme brings its own lettering, unless a typeface was chosen
+        # by hand: choosing one is a decision, and a theme does not undo
+        # the decisions someone has already made.
+        if not getattr(t, "chosen_family", False):
+            t.family = theme.get("family", "inter")
 
 
 # ======================================================================
@@ -562,8 +575,56 @@ def _font_dir() -> Path | None:
 _WEIGHTS = {"regular": "Inter-Regular.ttf", "medium": "Inter-Medium.ttf",
             "semibold": "Inter-SemiBold.ttf", "bold": "Inter-Bold.ttf"}
 
+# The typefaces Piklin carries, for the words on a page. Every one of them
+# is under the SIL Open Font Licence and travels inside the app, so a
+# creation opens with its own lettering on every computer - including one
+# that has never had these typefaces installed - and nothing here depends
+# on a font shop or a font staying free.
+FAMILIES: dict[str, dict] = {
+    "inter":      {"name": "Inter",              "dir": "Inter", "weights": True},
+    "playfair":   {"name": "Playfair Display",   "dir": "PlayfairDisplay"},
+    "lora":       {"name": "Lora",               "dir": "Lora"},
+    "baskerville": {"name": "Libre Baskerville", "dir": "LibreBaskerville"},
+    "cormorant":  {"name": "Cormorant Garamond", "dir": "CormorantGaramond"},
+    "montserrat": {"name": "Montserrat",         "dir": "Montserrat"},
+    "josefin":    {"name": "Josefin Sans",       "dir": "JosefinSans"},
+    "oswald":     {"name": "Oswald",             "dir": "Oswald"},
+    "bebas":      {"name": "Bebas Neue",         "dir": "BebasNeue"},
+    "abril":      {"name": "Abril Fatface",      "dir": "AbrilFatface"},
+    "caveat":     {"name": "Caveat",             "dir": "Caveat"},
+    "dancing":    {"name": "Dancing Script",     "dir": "DancingScript"},
+    "pacifico":   {"name": "Pacifico",           "dir": "Pacifico"},
+    "greatvibes": {"name": "Great Vibes",        "dir": "GreatVibes"},
+}
 
-def font(weight: str, px: int):
+FAMILY_ORDER = ("inter", "montserrat", "josefin", "oswald", "bebas",
+                "playfair", "lora", "baskerville", "cormorant", "abril",
+                "caveat", "dancing", "pacifico", "greatvibes")
+
+# What a weight is called inside a variable typeface.
+_VARIATIONS = {"regular": "Regular", "medium": "Medium",
+               "semibold": "SemiBold", "bold": "Bold"}
+
+
+def family_name(key: str) -> str:
+    return (FAMILIES.get(key) or FAMILIES["inter"])["name"]
+
+
+def family_file(key: str) -> Path | None:
+    """The file a family is drawn from, wherever Piklin is installed."""
+    d = _font_dir()
+    if d is None:
+        return None
+    spec = FAMILIES.get(key) or FAMILIES["inter"]
+    folder = d / spec["dir"]
+    if not folder.is_dir():
+        return None
+    files = sorted(folder.glob("*.ttf"))
+    upright = [f for f in files if "italic" not in f.name.lower()]
+    return (upright or files or [None])[0]
+
+
+def font(weight: str, px: int, family: str = "inter"):
     """The typeface a page's words are drawn in, at this size.
 
     The letters are laid out by Pillow's own engine rather than the
@@ -575,18 +636,32 @@ def font(weight: str, px: int):
     """
     from PIL import ImageFont
     d = _font_dir()
-    name = _WEIGHTS.get(weight, _WEIGHTS["bold"])
+    candidates = []
+    if family and family != "inter":
+        chosen = family_file(family)
+        if chosen is not None:
+            candidates.append(chosen)
     if d is not None:
-        for candidate in (d / "Inter" / name, d / name):
-            if candidate.is_file():
-                try:
-                    return ImageFont.truetype(str(candidate), px,
-                                              layout_engine=ImageFont.Layout.BASIC)
-                except (OSError, AttributeError):
-                    try:
-                        return ImageFont.truetype(str(candidate), px)
-                    except OSError:
-                        break
+        name = _WEIGHTS.get(weight, _WEIGHTS["bold"])
+        candidates += [d / "Inter" / name, d / name]
+    for candidate in candidates:
+        if not candidate.is_file():
+            continue
+        try:
+            f = ImageFont.truetype(str(candidate), px,
+                                   layout_engine=ImageFont.Layout.BASIC)
+        except (OSError, AttributeError):
+            try:
+                f = ImageFont.truetype(str(candidate), px)
+            except OSError:
+                continue
+        # One file of a typeface holds every weight of it; the one asked
+        # for is chosen inside the file where there is a choice.
+        try:
+            f.set_variation_by_name(_VARIATIONS.get(weight, "Regular"))
+        except Exception:
+            pass
+        return f
     try:
         return ImageFont.load_default(px)
     except TypeError:                          # older Pillow
@@ -794,7 +869,7 @@ def render(page: Page, long_side: int = 2000, load=None, on_progress=None,
         if not t.text:
             continue
         px = max(6, int(round(t.size * H)))
-        f = font(t.weight, px)
+        f = font(t.weight, px, getattr(t, "family", "inter"))
         _draw_text(draw, t, f, W, H, page.background)
 
     if highlight is not None and 0 <= highlight < len(page.slots):

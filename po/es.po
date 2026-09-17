@@ -1643,8 +1643,8 @@ msgstr "Google Drive, OneDrive, Dropbox, pCloud, Box y más. Inicias sesión una
 msgid "Not installed yet. Install the free rclone app to use Google Drive, OneDrive, Dropbox and many more."
 msgstr "Todavía no está instalado. Instala la aplicación gratuita rclone para usar Google Drive, OneDrive, Dropbox y muchos más."
 
-#: piklin/ui/create_panel.py:30 piklin/ui/creation_view.py:276
-#: piklin/ui/creation_view.py:489 piklin/ui/creation_view.py:523
+#: piklin/ui/create_panel.py:30 piklin/ui/creation_view.py:321
+#: piklin/ui/creation_view.py:543 piklin/ui/creation_view.py:577
 msgid "Collage"
 msgstr "Collage"
 
@@ -1821,7 +1821,7 @@ msgstr "Atrás"
 msgid "Name this creation"
 msgstr "Ponle un nombre"
 
-#: piklin/ui/creation_view.py:109 piklin/ui/creation_view.py:506
+#: piklin/ui/creation_view.py:109 piklin/ui/creation_view.py:560
 msgid "Save to Library"
 msgstr "Guardar en la biblioteca"
 
@@ -1855,92 +1855,96 @@ msgstr "Palabras"
 msgid "A title, a date, a name"
 msgstr "Un título, una fecha, un nombre"
 
-#: piklin/ui/creation_view.py:150
+#: piklin/ui/creation_view.py:151
 msgid "Keep faces in the picture"
 msgstr "Que no corte las caras"
 
-#: piklin/ui/creation_view.py:153
+#: piklin/ui/creation_view.py:154
 msgid "Photos are cropped to fit their place; this moves the crop so the faces stay in."
 msgstr "Las fotos se recortan para entrar en su lugar; esto mueve el recorte para que las caras queden dentro."
 
-#: piklin/ui/creation_view.py:158
+#: piklin/ui/creation_view.py:159
 msgid "Shuffle"
 msgstr "Mezclar"
 
-#: piklin/ui/creation_view.py:221
+#: piklin/ui/creation_view.py:197
+msgid "The typeface for the words"
+msgstr "La letra de las palabras"
+
+#: piklin/ui/creation_view.py:266
 msgid "Move earlier"
 msgstr "Mover antes"
 
-#: piklin/ui/creation_view.py:222
+#: piklin/ui/creation_view.py:267
 msgid "Move later"
 msgstr "Mover después"
 
-#: piklin/ui/creation_view.py:223
+#: piklin/ui/creation_view.py:268
 msgid "Show more of this photo"
 msgstr "Mostrar más de esta foto"
 
-#: piklin/ui/creation_view.py:225
+#: piklin/ui/creation_view.py:270
 msgid "Fill more of its place"
 msgstr "Llenar más su lugar"
 
-#: piklin/ui/creation_view.py:227
+#: piklin/ui/creation_view.py:272
 msgid "Take this photo out"
 msgstr "Quitar esta foto"
 
-#: piklin/ui/creation_view.py:276
+#: piklin/ui/creation_view.py:321
 #, python-brace-format
 msgid "Collage {when}"
 msgstr "Collage {when}"
 
-#: piklin/ui/creation_view.py:406
+#: piklin/ui/creation_view.py:460
 #, python-brace-format
 msgid "Photo {n} of {total}"
 msgstr "Foto {n} de {total}"
 
-#: piklin/ui/creation_view.py:491
+#: piklin/ui/creation_view.py:545
 msgid "Saving…"
 msgstr "Guardando…"
 
-#: piklin/ui/creation_view.py:508
+#: piklin/ui/creation_view.py:562
 #, python-brace-format
 msgid "Couldn't save this creation: {why}"
 msgstr "No se pudo guardar esta creación: {why}"
 
-#: piklin/ui/creation_view.py:512
+#: piklin/ui/creation_view.py:566
 msgid "Saved to your library"
 msgstr "Guardada en tu biblioteca"
 
-#: piklin/ui/creation_view.py:522
+#: piklin/ui/creation_view.py:576
 msgid "Export Creation"
 msgstr "Exportar creación"
 
-#: piklin/ui/creation_view.py:535 piklin/ui/export_dialog.py:369
+#: piklin/ui/creation_view.py:589 piklin/ui/export_dialog.py:369
 msgid "Exporting…"
 msgstr "Exportando…"
 
-#: piklin/ui/creation_view.py:541
+#: piklin/ui/creation_view.py:595
 #, python-brace-format
 msgid "Exported to {name}"
 msgstr "Exportada a {name}"
 
-#: piklin/ui/creation_view.py:543
+#: piklin/ui/creation_view.py:597
 #, python-brace-format
 msgid "Couldn't export: {why}"
 msgstr "No se pudo exportar: {why}"
 
-#: piklin/ui/creation_view.py:551
+#: piklin/ui/creation_view.py:605
 msgid "Leave without saving?"
 msgstr "¿Salir sin guardar?"
 
-#: piklin/ui/creation_view.py:552
+#: piklin/ui/creation_view.py:606
 msgid "This creation has changes that are not in your library yet."
 msgstr "Esta creación tiene cambios que todavía no están en tu biblioteca."
 
-#: piklin/ui/creation_view.py:553
+#: piklin/ui/creation_view.py:607
 msgid "Keep Working"
 msgstr "Seguir trabajando"
 
-#: piklin/ui/creation_view.py:554
+#: piklin/ui/creation_view.py:608
 msgid "Leave"
 msgstr "Salir"
 

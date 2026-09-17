@@ -272,7 +272,10 @@ for a in $ARCHS; do
   cp "$CACHE/$a/FFMPEG-LICENSE.txt" "$DOC/ffmpeg/COPYING.LGPLv2.1"
   cp "$CACHE/$a/ffmpeg-configure.log" "$DOC/ffmpeg/configure-$a.log" 2>/dev/null || true
 done
-cp "$ROOT"/data/fonts/Inter/*.txt "$DOC/" 2>/dev/null || true
+# Every typeface Piklin carries brings its licence with it.
+for d in "$ROOT"/data/fonts/*/; do
+  cp "$d"*.txt "$DOC/$(basename "$d")-LICENCE.txt" 2>/dev/null || true
+done
 
 # ------------------------------------------------------------- relocation
 say "Pointing every library at the app"

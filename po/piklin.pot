@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-17 18:24-0400\n"
+"POT-Creation-Date: 2026-09-17 18:29-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1676,8 +1676,8 @@ msgid ""
 "OneDrive, Dropbox and many more."
 msgstr ""
 
-#: piklin/ui/create_panel.py:30 piklin/ui/creation_view.py:276
-#: piklin/ui/creation_view.py:489 piklin/ui/creation_view.py:523
+#: piklin/ui/create_panel.py:30 piklin/ui/creation_view.py:321
+#: piklin/ui/creation_view.py:543 piklin/ui/creation_view.py:577
 msgid "Collage"
 msgstr ""
 
@@ -1856,7 +1856,7 @@ msgstr ""
 msgid "Name this creation"
 msgstr ""
 
-#: piklin/ui/creation_view.py:109 piklin/ui/creation_view.py:506
+#: piklin/ui/creation_view.py:109 piklin/ui/creation_view.py:560
 msgid "Save to Library"
 msgstr ""
 
@@ -1890,94 +1890,98 @@ msgstr ""
 msgid "A title, a date, a name"
 msgstr ""
 
-#: piklin/ui/creation_view.py:150
+#: piklin/ui/creation_view.py:151
 msgid "Keep faces in the picture"
 msgstr ""
 
-#: piklin/ui/creation_view.py:153
+#: piklin/ui/creation_view.py:154
 msgid ""
 "Photos are cropped to fit their place; this moves the crop so the faces stay "
 "in."
 msgstr ""
 
-#: piklin/ui/creation_view.py:158
+#: piklin/ui/creation_view.py:159
 msgid "Shuffle"
 msgstr ""
 
-#: piklin/ui/creation_view.py:221
+#: piklin/ui/creation_view.py:197
+msgid "The typeface for the words"
+msgstr ""
+
+#: piklin/ui/creation_view.py:266
 msgid "Move earlier"
 msgstr ""
 
-#: piklin/ui/creation_view.py:222
+#: piklin/ui/creation_view.py:267
 msgid "Move later"
 msgstr ""
 
-#: piklin/ui/creation_view.py:223
+#: piklin/ui/creation_view.py:268
 msgid "Show more of this photo"
 msgstr ""
 
-#: piklin/ui/creation_view.py:225
+#: piklin/ui/creation_view.py:270
 msgid "Fill more of its place"
 msgstr ""
 
-#: piklin/ui/creation_view.py:227
+#: piklin/ui/creation_view.py:272
 msgid "Take this photo out"
 msgstr ""
 
-#: piklin/ui/creation_view.py:276
+#: piklin/ui/creation_view.py:321
 #, python-brace-format
 msgid "Collage {when}"
 msgstr ""
 
-#: piklin/ui/creation_view.py:406
+#: piklin/ui/creation_view.py:460
 #, python-brace-format
 msgid "Photo {n} of {total}"
 msgstr ""
 
-#: piklin/ui/creation_view.py:491
+#: piklin/ui/creation_view.py:545
 msgid "Saving…"
 msgstr ""
 
-#: piklin/ui/creation_view.py:508
+#: piklin/ui/creation_view.py:562
 #, python-brace-format
 msgid "Couldn't save this creation: {why}"
 msgstr ""
 
-#: piklin/ui/creation_view.py:512
+#: piklin/ui/creation_view.py:566
 msgid "Saved to your library"
 msgstr ""
 
-#: piklin/ui/creation_view.py:522
+#: piklin/ui/creation_view.py:576
 msgid "Export Creation"
 msgstr ""
 
-#: piklin/ui/creation_view.py:535 piklin/ui/export_dialog.py:369
+#: piklin/ui/creation_view.py:589 piklin/ui/export_dialog.py:369
 msgid "Exporting…"
 msgstr ""
 
-#: piklin/ui/creation_view.py:541
+#: piklin/ui/creation_view.py:595
 #, python-brace-format
 msgid "Exported to {name}"
 msgstr ""
 
-#: piklin/ui/creation_view.py:543
+#: piklin/ui/creation_view.py:597
 #, python-brace-format
 msgid "Couldn't export: {why}"
 msgstr ""
 
-#: piklin/ui/creation_view.py:551
+#: piklin/ui/creation_view.py:605
 msgid "Leave without saving?"
 msgstr ""
 
-#: piklin/ui/creation_view.py:552
+#: piklin/ui/creation_view.py:606
 msgid "This creation has changes that are not in your library yet."
 msgstr ""
 
-#: piklin/ui/creation_view.py:553
+#: piklin/ui/creation_view.py:607
 msgid "Keep Working"
 msgstr ""
 
-#: piklin/ui/creation_view.py:554
+#: piklin/ui/creation_view.py:608
 msgid "Leave"
 msgstr ""
 

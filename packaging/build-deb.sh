@@ -198,7 +198,10 @@ for info in "$LIB"/python"${PYVERS%% *}"/*.dist-info "$LIB"/common/*.dist-info; 
        -exec cp {} "$DOC/third-party/$name/" \;
 done
 cp "$LIB"/common/cv2/LICENSE*.txt "$DOC/third-party/"opencv*/ 2>/dev/null || true
-cp "$ROOT"/data/fonts/Inter/*.txt "$DOC/third-party/" 2>/dev/null || true
+# Every typeface Piklin carries brings its licence with it.
+for d in "$ROOT"/data/fonts/*/; do
+  cp "$d"*.txt "$DOC/third-party/$(basename "$d")-LICENCE.txt" 2>/dev/null || true
+done
 mkdir -p "$DOC/third-party/ffmpeg"
 cp "$MEDIA/FFMPEG-LICENSE.txt" "$DOC/third-party/ffmpeg/COPYING.LGPLv2.1"
 cp "$MEDIA/ffmpeg-configure.log" "$DOC/third-party/ffmpeg/configure.log" 2>/dev/null || true

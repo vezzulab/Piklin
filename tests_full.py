@@ -2892,6 +2892,38 @@ _lit = np.asarray(_cr.render(_dark, 400).convert("L"), dtype=float)
 check("words that would vanish into the page are turned readable",
       int((_lit > 160).sum()) > 50,
       _cr.readable_on("#111111", "#111111"))
+# -- the typefaces Piklin carries
+check("Piklin carries a choice of typefaces",
+      len(_cr.FAMILIES) >= 10 and set(_cr.FAMILY_ORDER) == set(_cr.FAMILIES))
+_bad = []
+for _key in _cr.FAMILY_ORDER:
+    _ff = _cr.font("bold", 40, _key)
+    _w = _ff.getlength("Aniella · 15 años")
+    if not (0 < _w < 40 * 30):
+        _bad.append((_key, _w))
+check("every typeface draws, at a sane width, accents and all", not _bad, str(_bad))
+check("each typeface has its licence beside it",
+      all((_cr.family_file(k) or Path("x")).parent.glob("*.txt")
+          for k in _cr.FAMILY_ORDER if _cr.family_file(k)))
+_one = _cr.Page(shape="square", background="#ffffff", text_room=0.2)
+_one.texts.append(_cr.Text(text="Aniella", size=0.09, y=0.82, family="greatvibes"))
+_two = _cr.Page.from_dict(_one.to_dict())
+check("a page remembers which typeface its words are in",
+      _two.texts[0].family == "greatvibes")
+_a1 = np.asarray(_cr.render(_one, 400).convert("L"), dtype=float)
+_one.texts[0].family = "bebas"
+_a2 = np.asarray(_cr.render(_one, 400).convert("L"), dtype=float)
+check("changing the typeface changes the lettering",
+      int((np.abs(_a1 - _a2) > 10).sum()) > 100)
+_themed = _cr.Page()
+_themed.texts.append(_cr.Text(text="Hola"))
+_cr.apply_theme(_themed, "polaroid")
+check("a theme brings its own lettering", _themed.texts[0].family == "caveat")
+_themed.texts[0].family, _themed.texts[0].chosen_family = "oswald", True
+_cr.apply_theme(_themed, "winter")
+check("a typeface chosen by hand survives a change of theme",
+      _themed.texts[0].family == "oswald")
+
 check("words that already read are left in their own colour",
       _cr.readable_on("#3a332b", "#e9e4dc") == "#3a332b"
       and _cr.readable_on("#ffffff", "#111111") == "#ffffff")
