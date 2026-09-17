@@ -285,6 +285,14 @@ def tend(root, backend, now: float | None = None, index: dict | None = None) -> 
     stamp = time.strftime("%Y-%m-%d", time.localtime(now))
     for old_rel, entry in data.items():
         st = entry.setdefault("remotes", {}).setdefault(rid, {"state": "pending"})
+        if entry["new"] == old_rel:
+            # Made smaller under the same name: sending it replaces the
+            # original there, and the backup's own older versions keep that.
+            # Nothing to move - moving would take the smaller video away.
+            st.setdefault("state", "gone")
+            if st["state"] != "gone":
+                st.update(state="gone", at=now)
+            continue
         small = root / entry["new"]
         remote_small = index.get(entry["new"])
         small_up = (small.is_file() and remote_small is not None
@@ -414,7 +422,9 @@ def incoming(root) -> dict:
     out = {}
     for rel, e in videos.items():
         old = root / rel
-        if old.is_file() and old.stat().st_size == e.get("old_size") and not (root / e["new"]).exists():
+        same_name = e["new"] == rel
+        if old.is_file() and old.stat().st_size == e.get("old_size") and (
+                same_name or not (root / e["new"]).exists()):
             out[rel] = e
     return out
 
@@ -449,17 +459,22 @@ def apply_incoming(library, catalog, backend, index: dict, now: float | None = N
             counts["problems"] += 1
             continue
         row = catalog.photo_by_path(str(old.resolve()))
+        same_name = new == old
         try:
+            times = (old.stat().st_atime, old.stat().st_mtime)
             os.replace(tmp, new)
-            os.utime(new, (old.stat().st_atime, old.stat().st_mtime))
+            os.utime(new, times)
             if row is not None:
                 repoint_photo(library, catalog, row["id"], old, new,
                               bytes=new.stat().st_size, ext=new.suffix.lstrip(".").lower())
         except Exception:
-            new.unlink(missing_ok=True)
+            if not same_name:
+                new.unlink(missing_ok=True)
+            tmp.unlink(missing_ok=True)
             counts["problems"] += 1
             continue
-        old.unlink(missing_ok=True)
+        if not same_name:
+            old.unlink(missing_ok=True)
         data = _load(root)
         data[old_rel] = {"new": new_rel, "old_size": e.get("old_size"),
                          "new_size": new.stat().st_size, "duration": e.get("duration", 0),

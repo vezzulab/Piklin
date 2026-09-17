@@ -1878,6 +1878,25 @@ _rb_c = _vs.tend(_mcA_lib.root, _mcA, now=time.time() + 60)
 check("an original sent back to the backup after it was set apart is set apart again",
       _rb_c["held"] == 1 and not (_mc_nas / "Piklin" / _rb_rel).exists(), _rb_c)
 
+# Made smaller under the same name (an .mp4 stays .mp4): never moved away
+_sn_nas = Path(TMP) / "SameNameNAS"
+_sn_remote = rem.Remote(id="same", name="NAS", kind="local", config={"path": str(_sn_nas)})
+_snA_lib, _snA_cat, _snA_old = _video_lib("SameNameA.piklin", rel="Originals/2022/2022-02-02/walk.mp4")
+_snB_lib, _snB_cat, _snB_old = _video_lib("SameNameB.piklin", rel="Originals/2022/2022-02-02/walk.mp4")
+_snA = _sn_remote.backend(); _snA.push(_snA_lib.root, rem.library_files(_snA_lib.root))
+_sn_rel = _snA_old.resolve().relative_to(_snA_lib.root).as_posix()
+_sn_res, _snA_new, _ = _convert(_snA_lib, _snA_cat, _snA_old)
+_snA.push(_snA_lib.root, rem.library_files(_snA_lib.root))
+_sn_c = _vs.tend(_snA_lib.root, _snA, now=time.time())
+check("a video made smaller under the same name stays in the backup, not set apart",
+      _sn_res == "smaller" and _snA_new == _snA_old.resolve() and _sn_c["held"] == 0
+      and (_sn_nas / "Piklin" / _sn_rel).is_file()
+      and (_sn_nas / "Piklin" / _sn_rel).read_bytes() == _snA_new.read_bytes(), (_sn_res, _sn_c))
+_syn.pull(_snB_lib, _snB_cat, _snA_remote_b := _sn_remote.backend())
+check("and another computer replaces its copy under that name, keeping the new file",
+      _snB_old.is_file() and _snB_old.read_bytes() == _snA_new.read_bytes()
+      and _snB_cat.photo_by_path(str(_snB_old.resolve())) is not None)
+
 section("Video editing and export")
 import av as _av
 from piklin import video_edit as ve
