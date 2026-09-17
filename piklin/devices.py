@@ -536,7 +536,8 @@ def import_photos(library, records: list[dict], on_progress=None,
 
 
 def shrink_video(library, catalog, photo_id: int, on_progress=None,
-                 cancel: threading.Event | None = None) -> str:
+                 cancel: threading.Event | None = None, bit_rate: int | None = None,
+                 verify=None) -> str:
     """Make a video already in the library smaller (H.264), in place.
 
     Returns "smaller", "kept" (it would not save a tenth, so the file is
@@ -564,7 +565,7 @@ def shrink_video(library, catalog, photo_id: int, on_progress=None,
         out = ve.export(src, work, ve.VideoEdit(duration=duration), fmt="mp4",
                         keep_location=True,
                         meta={"taken_at": row["taken_at"], "location": location},
-                        on_progress=on_progress, cancel=cancel)
+                        on_progress=on_progress, cancel=cancel, bit_rate=bit_rate)
     except ve.Cancelled:
         work.unlink(missing_ok=True)
         return "cancelled"
@@ -575,6 +576,16 @@ def shrink_video(library, catalog, photo_id: int, on_progress=None,
     if out.stat().st_size >= st.st_size * 0.9:
         out.unlink(missing_ok=True)
         return "kept"
+    if verify is not None:
+        # The smaller copy has to be the same video - its length, its sound,
+        # its picture - before it may take the original's place.
+        try:
+            ok = bool(verify(src, out))
+        except Exception:
+            ok = False
+        if not ok:
+            out.unlink(missing_ok=True)
+            return "failed"
     os.utime(out, (st.st_atime, st.st_mtime))
     try:
         # the size of the camera file, so importing it again is recognised

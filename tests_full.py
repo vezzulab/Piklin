@@ -1615,6 +1615,46 @@ _r2 = devmod.import_photos(_camlib, [iio.probe(_camclip)], video_profile="h264")
 check("importing the card again does not duplicate the smaller copy",
       _r2["skipped"] == 1 and not _r2["copied"])
 
+# Making room: which videos, by how much, and only a copy proven the same
+from piklin import videospace as _vs
+_vs_lib = _L(os.path.join(TMP, "SpaceLib.piklin")).ensure()
+_vs_in = _vs_lib.originals / "2024" / "2024-05-01" / "clip.MOV"
+_vs_in.parent.mkdir(parents=True); shutil.copy2(_camclip, _vs_in)
+_vs_watch = Path(TMP) / "WatchedVideos"; _vs_watch.mkdir()
+_vs_out = _vs_watch / "outside.MOV"; shutil.copy2(_camclip, _vs_out)
+with open(_vs_out, "ab") as _fh:      # another video, not the same one moved
+    _fh.write(b"\0" * 4096)
+_vs_cat = Catalog(_vs_lib.db)
+_IxS(_vs_cat, None, library_root=_vs_lib.root).add_files([str(_vs_in), str(_vs_out)])
+_vs_plan = _vs.plan(_vs_cat, _vs_lib.originals, min_saving=0, min_share=0)
+check("only videos inside the library are ever planned to be made smaller",
+      [Path(c.path).resolve() for c in _vs_plan] == [_vs_in.resolve()], [c.path for c in _vs_plan])
+check("the planned rate is capped by the size of the picture",
+      bool(_vs_plan) and _vs_plan[0].bit_rate <= _vs.cap_for(640, 360)
+      and _vs_plan[0].expected < _vs_plan[0].bytes, _vs_plan[:1])
+_vs_good = ve_mod = None
+from piklin import video_edit as _ve2
+_vs_dur = float(_vs_cat.photo_by_path(str(_vs_in.resolve()))["duration"] or 2.5)
+_vs_good = _ve2.export(_vs_in, Path(TMP) / "vs-good.mp4", _ve2.VideoEdit(duration=_vs_dur),
+                       fmt="mp4", bit_rate=_vs.cap_for(640, 360))
+check("a smaller copy that is the same video passes the check", _vs.verify(_vs_in, _vs_good))
+_vs_half = _ve2.export(_vs_in, Path(TMP) / "vs-half.mp4",
+                       _ve2.VideoEdit(duration=_vs_dur, end=_vs_dur / 2), fmt="mp4")
+check("a copy that lost half the video fails the check", not _vs.verify(_vs_in, _vs_half))
+_vs_row = _vs_cat.photo_by_path(str(_vs_in.resolve()))
+_vs_res = devmod.shrink_video(_vs_lib, _vs_cat, _vs_row["id"], bit_rate=800_000,
+                              verify=lambda s, o: False)
+check("when the check fails, the original stays exactly where it was",
+      _vs_res == "failed" and _vs_in.exists()
+      and _vs_cat.photo(_vs_row["id"])["path"] == _vs_row["path"]
+      and not list(_vs_in.parent.glob("*.smaller.mp4")), _vs_res)
+_vs_res = devmod.shrink_video(_vs_lib, _vs_cat, _vs_row["id"], bit_rate=800_000,
+                              verify=_vs.verify)
+_vs_new = Path(_vs_cat.photo(_vs_row["id"])["path"])
+check("when it passes, the smaller copy takes the original's place",
+      _vs_res == "smaller" and _vs_new.exists() and not _vs_in.exists()
+      and _vs_new.stat().st_size < os.path.getsize(_camclip), (_vs_res, _vs_new))
+
 section("Video editing and export")
 import av as _av
 from piklin import video_edit as ve

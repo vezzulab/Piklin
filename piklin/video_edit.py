@@ -326,12 +326,14 @@ def export(path, dst, edit: VideoEdit, fmt: str = "mp4",
            max_side: int | None = None, keep_location: bool = False,
            strip_metadata: bool = False, meta: dict | None = None,
            on_progress: Callable[[float], None] | None = None,
-           cancel: threading.Event | None = None) -> Path:
+           cancel: threading.Event | None = None,
+           bit_rate: int | None = None) -> Path:
     """Render ``path`` with ``edit`` into ``dst``. Returns the file written.
 
     The output is written under a temporary name and only renamed into
     place once complete, so a cancelled or failed export leaves nothing
-    half-written behind.
+    half-written behind. ``bit_rate`` caps the video's bits per second (see
+    videospace.py); the usual rate for its size is used when it is lower.
     """
     import av
     segs = edit.segments()
@@ -345,7 +347,7 @@ def export(path, dst, edit: VideoEdit, fmt: str = "mp4",
             _export_gif(av, path, tmp, edit, segs, max_side or 480, on_progress, cancel)
         else:
             _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
-                          strip_metadata, meta or {}, on_progress, cancel)
+                          strip_metadata, meta or {}, on_progress, cancel, bit_rate)
         tmp.replace(dst)
     finally:
         tmp.unlink(missing_ok=True)
@@ -357,7 +359,7 @@ class Cancelled(Exception):
 
 
 def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
-                  strip_metadata, meta, on_progress, cancel):
+                  strip_metadata, meta, on_progress, cancel, bit_rate=None):
     spec = EXPORT_FORMATS[fmt]
     vcodec = encoder_for("video", fmt)
     if vcodec is None:
@@ -383,6 +385,8 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
         vout.codec_context.thread_count = _threads()
         # about 0.12 bit per pixel per frame: 1080p30 near 7.5 Mbit/s
         vout.bit_rate = int(ow * oh * fps * 0.12)
+        if bit_rate:
+            vout.bit_rate = min(vout.bit_rate, int(bit_rate))
         if vcodec.startswith("libvpx"):
             vout.options = {"crf": "31", "b:v": "0", "row-mt": "1",
                             "deadline": "good", "cpu-used": "4"}
