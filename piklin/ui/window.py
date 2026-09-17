@@ -169,27 +169,49 @@ class MainWindow(Adw.ApplicationWindow):
         self.split.set_start_child(sidebar)
         self.split.set_resize_start_child(False)
         self.split.set_shrink_start_child(False)
+        # Create sits in a divider of its own, so the room it takes comes
+        # out of the photos beside it and never out of the sidebar: when
+        # the two shared one box, opening Create squeezed album names into
+        # ellipses, and Piklin then remembered that narrower sidebar.
         from .create_panel import CreatePanel
         self.create_panel = CreatePanel(self)
-        self.create_reveal = Gtk.Revealer(
-            transition_type=Gtk.RevealerTransitionType.SLIDE_LEFT,
-            transition_duration=160, child=self.create_panel,
-            reveal_child=bool(self.settings.get("create_panel_open")))
-        beside = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.create_panel.set_visible(bool(self.settings.get("create_panel_open")))
+        self.create_split = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL,
+                                      wide_handle=False)
+        self.create_split.add_css_class("pika-split")
         content = self._build_content()
         content.set_hexpand(True)
-        beside.append(content)
-        beside.append(self.create_reveal)
-        self.split.set_end_child(beside)
+        self.create_split.set_start_child(content)
+        self.create_split.set_resize_start_child(True)
+        # Never below its own minimum: allowing that let GTK clip the
+        # photos instead of reflowing them, so the first column and the
+        # buttons under it disappeared off the left edge.
+        self.create_split.set_shrink_start_child(False)
+        self.create_split.set_end_child(self.create_panel)
+        self.create_split.set_resize_end_child(False)
+        self.create_split.set_shrink_end_child(False)
+        self._panel_save = 0
+        self._panel_moved_at = 0.0
+        self.create_split.connect("notify::position", self._on_panel_width)
+        self.split.set_end_child(self.create_split)
         self.split.set_resize_end_child(True)
         self.split.set_shrink_end_child(False)
         width = int(self.settings.get("sidebar_width", 280) or 280)
         self.split.set_position(max(SIDEBAR_MIN, min(SIDEBAR_MAX, width)))
         self._sidebar_save = 0
+        self._panel_moving = False
         self.split.connect("notify::position", self._on_sidebar_width)
         return self.split
 
     def _on_sidebar_width(self, paned, _pspec):
+        # Only a width the user dragged is worth remembering. Create
+        # appearing takes room from the window, and where there is none to
+        # take, GTK squeezes the sidebar; remembering that left albums
+        # permanently in ellipses. Anything that happens in the seconds
+        # around a panel toggle is the panel's doing, not the user's.
+        import time as _time
+        if _time.monotonic() - getattr(self, "_panel_moved_at", 0.0) < 2.5:
+            return
         pos = paned.get_position()
         if pos > SIDEBAR_MAX:
             paned.set_position(SIDEBAR_MAX)
@@ -1987,16 +2009,70 @@ class MainWindow(Adw.ApplicationWindow):
     # ==================================================================
     # Create
     # ==================================================================
+    PANEL_MIN, PANEL_MAX = 260, 460
+
+    def _on_panel_width(self, paned, _pspec):
+        """Remember how wide Create was dragged, the way the sidebar is."""
+        if getattr(self, "_panel_moving", False) or not self.create_panel.get_visible():
+            return
+        width = max(0, paned.get_width() - paned.get_position())
+        if width < self.PANEL_MIN or width > self.PANEL_MAX:
+            return
+        if self._panel_save:
+            GLib.source_remove(self._panel_save)
+
+        def save():
+            self._panel_save = 0
+            self.settings.set("create_panel_width", width)
+            return False
+        self._panel_save = GLib.timeout_add(400, save)
+
     def show_create_panel(self, on: bool) -> None:
-        self.create_reveal.set_reveal_child(bool(on))
-        if self.create_btn.get_active() != bool(on):
-            self.create_btn.set_active(bool(on))
-        self.settings.set("create_panel_open", bool(on))
+        import time as _time
+        on = bool(on)
+        want_sidebar = max(SIDEBAR_MIN, min(SIDEBAR_MAX,
+                           int(self.settings.get("sidebar_width", 280) or 280)))
+        keep = want_sidebar if not on else self.split.get_position()
+        self._panel_moving = True
+        self._panel_moved_at = _time.monotonic()
+        self.create_panel.set_visible(on)
+        if self.create_btn.get_active() != on:
+            self.create_btn.set_active(on)
+        self.settings.set("create_panel_open", on)
         if on:
             self.create_panel.refresh()
 
+        def place(done=False):
+            if on:
+                want = int(self.settings.get("create_panel_width", 320) or 320)
+                want = max(self.PANEL_MIN, min(self.PANEL_MAX, want))
+                total = self.create_split.get_width()
+                if total > want:
+                    self.create_split.set_position(total - want)
+            # The sidebar keeps whatever width it had: only a drag of its
+            # own edge may change it.
+            if self.split.get_position() != keep:
+                self.split.set_position(keep)
+            # The photos have less room now, or more: their columns are
+            # recounted and nothing is left scrolled sideways, or the
+            # first column stays hidden behind the sidebar.
+            try:
+                self.grid._fit_tiles()
+            except Exception:
+                pass
+            if done:
+                self._panel_moving = False
+            return False
+        GLib.idle_add(place)
+        GLib.timeout_add(120, place)
+        GLib.timeout_add(360, lambda: place(True))
+        # Closing it gives the sidebar back the width the user chose.
+        if not on:
+            GLib.timeout_add(420, lambda: (self.split.set_position(want_sidebar),
+                                           False)[1])
+
     def toggle_create_panel(self) -> None:
-        self.show_create_panel(not self.create_reveal.get_reveal_child())
+        self.show_create_panel(not self.create_panel.get_visible())
 
     def open_scope(self, scope: str) -> None:
         """Stand somewhere in the sidebar, from anywhere."""
@@ -2010,13 +2086,16 @@ class MainWindow(Adw.ApplicationWindow):
         self.grid.load(scope)
         self._show("grid")
 
-    def open_creation(self, kind: str, items) -> None:
+    def open_creation(self, kind: str, photos) -> None:
         """Open the workshop on a new creation made of these photos."""
-        items = [i for i in items if not getattr(i, "is_video", False)]
-        if not items:
+        from ..video import is_video
+        from .create_panel import as_photo
+        photos = [as_photo(p) for p in photos]
+        photos = [p for p in photos if p["path"] and not is_video(p["path"])]
+        if not photos:
             self._show_toast(_("Choose some photos first"))
             return
-        self.creation_view.open(kind, items)
+        self.creation_view.open(kind, photos)
         self._show("create")
 
     def open_saved_creation(self, photo_id: int) -> bool:

@@ -1410,6 +1410,31 @@ ES = {
         "Esta creación tiene cambios que todavía no están en tu biblioteca.",
     "Keep Working": "Seguir trabajando",
     "Leave": "Salir",
+    # -- Create: the tray, and the themes -------------------------------
+    "Gather photos here from any album or any day - they stay while you look somewhere else - then pick what to make.":
+        "Reúne aquí fotos de cualquier álbum o cualquier día — se quedan mientras miras en otro lado — y después elige qué hacer.",
+    "{count} photo in the tray": ("{count} foto reunida", "{count} fotos reunidas"),
+    "Add the {count} photo chosen": ("Añadir la {count} foto elegida",
+                                     "Añadir las {count} fotos elegidas"),
+    "{count} photo gathered": ("{count} foto reunida", "{count} fotos reunidas"),
+    "{count} photo added; {skipped} was already there or is a video":
+        ("{count} foto añadida; {skipped} ya estaba o es un video",
+         "{count} fotos añadidas; {skipped} ya estaban o son videos"),
+    "Those are already in the tray": "Esas ya están reunidas",
+    "Take out of the tray": "Quitar de las reunidas",
+    "Empty the tray": "Vaciar",
+    "Photo {n} of {total}": "Foto {n} de {total}",
+    "Theme": "Tema",
+    "Clean": "Limpio",
+    "Gallery": "Galería",
+    "Party": "Fiesta",
+    "Hearts": "Corazones",
+    "Winter": "Invierno",
+    "Little One": "Peques",
+    "Add the photos you have chosen": "Añadir las fotos que elegiste",
+    "Choose photos in your library, then press +":
+        "Elige fotos en tu biblioteca y después toca +",
+    "+ adds {count} more": ("+ añade {count} más", "+ añade {count} más"),
 }
 
 

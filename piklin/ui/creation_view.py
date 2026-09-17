@@ -41,12 +41,22 @@ STYLES = (
     ("feature", N_("One large")),
 )
 
-BACKGROUNDS = (
-    ("#ffffff", N_("White")),
-    ("#111111", N_("Black")),
-    ("#f4efe7", N_("Cream")),
-    ("#1b2430", N_("Midnight")),
+# The themes, named for the panel. The look itself lives in create.THEMES,
+# so a theme is a thing the page carries, not a thing this window does.
+THEMES = (
+    ("clean", N_("Clean")),
+    ("gallery", N_("Gallery")),
+    ("polaroid", N_("Polaroid")),
+    ("cream", N_("Cream")),
+    ("midnight", N_("Midnight")),
+    ("party", N_("Party")),
+    ("hearts", N_("Hearts")),
+    ("winter", N_("Winter")),
+    ("little", N_("Little One")),
 )
+
+# How much of the page the words get when there are any.
+TEXT_ROOM = 0.11
 
 
 class CreationView(Gtk.Box):
@@ -120,8 +130,8 @@ class CreationView(Gtk.Box):
                                      self._on_shape, box)
         self.style_drop = self._drop(_("Arrangement"), [s[1] for s in STYLES],
                                      self._on_style, box)
-        self.back_drop = self._drop(_("Background"), [b[1] for b in BACKGROUNDS],
-                                    self._on_background, box)
+        self.theme_drop = self._drop(_("Theme"), [t[1] for t in THEMES],
+                                     self._on_theme, box)
 
         self.gap = self._slider(_("Spacing"), 0.0, 0.05, 0.002, box)
         self.gap.connect("value-changed", lambda *_a: self._on_gap())
@@ -237,9 +247,9 @@ class CreationView(Gtk.Box):
                 if row is not None and row["width"] and row["height"]:
                     self._aspects[i] = row["width"] / row["height"]
         else:
-            photos = [{"id": i.id, "path": i.path, "width": i.width,
-                       "height": i.height} for i in items]
-            self.creation = creations.new(kind, self._suggest_name(items))
+            from .create_panel import as_photo
+            photos = [as_photo(i) for i in items]
+            self.creation = creations.new(kind, self._suggest_name(photos))
             shape = "square" if kind == "collage" else "portrait"
             page = create.make_page(photos, shape=shape,
                                     style="mosaic" if kind == "collage" else "feature",
@@ -260,11 +270,10 @@ class CreationView(Gtk.Box):
         if self.faces.get_active():
             self._run_faces()
 
-    def _suggest_name(self, items) -> str:
+    def _suggest_name(self, photos) -> str:
         from .create_panel import span_of
-        span = span_of(items)
-        return (_("Collage {when}").format(when=span) if span
-                else _("Collage")) if items else _("Collage")
+        span = span_of(photos) if photos else ""
+        return _("Collage {when}").format(when=span) if span else _("Collage")
 
     def _fill_controls(self):
         page = self.creation.page
@@ -275,9 +284,9 @@ class CreationView(Gtk.Box):
         for i, (key, _label) in enumerate(STYLES):
             if key == self._style:
                 self.style_drop.set_selected(i)
-        for i, (color, _label) in enumerate(BACKGROUNDS):
-            if color.lower() == (page.background or "").lower():
-                self.back_drop.set_selected(i)
+        for i, (key, _label) in enumerate(THEMES):
+            if key == page.theme:
+                self.theme_drop.set_selected(i)
         self.gap.set_value(page.gap)
         self.corner.set_value(page.corner)
         self.title_entry.set_text(page.texts[0].text if page.texts else "")
@@ -301,15 +310,11 @@ class CreationView(Gtk.Box):
         self._style = STYLES[drop.get_selected()][0]
         self._rearrange()
 
-    def _on_background(self, drop, _p):
-        page = self.creation.page
-        page.background = BACKGROUNDS[drop.get_selected()][0]
-        # Words on a dark page are light, and the other way about.
-        dark = page.background in ("#111111", "#1b2430")
-        for t in page.texts:
-            t.color = "#ffffff" if dark else "#111111"
-        self._touch()
-        self._render_soon()
+    def _on_theme(self, drop, _p):
+        create.apply_theme(self.creation.page, THEMES[drop.get_selected()][0])
+        self.gap.set_value(self.creation.page.gap)
+        self.corner.set_value(self.creation.page.corner)
+        self._rearrange()
 
     def _on_gap(self):
         self.creation.page.gap = self.gap.get_value()
@@ -324,26 +329,14 @@ class CreationView(Gtk.Box):
         page = self.creation.page
         text = self.title_entry.get_text()
         if not page.texts:
-            dark = page.background in ("#111111", "#1b2430")
-            page.texts.append(create.Text(
-                text=text, y=0.9, size=0.045, tracking=0.1,
-                color="#ffffff" if dark else "#111111"))
-            # Words need a strip of their own, or they land on a photo.
-            page.margin = max(page.margin, 0.05)
-            create.arrange(self.creation.page, self._aspects, self._style)
-            self._squeeze_for_words()
+            page.texts.append(create.Text(text=text, size=0.038))
+            create.apply_theme(page, page.theme)      # the theme's own lettering
         else:
             page.texts[0].text = text
-        self._touch()
-        self._render_soon()
-
-    def _squeeze_for_words(self):
-        """Leave the foot of the page to the words."""
-        page = self.creation.page
-        room = 0.12
-        for slot in page.slots:
-            slot.y *= (1.0 - room)
-            slot.h *= (1.0 - room)
+        # Words need a band of their own, or they land on a face. The
+        # band is given back when the words are taken away.
+        page.text_room = TEXT_ROOM if text.strip() else 0.0
+        self._rearrange()
 
     def _on_faces(self):
         if self.faces.get_active():
@@ -406,12 +399,14 @@ class CreationView(Gtk.Box):
             self._chosen = -1
         self._show_pick()
 
-    def _show_pick(self):
+    def _show_pick(self, redraw: bool = True):
         ok = 0 <= self._chosen < len(self.creation.page.slots)
         self.photo_bar.set_visible(ok)
         if ok:
-            name = Path(self.creation.page.slots[self._chosen].path).name
-            self.pick_label.set_text(name)
+            self.pick_label.set_text(_("Photo {n} of {total}").format(
+                n=self._chosen + 1, total=len(self.creation.page.slots)))
+        if redraw:
+            self._render_soon(40)
 
     def _move(self, step):
         page = self.creation.page
@@ -458,12 +453,13 @@ class CreationView(Gtk.Box):
         self._token += 1
         token = self._token
         page = create.Page.from_dict(self.creation.page.to_dict())
+        picked = self._chosen if 0 <= self._chosen < len(page.slots) else None
         self.spinner.start()
         self.spinner.set_visible(True)
 
         def work():
             try:
-                image = create.render(page, PREVIEW_SIDE)
+                image = create.render(page, PREVIEW_SIDE, highlight=picked, edge=True)
             except Exception:
                 image = None
             GLib.idle_add(show, image)

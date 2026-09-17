@@ -2834,6 +2834,68 @@ _crs.forget(cCr2, _there.uuid)
 check("forgetting a creation leaves its picture in the library",
       _crs.count(cCr2) == 0 and cCr2.photo(_there.photo_id) is not None)
 
+# -- themes
+check("every theme is a whole look, and the page keeps it",
+      len(_cr.THEMES) >= 9 and set(_cr.THEME_ORDER) == set(_cr.THEMES))
+for _key in _cr.THEME_ORDER:
+    _tp = _cr.make_page(_crows, shape="square")
+    _tp.texts.append(_cr.Text(text="A day out", size=0.038))
+    _tp.text_room = 0.11
+    _cr.apply_theme(_tp, _key)
+    _cr.arrange(_tp, [1.5] * len(_crows), "mosaic")
+    _low = max(s.y + s.h for s in _tp.slots)
+    if not check(f"theme {_key}: words get a band of their own, photos stay above it",
+                 _low <= _tp.texts[0].y + 1e-6 and _tp.texts[0].y < 1.0,
+                 f"photos to {_low:.2f}, words at {_tp.texts[0].y:.2f}"):
+        break
+    if not check(f"theme {_key} draws", _cr.render(_tp, 260) is not None):
+        break
+_saved = _cr.Page.from_dict(_tp.to_dict())
+check("a theme survives being written down and read back",
+      _saved.theme == _tp.theme and _saved.background == _tp.background
+      and _saved.sprinkle == _tp.sprinkle and _saved.text_room == _tp.text_room)
+_tilted = _cr.make_page(_crows, shape="square")
+_cr.apply_theme(_tilted, "polaroid")
+check("a leaning photo is drawn inside the page, not over its edge",
+      _cr.render(_tilted, 300) is not None and _tilted.tilt > 0)
+_grad = _cr.Page(background="#000000,#ffffff")
+_wash = _cr.render(_grad, 100)
+check("a two-colour background is a wash from one to the other",
+      sum(_wash.getpixel((50, 2))) < 40 and sum(_wash.getpixel((50, 97))) > 720)
+_plain = _cr.render(_cr.Page(background="#336699"), 60)
+check("a one-colour background stays that colour",
+      _plain.getpixel((30, 30)) == (51, 102, 153))
+check("the words follow the theme, not the last theme",
+      _tp.texts[0].color == _cr.THEMES[_tp.theme].get("text_color", "#111111"))
+# The preview's own marks must never reach a file.
+_marked = _cr.render(_page, 300, highlight=0, edge=True)
+check("the preview can mark the photo being worked on", _marked is not None)
+
+# -- words land on the page
+# Piklin shares a process with GTK, whose HarfBuzz disagreed with the one
+# Pillow lays text out with: letter widths came back in the millions of
+# pixels and every title was drawn a mile off the side of the page.
+_f = _cr.font("bold", 53)
+_width = _f.getlength("Aniella")
+check("a word is measured in pixels, not in millions of them",
+      0 < _width < 53 * 20, f"{_width:.0f}px")
+_wordy = _cr.Page(shape="square", background="#ffffff", text_room=0.14)
+_wordy.texts.append(_cr.Text(text="Aniella", size=0.08, y=0.8, color="#111111",
+                             tracking=0.08))
+_shot = _cr.render(_wordy, 500)
+_band = np.asarray(_shot.convert("L"), dtype=float)[int(0.78 * 500):, :]
+check("the words are drawn where the page keeps room for them",
+      int((_band < 160).sum()) > 50, f"{int((_band < 160).sum())} px")
+_dark = _cr.Page(shape="square", background="#111111")
+_dark.texts.append(_cr.Text(text="Aniella", size=0.1, y=0.45, color="#111111"))
+_lit = np.asarray(_cr.render(_dark, 400).convert("L"), dtype=float)
+check("words that would vanish into the page are turned readable",
+      int((_lit > 160).sum()) > 50,
+      _cr.readable_on("#111111", "#111111"))
+check("words that already read are left in their own colour",
+      _cr.readable_on("#3a332b", "#e9e4dc") == "#3a332b"
+      and _cr.readable_on("#ffffff", "#111111") == "#ffffff")
+
 print("\n" + "="*64)
 print(f"  {len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:
