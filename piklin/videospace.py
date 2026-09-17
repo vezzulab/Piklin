@@ -13,6 +13,7 @@ alone.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -180,11 +181,13 @@ def record_conversion(root, old_path, new_path, old_size: int, duration: float,
     large original can be set apart in every backup, then let go."""
     import time
     data = _load(root)
-    data[_rel(root, old_path)] = {
-        "new": _rel(root, new_path), "old_size": int(old_size),
-        "duration": float(duration or 0), "at": time.time() if now is None else now,
-        "remotes": {}}
+    new_size = Path(new_path).stat().st_size if Path(new_path).is_file() else 0
+    entry = {"new": _rel(root, new_path), "old_size": int(old_size), "new_size": int(new_size),
+             "duration": float(duration or 0), "at": time.time() if now is None else now,
+             "remotes": {}}
+    data[_rel(root, old_path)] = entry
     _save(root, data)
+    _write_shared(root, _rel(root, old_path), entry)
 
 
 def find_forgotten(root, index: dict, now: float | None = None) -> int:
@@ -225,15 +228,55 @@ def due(root, remote_id: str, now: float | None = None) -> bool:
     return False
 
 
+def hold_days_for(remote) -> int:
+    """How long a backup keeps a converted video's original. A NAS or a drive
+    keeps it HOLD_DAYS: the room is there already. A cloud service is paid for
+    by the gigabyte, so only the smaller video stays there."""
+    return 0 if getattr(remote, "kind", "") == "rclone" else HOLD_DAYS
+
+
+def local_hold_needed(remotes) -> bool:
+    """Whether this computer has to keep a converted video's original for
+    HOLD_DAYS itself: when no backup keeps it - no backup at all, or only
+    cloud services."""
+    return not any(hold_days_for(r) > 0 for r in remotes)
+
+
+def local_hold_dir(root) -> Path:
+    return Path(root) / ".cache" / "converted-originals"
+
+
+def set_apart_locally(root, rel: str, now: float | None = None) -> Path:
+    """Where a converted video's original waits in the library itself."""
+    import time
+    now = time.time() if now is None else now
+    return local_hold_dir(root) / time.strftime("%Y-%m-%d", time.localtime(now)) / rel
+
+
+def _small_checks_out(root: Path, entry: dict) -> str | None:
+    from .video import stream_info
+    small = root / entry["new"]
+    if not small.is_file():
+        return "the smaller video is missing from the library"
+    info = stream_info(small) or {}
+    length = float(info.get("duration") or 0)
+    want = float(entry.get("duration") or 0)
+    if length <= 0 or (want and abs(length - want) > max(0.5, want * 0.01)):
+        return "the smaller video no longer plays in full"
+    return None
+
+
 def tend(root, backend, now: float | None = None, index: dict | None = None) -> dict:
     """Do what is due in one backup: set apart the originals whose smaller
-    copy is already there in full, and let go of those kept HOLD_DAYS once
-    the smaller copy is checked again, here and there."""
+    copy is already there in full - or, in a cloud service, let them go at
+    once - and let go of those kept long enough once the smaller copy is
+    checked again, here and there. An original another computer sent back
+    after it was set apart is set apart again."""
     import time
-    from .video import stream_info
     root = Path(root)
     now = time.time() if now is None else now
     rid = backend.remote.id
+    days = hold_days_for(backend.remote)
     counts = {"held": 0, "deleted": 0, "waiting": 0, "problems": 0}
     if index is None:
         index = backend.listing()
@@ -244,32 +287,37 @@ def tend(root, backend, now: float | None = None, index: dict | None = None) -> 
         st = entry.setdefault("remotes", {}).setdefault(rid, {"state": "pending"})
         small = root / entry["new"]
         remote_small = index.get(entry["new"])
+        small_up = (small.is_file() and remote_small is not None
+                    and remote_small[0] == small.stat().st_size)
+        back = index.get(old_rel)
+        if st.get("state") in ("held", "gone") and back and back[0] == entry.get("old_size"):
+            st["state"] = "pending"                 # sent back: set apart again
         if st.get("state") == "pending":
-            if not small.is_file() or remote_small is None or \
-                    remote_small[0] != small.stat().st_size:
+            if not small_up:
                 counts["waiting"] += 1              # the smaller one isn't up in full yet
                 continue
             if old_rel not in index:
                 st.update(state="gone", at=now)       # never backed up, or gone already
                 continue
+            if days == 0:
+                if backend.delete(old_rel):
+                    st.update(state="gone", deleted_at=now)
+                    counts["deleted"] += 1
+                else:
+                    counts["waiting"] += 1
+                continue
             held = f"{CONVERTED_DIR}/{stamp}/{old_rel}"
+            if st.get("held_rel") == held:
+                held = f"{CONVERTED_DIR}/{stamp}-{int(now)}/{old_rel}"
             if backend.move(old_rel, held):
                 st.update(state="held", held_rel=held, held_at=now)
                 counts["held"] += 1
             else:
                 counts["waiting"] += 1
-        elif st.get("state") == "held" and now - st.get("held_at", now) >= HOLD_DAYS * 86400:
-            problem = None
-            if not small.is_file():
-                problem = "the smaller video is missing from the library"
-            elif remote_small is None or remote_small[0] != small.stat().st_size:
+        elif st.get("state") == "held" and now - st.get("held_at", now) >= days * 86400:
+            problem = _small_checks_out(root, entry)
+            if problem is None and not small_up:
                 problem = "the smaller video is not in the backup in full"
-            else:
-                info = stream_info(small) or {}
-                length = float(info.get("duration") or 0)
-                want = float(entry.get("duration") or 0)
-                if length <= 0 or (want and abs(length - want) > max(0.5, want * 0.01)):
-                    problem = "the smaller video no longer plays in full"
             if problem:
                 st["problem"] = problem
                 counts["problems"] += 1
@@ -279,4 +327,143 @@ def tend(root, backend, now: float | None = None, index: dict | None = None) -> 
                 st.pop("problem", None)
                 counts["deleted"] += 1
     _save(root, data)
+    return counts
+
+
+def tend_local(root, now: float | None = None) -> dict:
+    """Originals kept in the library itself (no backup keeps them): let go
+    after HOLD_DAYS, once the smaller copy is checked again."""
+    import time
+    root = Path(root)
+    now = time.time() if now is None else now
+    counts = {"deleted": 0, "problems": 0}
+    data = _load(root)
+    for entry in data.values():
+        st = entry.get("local")
+        if not st or st.get("state") != "held" or now - st.get("held_at", now) < HOLD_DAYS * 86400:
+            continue
+        problem = _small_checks_out(root, entry)
+        if problem:
+            st["problem"] = problem
+            counts["problems"] += 1
+            continue
+        held = root / st["held_rel"]
+        held.unlink(missing_ok=True)
+        st.update(state="gone", deleted_at=now)
+        counts["deleted"] += 1
+    _save(root, data)
+    return counts
+
+
+def note_local_hold(root, old_rel: str, held_path, now: float | None = None) -> None:
+    import time
+    data = _load(root)
+    if old_rel in data:
+        data[old_rel]["local"] = {"state": "held", "held_rel": _rel(root, held_path),
+                                  "held_at": time.time() if now is None else now}
+        _save(root, data)
+
+
+# -- other computers: the same videos made smaller there too --------------------
+SHARED = "converted-videos.json"
+
+
+def shared_path(root) -> Path:
+    return Path(root) / SHARED
+
+
+def _write_shared(root, old_rel: str, entry: dict) -> None:
+    import json
+    path = shared_path(root)
+    try:
+        data = json.loads(path.read_text())
+        if not isinstance(data, dict):
+            data = {}
+    except (OSError, ValueError):
+        data = {}
+    videos = dict(data.get("videos") or {})
+    videos[old_rel] = {k: entry[k] for k in ("new", "old_size", "new_size", "duration", "at")
+                       if k in entry}
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps({"format": "piklin-converted-videos", "version": 1,
+                               "videos": videos}, indent=1))
+    tmp.replace(path)
+
+
+def merge_shared(mine: dict | None, theirs: dict | None) -> dict:
+    """Videos made smaller on either computer: all of them, the latest
+    record of each."""
+    videos: dict = {}
+    for side in (mine or {}, theirs or {}):
+        for rel, e in (side.get("videos") or {}).items():
+            if isinstance(e, dict) and e.get("new") and (
+                    rel not in videos or float(e.get("at") or 0) > float(videos[rel].get("at") or 0)):
+                videos[rel] = e
+    return {"format": "piklin-converted-videos", "version": 1, "videos": videos}
+
+
+def incoming(root) -> dict:
+    """Videos another computer made smaller that this library still has at
+    full size: old path -> record."""
+    import json
+    root = Path(root)
+    try:
+        videos = json.loads(shared_path(root).read_text()).get("videos") or {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+    out = {}
+    for rel, e in videos.items():
+        old = root / rel
+        if old.is_file() and old.stat().st_size == e.get("old_size") and not (root / e["new"]).exists():
+            out[rel] = e
+    return out
+
+
+def apply_incoming(library, catalog, backend, index: dict, now: float | None = None) -> dict:
+    """Make this library's copies of those videos smaller the same way: the
+    smaller video is fetched from the backup and compared with this
+    computer's own original - length, sound and picture - and only then takes
+    its place, with its albums, marks and edits; the original goes. Nothing
+    is touched when they don't match."""
+    import time
+    from .photo_rename import repoint_photo
+    root = Path(library.root)
+    now = time.time() if now is None else now
+    counts = {"replaced": 0, "problems": 0, "waiting": 0}
+    for old_rel, e in incoming(root).items():
+        new_rel = e["new"]
+        remote = index.get(new_rel)
+        if remote is None or (e.get("new_size") and remote[0] != e["new_size"]):
+            counts["waiting"] += 1
+            continue
+        old = root / old_rel
+        new = root / new_rel
+        tmp = new.with_name(f".{new.name}.incoming")
+        tmp.unlink(missing_ok=True)
+        try:
+            ok = backend.get(new_rel, tmp) and verify(old, tmp)
+        except Exception:
+            ok = False
+        if not ok:
+            tmp.unlink(missing_ok=True)
+            counts["problems"] += 1
+            continue
+        row = catalog.photo_by_path(str(old.resolve()))
+        try:
+            os.replace(tmp, new)
+            os.utime(new, (old.stat().st_atime, old.stat().st_mtime))
+            if row is not None:
+                repoint_photo(library, catalog, row["id"], old, new,
+                              bytes=new.stat().st_size, ext=new.suffix.lstrip(".").lower())
+        except Exception:
+            new.unlink(missing_ok=True)
+            counts["problems"] += 1
+            continue
+        old.unlink(missing_ok=True)
+        data = _load(root)
+        data[old_rel] = {"new": new_rel, "old_size": e.get("old_size"),
+                         "new_size": new.stat().st_size, "duration": e.get("duration", 0),
+                         "at": e.get("at", now), "remotes": {}, "from_elsewhere": True}
+        _save(root, data)
+        counts["replaced"] += 1
     return counts

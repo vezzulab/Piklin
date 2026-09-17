@@ -1784,6 +1784,100 @@ try:
 finally:
     _wd_srv.shutdown()
 
+def _video_lib(name, rel="Originals/2021/2021-06-01/beach.MOV", tail=b""):
+    lib = _L(os.path.join(TMP, name)).ensure()
+    p = lib.root / rel; p.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(_camclip, p)
+    if tail:
+        with open(p, "ab") as fh:
+            fh.write(tail)
+    cat = Catalog(lib.db); _IxS(cat, None, library_root=lib.root).add_files([str(p)])
+    return lib, cat, p
+
+def _convert(lib, cat, p, set_apart=None):
+    row = cat.photo_by_path(str(p.resolve())); size = p.stat().st_size
+    res = devmod.shrink_video(lib, cat, row["id"], bit_rate=800_000, verify=_vs.verify, set_apart=set_apart)
+    new = Path(cat.photo(row["id"])["path"])
+    _vs.record_conversion(lib.root, p, new, size, float(row["duration"] or 3.0))
+    return res, new, row["id"]
+
+# A cloud service is paid by the gigabyte: only the smaller video stays there
+_cl_lib, _cl_cat, _cl_old = _video_lib("CloudLib.piklin")
+_cl_nas = Path(TMP) / "CloudDrive"
+_cl = rem.LocalBackend(rem.Remote(id="cloud", name="Cloud", kind="rclone", config={"path": str(_cl_nas)}))
+_cl.push(_cl_lib.root, rem.library_files(_cl_lib.root))
+_cl_rel = _cl_old.resolve().relative_to(_cl_lib.root).as_posix()
+_convert(_cl_lib, _cl_cat, _cl_old)
+_cl.push(_cl_lib.root, rem.library_files(_cl_lib.root))
+_cl_c = _vs.tend(_cl_lib.root, _cl, now=time.time())
+check("in a cloud service the original goes as soon as the smaller video is there in full",
+      _cl_c["deleted"] == 1 and not (_cl_nas / "Piklin" / _cl_rel).exists()
+      and not (_cl_nas / "Piklin" / _vs.CONVERTED_DIR).exists(), _cl_c)
+check("this computer keeps originals itself only when no backup keeps them",
+      _vs.local_hold_needed([]) and _vs.local_hold_needed([rem.Remote(id="c", name="c", kind="rclone")])
+      and not _vs.local_hold_needed([rem.Remote(id="n", name="n", kind="webdav"),
+                                     rem.Remote(id="c", name="c", kind="rclone")]))
+
+# No backup at all: the original waits in the library, then goes
+_nb_lib, _nb_cat, _nb_old = _video_lib("NoBackupLib.piklin")
+_nb_rel = _nb_old.resolve().relative_to(_nb_lib.root).as_posix()
+_nb_now = time.time()
+_nb_hold = _vs.set_apart_locally(_nb_lib.root, _nb_rel, now=_nb_now)
+_nb_res, _nb_new, _ = _convert(_nb_lib, _nb_cat, _nb_old, set_apart=_nb_hold)
+_vs.note_local_hold(_nb_lib.root, _nb_rel, _nb_hold, now=_nb_now)
+check("with no backup, the original is set apart inside the library, not deleted",
+      _nb_res == "smaller" and _nb_hold.is_file() and not _nb_old.exists() and _nb_new.exists())
+check("and still kept after four days",
+      _vs.tend_local(_nb_lib.root, now=_nb_now + 4 * 86400)["deleted"] == 0 and _nb_hold.is_file())
+check("and let go after five, with the smaller copy checked again",
+      _vs.tend_local(_nb_lib.root, now=_nb_now + 5 * 86400 + 60)["deleted"] == 1 and not _nb_hold.exists())
+_nb2_lib, _nb2_cat, _nb2_old = _video_lib("NoBackupLib2.piklin")
+_nb2_rel = _nb2_old.resolve().relative_to(_nb2_lib.root).as_posix()
+_nb2_hold = _vs.set_apart_locally(_nb2_lib.root, _nb2_rel, now=_nb_now)
+_, _nb2_new, _ = _convert(_nb2_lib, _nb2_cat, _nb2_old, set_apart=_nb2_hold)
+_vs.note_local_hold(_nb2_lib.root, _nb2_rel, _nb2_hold, now=_nb_now)
+_nb2_new.unlink()
+_nb2_c = _vs.tend_local(_nb2_lib.root, now=_nb_now + 6 * 86400)
+check("with no backup, an original whose smaller copy is gone is kept",
+      _nb2_c["problems"] == 1 and _nb2_hold.is_file(), _nb2_c)
+
+# Two computers sharing one backup: the second follows the first
+from piklin import sync as _syn
+_mc_nas = Path(TMP) / "SharedHomeNAS"
+_mc_remote = rem.Remote(id="home", name="NAS", kind="local", config={"path": str(_mc_nas)})
+_mcA_lib, _mcA_cat, _mcA_old = _video_lib("ComputerA.piklin")
+_mcA = _mc_remote.backend(); _mcA.push(_mcA_lib.root, rem.library_files(_mcA_lib.root))
+_mcB_lib, _mcB_cat, _mcB_old = _video_lib("ComputerB.piklin")
+_mcB_alb = _mcB_cat.create_album("Beach"); _mcB_cat.album_add(_mcB_alb, [_mcB_cat.photo_by_path(str(_mcB_old.resolve()))["id"]])
+_mcB = _mc_remote.backend(); _mcB.push(_mcB_lib.root, rem.library_files(_mcB_lib.root))
+_, _mcA_new, _ = _convert(_mcA_lib, _mcA_cat, _mcA_old)
+_mcA.push(_mcA_lib.root, rem.library_files(_mcA_lib.root))
+_mcB_before = _mcB_cat.scalar("SELECT COUNT(*) FROM photos", (), 0)
+_mcB_res = _syn.pull(_mcB_lib, _mcB_cat, _mcB)
+_mcB_new = _mcB_lib.root / _mcA_new.relative_to(_mcA_lib.root)
+check("another computer sharing the backup replaces its own copy with the smaller video",
+      _mcB_new.is_file() and not _mcB_old.exists()
+      and _mcB_new.read_bytes() == _mcA_new.read_bytes(), (_mcB_res, _mcB_new))
+check("keeping it one video, in its album - not a second copy",
+      _mcB_cat.scalar("SELECT COUNT(*) FROM photos", (), 0) == _mcB_before
+      and _mcB_cat.album_photo_paths(_mcB_alb) == [str(_mcB_new)])
+_mcB.push(_mcB_lib.root, rem.library_files(_mcB_lib.root))
+_mc_c = _vs.tend(_mcA_lib.root, _mcA, now=time.time())
+check("and the second computer does not send the large original back",
+      _mc_c["held"] == 1 and not (_mc_nas / "Piklin" / _mcA_old.resolve().relative_to(_mcA_lib.root)).exists(), _mc_c)
+
+_mcC_lib, _mcC_cat, _mcC_old = _video_lib("ComputerC.piklin", tail=b"\2" * 3000)   # its own, different
+_mcC = _mc_remote.backend()
+_mcC_bytes = _mcC_old.read_bytes()
+_syn.pull(_mcC_lib, _mcC_cat, _mcC)
+check("a computer whose video is not the same one is left untouched", _mcC_old.read_bytes() == _mcC_bytes)
+
+# sent back after it was set apart: set apart again
+_rb_rel = _mcA_old.resolve().relative_to(_mcA_lib.root).as_posix()
+shutil.copy2(_camclip, _mc_nas / "Piklin" / _rb_rel)
+_rb_c = _vs.tend(_mcA_lib.root, _mcA, now=time.time() + 60)
+check("an original sent back to the backup after it was set apart is set apart again",
+      _rb_c["held"] == 1 and not (_mc_nas / "Piklin" / _rb_rel).exists(), _rb_c)
+
 section("Video editing and export")
 import av as _av
 from piklin import video_edit as ve

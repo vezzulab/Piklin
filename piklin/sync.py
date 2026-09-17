@@ -261,7 +261,13 @@ class SyncResult:
     changed: bool = False    # anything in this library changed
 
 
+def _merge_converted(mine, theirs):
+    from .videospace import merge_shared
+    return merge_shared(mine, theirs)
+
+
 _LISTS = {
+    "converted-videos.json": _merge_converted,
     "Albums/_folders.json": lambda a, b: merge_list(a, b, "folders"),
     "Albums/_smart.json": lambda a, b: merge_list(a, b, "smart_albums"),
     "Albums/_deleted.json": merge_deleted_albums,
@@ -393,8 +399,13 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
     # Photos and videos this computer doesn't have, unless removed on purpose.
     removed = {os.path.normpath(p) for p in
                (_read(sidecars.removed_path(library)).get("photos") or {})}
+    # A video another computer made smaller, that this one still has at full
+    # size, is not a new photo: it replaces this computer's copy (below).
+    from . import videospace
+    replacing = {e["new"] for e in videospace.incoming(root).values()}
     originals = [(rel, index[rel][0]) for rel in sorted(index)
                  if rel.startswith("Originals/") and not (root / rel).exists()
+                 and rel not in replacing
                  and os.path.normpath(str(root / rel)) not in removed]
     todo += originals
     if todo:
@@ -409,6 +420,9 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
         backend._save_manifest(root, manifest)
         if p.phase == "cancelled":
             result.ok, result.message = False, "cancelled"
+    if replacing and result.ok:
+        converted = videospace.apply_incoming(library, catalog, backend, index)
+        result.changed = result.changed or bool(converted["replaced"])
     brought = [rel for rel, _s in originals if (root / rel).exists()]
     fresh_edits = [root / rel for rel in edits if (root / rel).exists()]
     for rel in edits:

@@ -537,7 +537,7 @@ def import_photos(library, records: list[dict], on_progress=None,
 
 def shrink_video(library, catalog, photo_id: int, on_progress=None,
                  cancel: threading.Event | None = None, bit_rate: int | None = None,
-                 verify=None) -> str:
+                 verify=None, set_apart: Path | None = None) -> str:
     """Make a video already in the library smaller (H.264), in place.
 
     Returns "smaller", "kept" (it would not save a tenth, so the file is
@@ -600,6 +600,9 @@ def shrink_video(library, catalog, photo_id: int, on_progress=None,
             final = src.with_name(f"{src.stem}-{n}.mp4")
             n += 1
     if final == src:
+        if set_apart is not None:                 # kept a while, not overwritten
+            set_apart.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(src, set_apart)
         os.replace(out, final)                    # an .mp4 swapped in place
         repoint_photo(library, catalog, photo_id, src, final,
                       bytes=final.stat().st_size)
@@ -611,7 +614,13 @@ def shrink_video(library, catalog, photo_id: int, on_progress=None,
     except Exception:
         final.unlink(missing_ok=True)             # the original stays, untouched
         return "failed"
-    src.unlink(missing_ok=True)
+    if set_apart is not None:
+        # No backup keeps the original: it waits in the library for a few
+        # days before it goes (see videospace.tend_local).
+        set_apart.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(src, set_apart)
+    else:
+        src.unlink(missing_ok=True)
     return "smaller"
 
 
