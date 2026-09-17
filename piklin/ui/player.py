@@ -694,6 +694,7 @@ class VideoPlayer(Gtk.Overlay):
         self._engine = None
         self._playing = False
         self._scrubbing = False
+        self._dragging = False
         self._tick = 0
         self._hide_timer = 0
         self._pending = None
@@ -755,10 +756,14 @@ class VideoPlayer(Gtk.Overlay):
         self.scale.set_range(0.0, 1.0)
         self.scale.add_css_class("pika-player-scrubber")
         self.scale.connect("change-value", self._on_scrub)
-        release = Gtk.GestureClick()
-        release.connect("released", self._on_scrub_end)
-        release.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        self.scale.add_controller(release)
+        # A drag, not a click: a click gesture stops following the pointer
+        # once it moves a few pixels and then never reports the release, so
+        # the time bar stayed frozen - at 0 on the next video - for good.
+        drag = Gtk.GestureDrag()
+        drag.connect("drag-begin", self._on_scrub_begin)
+        drag.connect("drag-end", self._on_scrub_end)
+        drag.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        self.scale.add_controller(drag)
         bar.append(self.scale)
 
         self.dur_label = Gtk.Label(label="0:00", width_chars=5, xalign=0)
@@ -802,6 +807,8 @@ class VideoPlayer(Gtk.Overlay):
     # -- loading -----------------------------------------------------------
     def load(self, path, width=0, height=0, fps=0.0, duration=0.0, poster=None):
         self.unload()
+        # every video starts with a bar that follows it
+        self._scrubbing = self._dragging = False
         self.path = str(path)
         if poster is not None:
             self.picture.set_paintable(poster)
@@ -963,17 +970,27 @@ class VideoPlayer(Gtk.Overlay):
         if self._engine is not None:
             self._engine.set_muted(btn.get_active())
 
+    def _on_scrub_begin(self, *_args):
+        self._dragging = True
+
     def _on_scrub(self, _scale, _scroll, value):
         if self._engine is None:
             return False
-        self._scrubbing = True
         dur = self._engine.duration() or self._duration_hint
+        if not getattr(self, "_dragging", False):
+            # the wheel or the arrow keys: one jump, and the bar carries on
+            if dur:
+                self._engine.seek(value * dur, accurate=True)
+                self.time_label.set_text(format_duration(value * dur))
+            return False
+        self._scrubbing = True
         if dur:
             self._engine.seek(value * dur, accurate=False)
             self.time_label.set_text(format_duration(value * dur))
         return False
 
     def _on_scrub_end(self, *_args):
+        self._dragging = False
         if self._engine is None or not self._scrubbing:
             return
         self._scrubbing = False
