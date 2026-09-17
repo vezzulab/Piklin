@@ -1655,6 +1655,135 @@ check("when it passes, the smaller copy takes the original's place",
       _vs_res == "smaller" and _vs_new.exists() and not _vs_in.exists()
       and _vs_new.stat().st_size < os.path.getsize(_camclip), (_vs_res, _vs_new))
 
+# The backup: the large original set apart, then let go after HOLD_DAYS
+from piklin import autobackup as _ab
+_bk_lib = _L(os.path.join(TMP, "HoldLib.piklin")).ensure()
+_bk_old = _bk_lib.originals / "2023" / "2023-09-16" / "party.MOV"
+_bk_old.parent.mkdir(parents=True); shutil.copy2(_camclip, _bk_old)
+_bk_cat = Catalog(_bk_lib.db); _IxS(_bk_cat, None, library_root=_bk_lib.root).add_files([str(_bk_old)])
+_bk_nas = Path(TMP) / "HoldNAS"; _bk_nas.mkdir()
+_bk_remote = rem.Remote(id="hold", name="NAS", kind="local", config={"path": str(_bk_nas)})
+_bk = _bk_remote.backend()
+_bk.push(_bk_lib.root, rem.library_files(_bk_lib.root))
+_bk_old_rel = _bk_old.resolve().relative_to(_bk_lib.root).as_posix()
+check("the original video is in the backup before anything", (_bk_nas / "Piklin" / _bk_old_rel).is_file())
+_bk_row = _bk_cat.photo_by_path(str(_bk_old.resolve()))
+_bk_size = _bk_old.stat().st_size
+devmod.shrink_video(_bk_lib, _bk_cat, _bk_row["id"], bit_rate=800_000, verify=_vs.verify)
+_bk_new = Path(_bk_cat.photo(_bk_row["id"])["path"])
+_vs.record_conversion(_bk_lib.root, _bk_old, _bk_new, _bk_size, float(_bk_row["duration"] or 3.0))
+_bk_now = time.time()
+_bk_c = _vs.tend(_bk_lib.root, _bk, now=_bk_now)
+check("the original stays in place until the smaller copy is in the backup in full",
+      _bk_c["held"] == 0 and _bk_c["waiting"] == 1 and (_bk_nas / "Piklin" / _bk_old_rel).is_file(), _bk_c)
+_bk.push(_bk_lib.root, rem.library_files(_bk_lib.root))
+_bk_c = _vs.tend(_bk_lib.root, _bk, now=_bk_now)
+_bk_held = list((_bk_nas / "Piklin" / _vs.CONVERTED_DIR).rglob("party.MOV"))
+check("once it is, the original is set apart in a folder of its own",
+      _bk_c["held"] == 1 and not (_bk_nas / "Piklin" / _bk_old_rel).exists() and len(_bk_held) == 1
+      and _bk_held[0].stat().st_size == _bk_size, (_bk_c, _bk_held))
+check("the set-apart originals are not part of the backup's listing",
+      not any(k.startswith(_vs.CONVERTED_DIR) for k in _bk.listing()))
+check("nothing more is due until its days have passed",
+      not _vs.due(_bk_lib.root, "hold", now=_bk_now + 4 * 86400)
+      and _vs.tend(_bk_lib.root, _bk, now=_bk_now + 4 * 86400)["deleted"] == 0 and _bk_held[0].exists())
+check("after five days it is due again", _vs.due(_bk_lib.root, "hold", now=_bk_now + 5 * 86400 + 60))
+_bk_c = _vs.tend(_bk_lib.root, _bk, now=_bk_now + 5 * 86400 + 60)
+check("after five days, with the smaller copy checked again, the original is let go",
+      _bk_c["deleted"] == 1 and not _bk_held[0].exists() and _bk_new.exists(), _bk_c)
+_bk_restored = _L(os.path.join(TMP, "HoldRestored.piklin")).ensure()
+_bk.restore(_bk_restored.root)
+check("restoring never brings set-apart originals back",
+      not (_bk_restored.root / _vs.CONVERTED_DIR).exists()
+      and (_bk_restored.root / _bk_new.relative_to(_bk_lib.root)).is_file())
+
+# a smaller copy that no longer checks out: the original is kept
+_bk_old2 = _bk_lib.originals / "2023" / "2023-09-16" / "cake.MOV"; shutil.copy2(_camclip, _bk_old2)
+with open(_bk_old2, "ab") as _fh:
+    _fh.write(b"\1" * 2048)
+_IxS(_bk_cat, None, library_root=_bk_lib.root).add_files([str(_bk_old2)])
+_bk.push(_bk_lib.root, rem.library_files(_bk_lib.root))
+_bk_row2 = _bk_cat.photo_by_path(str(_bk_old2.resolve()))
+_bk_size2 = _bk_old2.stat().st_size
+devmod.shrink_video(_bk_lib, _bk_cat, _bk_row2["id"], bit_rate=800_000, verify=_vs.verify)
+_bk_new2 = Path(_bk_cat.photo(_bk_row2["id"])["path"])
+_vs.record_conversion(_bk_lib.root, _bk_old2, _bk_new2, _bk_size2, float(_bk_row2["duration"] or 3.0))
+_bk.push(_bk_lib.root, rem.library_files(_bk_lib.root))
+_vs.tend(_bk_lib.root, _bk, now=_bk_now)
+_bk_new2.write_bytes(b"not a video any more")
+_bk_c = _vs.tend(_bk_lib.root, _bk, now=_bk_now + 6 * 86400)
+check("when the smaller copy does not check out after five days, the original is kept",
+      _bk_c["problems"] == 1 and _bk_c["deleted"] == 0
+      and list((_bk_nas / "Piklin" / _vs.CONVERTED_DIR).rglob("cake.MOV")), _bk_c)
+
+# originals left behind by videos made smaller before any of this
+_fg_lib = _L(os.path.join(TMP, "ForgottenLib.piklin")).ensure()
+_fg_nas = Path(TMP) / "ForgottenNAS" / "Piklin" / "Originals" / "2019"; _fg_nas.mkdir(parents=True)
+shutil.copy2(_camclip, _fg_nas / "old.MOV")
+(_fg_lib.originals / "2019").mkdir(parents=True)
+_fg_small = _fg_lib.originals / "2019" / "old.mp4"; shutil.copy2(_vs_good, _fg_small)
+from piklin import system as _sysm
+_sysm.set_xattr(_fg_small, devmod._SOURCE_SIZE_XATTR, str(os.path.getsize(_camclip)).encode())
+_fg = rem.Remote(id="fg", name="NAS", kind="local", config={"path": str(Path(TMP) / "ForgottenNAS")}).backend()
+_fg.push(_fg_lib.root, rem.library_files(_fg_lib.root))
+_fg_c = _vs.tend(_fg_lib.root, _fg, now=_bk_now)
+check("an original left behind by an earlier smaller video is found and set apart too",
+      _fg_c["held"] == 1 and not (_fg_nas / "old.MOV").exists()
+      and list((Path(TMP) / "ForgottenNAS" / "Piklin" / _vs.CONVERTED_DIR).rglob("old.MOV")), _fg_c)
+
+# the automatic backup does it even when there is nothing new to send
+_ab_lib = _L(os.path.join(TMP, "DueLib.piklin")).ensure()
+(_ab_lib.originals / "2020").mkdir(parents=True)
+_ab_old = _ab_lib.originals / "2020" / "trip.MOV"; shutil.copy2(_camclip, _ab_old)
+_ab_nas = Path(TMP) / "DueNAS"
+_ab_remote = rem.Remote(id="due", name="NAS", kind="local", config={"path": str(_ab_nas)})
+_ab_b = _ab_remote.backend(); _ab_b.prepare()
+_ab_b.push(_ab_lib.root, rem.library_files(_ab_lib.root))
+_ab_new = _ab_lib.originals / "2020" / "trip.mp4"; shutil.copy2(_vs_good, _ab_new); _ab_old.unlink()
+_ab_b.push(_ab_lib.root, rem.library_files(_ab_lib.root))
+_vs.record_conversion(_ab_lib.root, _ab_lib.root / "Originals/2020/trip.MOV", _ab_new,
+                      os.path.getsize(_camclip), 3.0)
+_ab_out = _ab.run_backup(_ab_lib.root, [_ab_remote], keep_days=30)
+check("the automatic backup sets apart a converted original with nothing new to send",
+      _ab_out.ok and not (_ab_nas / "Piklin" / "Originals/2020/trip.MOV").exists()
+      and list((_ab_nas / "Piklin" / _vs.CONVERTED_DIR).rglob("trip.MOV")), _ab_out)
+
+# over WebDAV, against a real HTTP server that can move and delete
+import http.server as _hs2, functools as _ft2, urllib.parse as _up2
+_wd_root = Path(TMP) / "WebDavRoot"; (_wd_root / "dav" / "Piklin" / "Originals").mkdir(parents=True)
+(_wd_root / "dav" / "Piklin" / "Originals" / "big.MOV").write_bytes(b"x" * 5000)
+class _DavHandler(_hs2.SimpleHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def _local(self, url_path):
+        return Path(self.directory) / _up2.unquote(_up2.urlparse(url_path).path).lstrip("/")
+    def do_MKCOL(self):
+        self._local(self.path).mkdir(parents=True, exist_ok=True); self.send_response(201); self.end_headers()
+    def do_MOVE(self):
+        src, dst = self._local(self.path), self._local(self.headers["Destination"])
+        if not src.exists():
+            self.send_response(404); self.end_headers(); return
+        dst.parent.mkdir(parents=True, exist_ok=True); os.replace(src, dst)
+        self.send_response(201); self.end_headers()
+    def do_DELETE(self):
+        p = self._local(self.path)
+        if not p.exists():
+            self.send_response(404); self.end_headers(); return
+        p.unlink(); self.send_response(204); self.end_headers()
+_wd_srv = _hs2.ThreadingHTTPServer(("127.0.0.1", 0), _ft2.partial(_DavHandler, directory=str(_wd_root)))
+threading.Thread(target=_wd_srv.serve_forever, daemon=True).start()
+try:
+    _wd = rem.Remote(id="wdv", name="WebDAV", kind="webdav",
+                     config={"url": f"http://127.0.0.1:{_wd_srv.server_address[1]}/dav"}).backend()
+    _wd_moved = _wd.move("Originals/big.MOV", f"{_vs.CONVERTED_DIR}/2026-09-17/Originals/big.MOV")
+    _wd_at = _wd_root / "dav" / "Piklin" / _vs.CONVERTED_DIR / "2026-09-17" / "Originals" / "big.MOV"
+    check("over WebDAV an original is moved within the server",
+          _wd_moved and _wd_at.is_file() and not (_wd_root / "dav/Piklin/Originals/big.MOV").exists())
+    check("and deleted there, also when it is gone already",
+          _wd.delete(f"{_vs.CONVERTED_DIR}/2026-09-17/Originals/big.MOV") and not _wd_at.exists()
+          and _wd.delete(f"{_vs.CONVERTED_DIR}/2026-09-17/Originals/big.MOV"))
+finally:
+    _wd_srv.shutdown()
+
 section("Video editing and export")
 import av as _av
 from piklin import video_edit as ve

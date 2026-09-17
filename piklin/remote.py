@@ -461,6 +461,16 @@ class Backend:
     def get(self, rel: str, local: Path) -> bool:
         raise NotImplementedError
 
+    def move(self, rel: str, dest_rel: str) -> bool:
+        """Move a file within the destination itself - nothing is sent again.
+        True once it is at ``dest_rel``."""
+        raise NotImplementedError
+
+    def delete(self, rel: str) -> bool:
+        """Remove one file from the destination. True once it is gone,
+        also when it was gone already."""
+        raise NotImplementedError
+
     def listing(self) -> dict[str, tuple[int, float]]:
         """Map of relative path -> (size, mtime) already on the remote."""
         raise NotImplementedError
@@ -1003,6 +1013,22 @@ class LocalBackend(Backend):
         shutil.copy2(src, local)
         return True
 
+    def move(self, rel: str, dest_rel: str) -> bool:
+        src, dest = self.base / rel, self.base / dest_rel
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(src, dest)
+            return dest.is_file()
+        except OSError:
+            return False
+
+    def delete(self, rel: str) -> bool:
+        try:
+            (self.base / rel).unlink(missing_ok=True)
+            return not (self.base / rel).exists()
+        except OSError:
+            return False
+
 
 # ==========================================================================
 # WebDAV
@@ -1488,6 +1514,26 @@ class WebDavBackend(Backend):
         except Exception:
             return False
 
+    def move(self, rel: str, dest_rel: str) -> bool:
+        try:
+            parent = "/".join(dest_rel.split("/")[:-1])
+            self._ensure_folder(self._full(parent))
+            self._request("MOVE", rel, extra={
+                "Destination": f"{self.url}/{urllib.parse.quote(self._full(dest_rel))}",
+                "Overwrite": "F"})
+            return True
+        except Exception:
+            return False
+
+    def delete(self, rel: str) -> bool:
+        try:
+            self._request("DELETE", rel)
+            return True
+        except urllib.error.HTTPError as exc:
+            return exc.code == 404                 # gone already
+        except Exception:
+            return False
+
 
 # ==========================================================================
 # rclone
@@ -1822,6 +1868,31 @@ class RcloneBackend(Backend):
                 [exe, "copyto", f"{self.target}/{rel}".replace("//", "/"),
                  str(local)], capture_output=True, text=True, timeout=1800, env=self._env())
             return out.returncode == 0
+        except Exception:
+            return False
+
+    def move(self, rel: str, dest_rel: str) -> bool:
+        exe = rclone_path()
+        if not exe:
+            return False
+        try:
+            out = subprocess.run(
+                [exe, "moveto", f"{self.target}/{rel}".replace("//", "/"),
+                 f"{self.target}/{dest_rel}".replace("//", "/")],
+                capture_output=True, text=True, timeout=1800, env=self._env())
+            return out.returncode == 0
+        except Exception:
+            return False
+
+    def delete(self, rel: str) -> bool:
+        exe = rclone_path()
+        if not exe:
+            return False
+        try:
+            out = subprocess.run(
+                [exe, "deletefile", f"{self.target}/{rel}".replace("//", "/")],
+                capture_output=True, text=True, timeout=600, env=self._env())
+            return out.returncode == 0 or "not found" in (out.stderr or "").lower()
         except Exception:
             return False
 

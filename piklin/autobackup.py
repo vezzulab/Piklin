@@ -41,6 +41,24 @@ class Outcome:
     uploaded: int = 0
 
 
+def _tend_videos(root: Path, backend, problems: list) -> None:
+    """Converted videos' originals in this backup: set apart, or let go."""
+    from . import logs, videospace
+    if not videospace.due(root, backend.remote.id):
+        return
+    try:
+        counts = videospace.tend(root, backend)
+    except Exception as exc:
+        logs.get("backup").warning("Converted videos not tended: %s", exc)
+        return
+    if counts["held"] or counts["deleted"]:
+        logs.get("backup").info("Converted videos: %d original(s) set apart, %d let go",
+                                counts["held"], counts["deleted"])
+    if counts["problems"]:
+        logs.get("backup").warning("Converted videos: %d original(s) kept, the smaller "
+                                   "copy did not check out", counts["problems"])
+
+
 def run_backup(root: Path, remotes: list, keep_days: int = 30,
                progress: Callable[[str], None] | None = None,
                before_push: Callable | None = None) -> Outcome:
@@ -49,10 +67,14 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
     ``before_push(remote, backend)``, when given, runs once a destination is
     reached and before anything is sent to it: it brings in what another
     computer sent there, so this backup never overwrites it."""
+    from . import videospace
     root = Path(root)
     light = remote_mod.library_files(root, include_catalog=False)
+    # A destination with nothing new to send may still have work waiting:
+    # a converted video's original to set apart, or to let go after its days.
     behind = [r for r in remotes
-              if before_push is not None or r.backend().has_local_changes(root, light)]
+              if before_push is not None or videospace.due(root, r.id)
+              or r.backend().has_local_changes(root, light)]
     if not behind:
         return Outcome(True)
     files = remote_mod.library_files(root)          # now with the catalog
@@ -79,7 +101,11 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
                 problems.append(f"{r.name}: {exc}")
                 continue
             if not backend.has_local_changes(root, light):
+                _tend_videos(root, backend, problems)
                 continue
+        elif not backend.has_local_changes(root, light):
+            _tend_videos(root, backend, problems)
+            continue
 
         def report(p, name=r.name):
             if progress and p.phase == "listing":
@@ -106,6 +132,7 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
                 backend.remember_look(root, backend.top_listing(), full=known is None)
             except Exception:
                 pass
+            _tend_videos(root, backend, problems)
         if p.phase != "done" or p.errors:
             message = p.message or ngettext("{count} file couldn't be uploaded",
                                             "{count} files couldn't be uploaded",

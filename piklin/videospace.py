@@ -137,3 +137,146 @@ def verify(src, out, min_similarity: float = 0.80) -> bool:
         if ssim(np.stack([x] * 3, -1), np.stack([y] * 3, -1)) < min_similarity:
             return False
     return True
+
+
+# -- the backup: the large original set apart, then let go ---------------------
+# In the backup, a converted video's original waits in a folder of its own
+# for this long, then goes once the smaller one is checked again.
+CONVERTED_DIR = "Converted Originals"
+HOLD_DAYS = 5
+VIDEO_EXTS = {".mov", ".mp4", ".m4v", ".avi", ".mpg", ".mpeg", ".mts", ".m2ts",
+              ".3gp", ".mkv", ".wmv", ".webm", ".dv"}
+
+
+def _ledger_path(root) -> Path:
+    return Path(root) / ".cache" / "videos" / "converted.json"
+
+
+def _load(root) -> dict:
+    import json
+    try:
+        data = json.loads(_ledger_path(root).read_text())
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save(root, data: dict) -> None:
+    import json
+    path = _ledger_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=1))
+    tmp.replace(path)
+
+
+def _rel(root, path) -> str:
+    return Path(path).resolve().relative_to(Path(root).resolve()).as_posix()
+
+
+def record_conversion(root, old_path, new_path, old_size: int, duration: float,
+                      now: float | None = None) -> None:
+    """Remember that ``old_path`` became ``new_path`` in the library, so its
+    large original can be set apart in every backup, then let go."""
+    import time
+    data = _load(root)
+    data[_rel(root, old_path)] = {
+        "new": _rel(root, new_path), "old_size": int(old_size),
+        "duration": float(duration or 0), "at": time.time() if now is None else now,
+        "remotes": {}}
+    _save(root, data)
+
+
+def find_forgotten(root, index: dict, now: float | None = None) -> int:
+    """Originals left in a backup by videos made smaller before this was
+    kept track of: the backup has ``X.MOV``, the library has only ``X.mp4``
+    made from a file of exactly that size. They are recorded like any
+    conversion. Returns how many were found."""
+    from .devices import _source_size_of
+    root = Path(root)
+    data = _load(root)
+    found = 0
+    for rel, (size, _mtime) in index.items():
+        p = Path(rel)
+        if (rel in data or not rel.startswith("Originals/")
+                or p.suffix.lower() not in VIDEO_EXTS or (root / rel).exists()):
+            continue
+        small = root / p.with_suffix(".mp4")
+        if small.is_file() and small.as_posix() != (root / rel).as_posix() \
+                and _source_size_of(small) == size:
+            record_conversion(root, root / rel, small, size, 0.0, now)
+            data = _load(root)
+            found += 1
+    return found
+
+
+def due(root, remote_id: str, now: float | None = None) -> bool:
+    """Whether a backup has work waiting: an original to set apart, or one
+    kept long enough to let go."""
+    import time
+    now = time.time() if now is None else now
+    for entry in _load(root).values():
+        st = entry.get("remotes", {}).get(remote_id, {})
+        state = st.get("state", "pending")
+        if state == "pending":
+            return True
+        if state == "held" and now - st.get("held_at", now) >= HOLD_DAYS * 86400:
+            return True
+    return False
+
+
+def tend(root, backend, now: float | None = None, index: dict | None = None) -> dict:
+    """Do what is due in one backup: set apart the originals whose smaller
+    copy is already there in full, and let go of those kept HOLD_DAYS once
+    the smaller copy is checked again, here and there."""
+    import time
+    from .video import stream_info
+    root = Path(root)
+    now = time.time() if now is None else now
+    rid = backend.remote.id
+    counts = {"held": 0, "deleted": 0, "waiting": 0, "problems": 0}
+    if index is None:
+        index = backend.listing()
+    find_forgotten(root, index, now)
+    data = _load(root)
+    stamp = time.strftime("%Y-%m-%d", time.localtime(now))
+    for old_rel, entry in data.items():
+        st = entry.setdefault("remotes", {}).setdefault(rid, {"state": "pending"})
+        small = root / entry["new"]
+        remote_small = index.get(entry["new"])
+        if st.get("state") == "pending":
+            if not small.is_file() or remote_small is None or \
+                    remote_small[0] != small.stat().st_size:
+                counts["waiting"] += 1              # the smaller one isn't up in full yet
+                continue
+            if old_rel not in index:
+                st.update(state="gone", at=now)       # never backed up, or gone already
+                continue
+            held = f"{CONVERTED_DIR}/{stamp}/{old_rel}"
+            if backend.move(old_rel, held):
+                st.update(state="held", held_rel=held, held_at=now)
+                counts["held"] += 1
+            else:
+                counts["waiting"] += 1
+        elif st.get("state") == "held" and now - st.get("held_at", now) >= HOLD_DAYS * 86400:
+            problem = None
+            if not small.is_file():
+                problem = "the smaller video is missing from the library"
+            elif remote_small is None or remote_small[0] != small.stat().st_size:
+                problem = "the smaller video is not in the backup in full"
+            else:
+                info = stream_info(small) or {}
+                length = float(info.get("duration") or 0)
+                want = float(entry.get("duration") or 0)
+                if length <= 0 or (want and abs(length - want) > max(0.5, want * 0.01)):
+                    problem = "the smaller video no longer plays in full"
+            if problem:
+                st["problem"] = problem
+                counts["problems"] += 1
+                continue
+            if backend.delete(st["held_rel"]):
+                st.update(state="gone", deleted_at=now)
+                st.pop("problem", None)
+                counts["deleted"] += 1
+    _save(root, data)
+    return counts
