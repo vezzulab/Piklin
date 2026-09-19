@@ -11,31 +11,42 @@
 
 | System | Versions | Computers |
 |---|---|---|
+| 🍎 macOS | 11 Big Sur or newer | Apple Silicon (M1 and later) and Intel Macs |
 | 🐧 Ubuntu | 24.04 or newer | 64-bit PC (Intel or AMD, x86-64) and 64-bit ARM (arm64) |
 | 🐧 Linux Mint | 22 or newer | 64-bit PC (Intel or AMD, x86-64) |
 | 🐧 Debian | 13 or newer | 64-bit PC (Intel or AMD, x86-64) and 64-bit ARM (arm64) |
 | 🐧 Fedora | 40 or newer, with the AppImage | 64-bit PC (Intel or AMD, x86-64) and 64-bit ARM (arm64) |
 | 🐧 Based on the above | Pop!_OS, Zorin OS, elementary OS and others built on those versions | The same as the version they are built on |
 
-**64-bit ARM (arm64):** this release is for 64-bit PCs. The ARM build follows in 2.0.1.
+**64-bit ARM (arm64):** this release is for 64-bit PCs. 
 
-**macOS:** Piklin 2.0 is Linux only. The map needs a component that the Mac build does not carry yet; it is being added, and 2.0.1 will bring the map to macOS. Macs stay on 1.0.8 until then, and nothing in your library changes in the meantime.
+**macOS:** Piklin 2.0 for Mac has the map too. One download runs on Apple Silicon and on Intel Macs, macOS 11 Big Sur or newer. The Mac app is not signed by Apple: the first time, right-click Piklin and choose Open.
 
 ## Download
 
-| Your computer | Download |
-|---|---|
-| 🐧 **Linux PC** — 64-bit Intel or AMD (x86-64) | [**piklin_2.0.0_amd64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/piklin_2.0.0_amd64.deb) |
-| 🐧 **Try it without installing** — Linux PC (x86-64) | [**Piklin-2.0.0-x86_64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0-x86_64.AppImage) |
+Find your computer in the table and download **one** file.
+
+| Your computer | File | What it is |
+|---|---|---|
+| 🍎 **Mac** — Apple Silicon (M1, M2, M3, M4…) and Intel | [**Piklin-2.0.0.dmg**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0.dmg) | Disk image: open it and drag Piklin to Applications |
+| 🐧 **Linux PC** — Intel or AMD (x86-64) | [**piklin_2.0.0_amd64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/piklin_2.0.0_amd64.deb) | Installer for Ubuntu, Mint, Debian |
+| 🐧 **Linux PC** — Intel or AMD (x86-64) | [**Piklin-2.0.0-x86_64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0-x86_64.AppImage) | Runs without installing; works on Fedora too |
+| 🐧 **Linux ARM** — 64-bit ARM (arm64) | [**piklin_2.0.0_arm64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/piklin_2.0.0_arm64.deb) | Installer for Ubuntu, Debian |
+| 🐧 **Linux ARM** — 64-bit ARM (arm64) | [**Piklin-2.0.0-aarch64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0-aarch64.AppImage) | Runs without installing; works on Fedora too |
+
+**Not sure which one?** On a Mac, the first row works for every Mac, new or old. On Linux, a normal PC needs the Intel or AMD file; ARM is for machines like a Raspberry Pi 5 or Linux on Apple Silicon.
 
 The `.sha256`, `.sha256.sig` and `.build` files are for Piklin's automatic updates. You don't need to download them.
 
 ## Install or update
 
-If Piklin 1.0.4 or newer is installed, Piklin offers the update itself. Your library, albums, edits and backups stay as they are.
+**On a Mac:** open `Piklin-2.0.0.dmg` and drag Piklin to Applications. The first time, right-click Piklin and choose Open, because the app is not signed by Apple.
+
+**On Linux:** if Piklin 1.0.4 or newer is installed, Piklin offers the update itself. Your library, albums, edits and backups stay as they are.
 
 ```bash
-sudo apt install ./piklin_2.0.0_amd64.deb
+sudo apt install ./piklin_2.0.0_amd64.deb     # Intel / AMD
+sudo apt install ./piklin_2.0.0_arm64.deb     # ARM
 ```
 
 Without installing:
@@ -68,7 +79,7 @@ Most photographs carry no coordinates at all — a camera without a receiver, a 
 
 ### Places named without asking anyone
 
-Piklin carries a list of the world's towns and reads it from your own disk, so turning a pin into "Miami" never sends a coordinate anywhere. With no connection the map still names its pins.
+Piklin carries a list of the world's towns and reads it from your own disk, so turning a pin into "Santo Domingo" never sends a coordinate anywhere. With no connection the map still names its pins.
 
 Searching for a place by name is the one thing that reaches the network, and only the words you type are sent — never a photograph, a filename or a coordinate of yours.
 
@@ -117,31 +128,42 @@ Piklin is free. If it helps you, you can [buy us a coffee on Ko-fi](https://ko-f
 
 | Sistema | Versiones | Computadoras |
 |---|---|---|
+| 🍎 macOS | 11 Big Sur o más nuevo | Apple Silicon (M1 y posteriores) y Mac Intel |
 | 🐧 Ubuntu | 24.04 o más nuevo | PC de 64 bits (Intel o AMD, x86-64) y ARM de 64 bits (arm64) |
 | 🐧 Linux Mint | 22 o más nuevo | PC de 64 bits (Intel o AMD, x86-64) |
 | 🐧 Debian | 13 o más nuevo | PC de 64 bits (Intel o AMD, x86-64) y ARM de 64 bits (arm64) |
 | 🐧 Fedora | 40 o más nuevo, con el AppImage | PC de 64 bits (Intel o AMD, x86-64) y ARM de 64 bits (arm64) |
 | 🐧 Basadas en las anteriores | Pop!_OS, Zorin OS, elementary OS y otras | Las mismas que la versión en la que se basan |
 
-**ARM de 64 bits (arm64):** esta versión es para PC de 64 bits. La de ARM llega en la 2.0.1.
+**ARM de 64 bits (arm64):** incluido en esta versión, como `.deb` y como AppImage.
 
-**macOS:** Piklin 2.0 es solo para Linux. El mapa necesita un componente que la versión de Mac todavía no lleva; se está añadiendo, y la 2.0.1 traerá el mapa a macOS. Hasta entonces las Mac se quedan en la 1.0.8, y tu biblioteca no cambia en nada.
+**macOS:** Piklin 2.0 para Mac también trae el mapa. Una sola descarga funciona en Apple Silicon y en Mac Intel, con macOS 11 Big Sur o más nuevo. La app de Mac no está firmada por Apple: la primera vez, clic derecho sobre Piklin y elige Abrir.
 
 ### Descargar
 
-| Tu computadora | Descarga |
-|---|---|
-| 🐧 **PC con Linux** — Intel o AMD de 64 bits (x86-64) | [**piklin_2.0.0_amd64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/piklin_2.0.0_amd64.deb) |
-| 🐧 **Pruébalo sin instalar** — PC con Linux (x86-64) | [**Piklin-2.0.0-x86_64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0-x86_64.AppImage) |
+Elige la fila de tu computadora y descarga **un** archivo.
+
+| Tu computadora | Archivo | Qué es |
+|---|---|---|
+| 🍎 **Mac** — Apple Silicon (M1, M2, M3, M4…) e Intel | [**Piklin-2.0.0.dmg**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0.dmg) | Imagen de disco: ábrela y arrastra Piklin a Aplicaciones |
+| 🐧 **PC con Linux** — Intel o AMD (x86-64) | [**piklin_2.0.0_amd64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/piklin_2.0.0_amd64.deb) | Instalador para Ubuntu, Mint, Debian |
+| 🐧 **PC con Linux** — Intel o AMD (x86-64) | [**Piklin-2.0.0-x86_64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0-x86_64.AppImage) | Funciona sin instalar; también en Fedora |
+| 🐧 **Linux ARM** — ARM de 64 bits (arm64) | [**piklin_2.0.0_arm64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/piklin_2.0.0_arm64.deb) | Instalador para Ubuntu, Debian |
+| 🐧 **Linux ARM** — ARM de 64 bits (arm64) | [**Piklin-2.0.0-aarch64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0-aarch64.AppImage) | Funciona sin instalar; también en Fedora |
+
+**¿No sabes cuál elegir?** En un Mac, la primera fila sirve para todos, nuevos y viejos. En Linux, si tu computadora es un PC normal, usa la de Intel o AMD; ARM es para máquinas como una Raspberry Pi 5 o un Linux en Apple Silicon.
 
 Los archivos `.sha256`, `.sha256.sig` y `.build` son para las actualizaciones automáticas. No necesitas descargarlos.
 
 ### Instalar o actualizar
 
-Si tienes Piklin 1.0.4 o más nuevo, Piklin te ofrece la actualización. Tu biblioteca, álbumes, cambios y copias se quedan como están.
+**En un Mac:** abre `Piklin-2.0.0.dmg` y arrastra Piklin a Aplicaciones. La primera vez, clic derecho sobre Piklin y elige Abrir, porque la app no está firmada por Apple.
+
+**En Linux:** si tienes Piklin 1.0.4 o más nuevo, Piklin te ofrece la actualización. Tu biblioteca, álbumes, cambios y copias se quedan como están.
 
 ```bash
-sudo apt install ./piklin_2.0.0_amd64.deb
+sudo apt install ./piklin_2.0.0_amd64.deb     # Intel / AMD
+sudo apt install ./piklin_2.0.0_arm64.deb     # ARM
 ```
 
 Sin instalar:
@@ -174,7 +196,7 @@ La mayoría de las fotos no llevan coordenadas: una cámara sin receptor, un tel
 
 #### Lugares con nombre sin preguntarle a nadie
 
-Piklin lleva consigo una lista de los pueblos del mundo y la lee de tu propio disco, así que convertir un pin en "Miami" no envía ninguna coordenada a ninguna parte. Sin conexión, el mapa sigue nombrando sus pines.
+Piklin lleva consigo una lista de los pueblos del mundo y la lee de tu propio disco, así que convertir un pin en "Santo Domingo" no envía ninguna coordenada a ninguna parte. Sin conexión, el mapa sigue nombrando sus pines.
 
 Buscar un lugar por su nombre es lo único que sale a la red, y solo viajan las palabras que escribes — nunca una foto, ni un nombre de archivo, ni una coordenada tuya.
 
@@ -196,3 +218,4 @@ El mapa se dibuja con los servidores de OpenStreetMap mientras esta función se 
 Piklin es gratis. Si te sirve, puedes [invitarnos a un café en Ko-fi](https://ko-fi.com/vezzustudio) ☕
 
 </details>
+
