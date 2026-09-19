@@ -60,12 +60,12 @@ class Profile:
 PROFILES: dict[str, Profile] = {
     "original": Profile(
         id="original", name=N_("Original"),
-        summary=N_("Keeps your files exactly as they are."),
+        summary=N_("Nothing is changed. Takes the most room."),
         passthrough=True),
     "lossless": Profile(
         id="lossless", name=N_("Exact Picture, Smaller File"),
-        summary=N_("Exactly the same picture in a smaller file. Saves the most on "
-                  "screenshots."),
+        summary=N_("The very same picture, packed more cleverly. Nothing at all is "
+                  "lost. Saves little on photographs, a lot on screenshots."),
         lossless=True),
     # Thresholds below are calibrated against real photographs, not
     # guessed.  A busy frame (confetti, foliage, fine texture) cannot
@@ -77,25 +77,26 @@ PROFILES: dict[str, Profile] = {
     # below it.
     "visually_lossless": Profile(
         id="visually_lossless", name=N_("Looks the Same"),
-        summary=N_("Much smaller files that look the same to the eye. Usually about "
-                  "half the size."),
+        summary=N_("About half the room, and nobody can see the difference - not "
+                  "even side by side on a big screen."),
         min_ssim=0.985, min_worst_block=0.955, max_chroma_error=0.0022,
         ladder=(96, 95, 94, 93, 92, 90, 88)),
     "balanced": Profile(
         id="balanced", name=N_("Balanced"),
-        summary=N_("A little softer if you look very closely, and clearly smaller. Good "
-                  "for big libraries."),
+        summary=N_("About a third of the room. A difference you would only find by "
+                  "zooming right into a photo looking for it."),
         min_ssim=0.975, min_worst_block=0.900, max_chroma_error=0.0032,
         ladder=(92, 90, 88, 85, 82, 78, 75)),
     "space_saver": Profile(
         id="space_saver", name=N_("Space Saver"),
-        summary=N_("Still looks good, at about a quarter of the original size."),
+        summary=N_("About a quarter of the room. Still good to look at and to share; "
+                  "fine detail softens."),
         min_ssim=0.960, min_worst_block=0.800, max_chroma_error=0.0048,
         ladder=(82, 76, 70, 64, 58, 52)),
     "maximum": Profile(
         id="maximum", name=N_("Smallest Files"),
-        summary=N_("As small as possible. Photos are made smaller too, so it's good for "
-                  "keeping but not for printing."),
+        summary=N_("The least room possible. Photos are also made smaller in size, so "
+                  "this is for keeping memories, not for printing them."),
         min_ssim=0.930, min_worst_block=0.700, max_chroma_error=0.0075,
         ladder=(70, 62, 55, 48, 42, 36), max_side=2560),
 }

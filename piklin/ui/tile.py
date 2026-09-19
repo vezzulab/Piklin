@@ -17,6 +17,12 @@ gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Graphene, Gsk, Gtk  # noqa: E402
 
 
+# Gdk.RGBA's keyword arguments are ignored by current PyGObject, which
+# hands back a transparent colour, so the shade is parsed instead.
+_PLACEHOLDER = Gdk.RGBA()
+_PLACEHOLDER.parse("#e9e9ee")
+
+
 class PhotoTile(Gtk.Widget):
     __gtype_name__ = "PikaPhotoTile"
 
@@ -68,8 +74,7 @@ class PhotoTile(Gtk.Widget):
         if self._paintable is None:
             # placeholder block, so the grid keeps its shape while
             # thumbnails are still decoding
-            snapshot.append_color(
-                Gdk.RGBA(red=0.914, green=0.914, blue=0.933, alpha=1.0), rect)
+            snapshot.append_color(_PLACEHOLDER, rect)
             snapshot.pop()
             return
 

@@ -45,7 +45,9 @@ TYPELIBS = ("GLib-2.0", "GObject-2.0", "Gio-2.0", "GModule-2.0", "GIRepository-2
             "Graphene-1.0", "Pango-1.0", "PangoCairo-1.0", "PangoFT2-1.0",
             "PangoFc-1.0", "PangoOT-1.0", "HarfBuzz-0.0", "cairo-1.0", "freetype2-2.0",
             "fontconfig-2.0", "GdkPixbuf-2.0", "Adw-1", "Secret-1", "xlib-2.0",
-            "xfixes-4.0", "xft-2.0", "xrandr-1.3", "win32-1.0")
+            "xfixes-4.0", "xft-2.0", "xrandr-1.3", "win32-1.0",
+            # the map
+            "Shumate-1.0")
 
 
 def say(text: str) -> None:

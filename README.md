@@ -20,6 +20,49 @@
   <img src="docs/screenshots/library.png" alt="The Piklin library" width="900">
 </p>
 
+## New in 2.0: your photos on a map
+
+Every photo app can show you where a photo was taken. Piklin turns that
+around: the map is a way **into** your library. Open it and you see
+everywhere you have been, as pins, and you travel through your memories
+by place instead of by date.
+
+<p align="center">
+  <img src="docs/screenshots/map.png" alt="Piklin's map, with a pin for every place in the library" width="900">
+</p>
+
+The hard part is that most photographs have no coordinates at all. A
+camera without a receiver, a phone with location switched off, a picture
+that went through a messaging app — the location was never written, or was
+stripped along the way. In a real library that is the overwhelming
+majority, which is why a map built only on GPS stays empty and every photo
+app quietly gives up on it.
+
+**So Piklin lets you say where you were.** Right-click an album — a
+holiday, a birthday, a week at the coast — type the country, the city and,
+if you like, the name of the place, and pick it from the results. Every
+photo in that album lands on the map at once. Thousands of photographs
+find their place in a few clicks, including ones that never carried a
+coordinate in their life.
+
+- **Pins that mean somewhere you went.** Photos taken close together
+  become one pin, and the pins regroup as you zoom: a country, then a
+  city, then a street corner. Each pin says how many albums are behind it.
+- **Rest on a pin and its albums slide in** beside the map. The map stays
+  where it is, so the next pin is one movement away.
+- **Place names without asking anyone.** Piklin carries a list of the
+  world's towns and reads it from your own disk. Turning a pin into
+  "Santo Domingo" never sends a coordinate anywhere.
+- **Countries and cities you have visited,** counted, with the cities
+  listed inside each country.
+- **It stays yours.** A place you set by hand is kept in your library and
+  travels with your backup, and a later scan never overwrites it.
+
+Searching for a place by name is the one thing that reaches the network,
+and only the words you type are sent — never a photograph, a filename or a
+coordinate of yours. With no connection, the search falls back to the town
+list Piklin already carries.
+
 ## Features
 
 ### A library that stays yours

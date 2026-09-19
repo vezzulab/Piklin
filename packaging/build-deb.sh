@@ -66,6 +66,9 @@ BUILD_ID="$(git -C "$ROOT" rev-parse --short=12 HEAD 2>/dev/null || echo local)-
 printf '%s\n' "$BUILD_ID" > "$SHARE/piklin/BUILD_ID"
 find "$SHARE" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 for d in fonts icons models; do cp -r "$ROOT/data/$d" "$SHARE/data/"; done
+# The world's towns, for naming the places on the map without asking
+# anyone where a photograph was taken.
+install -m 644 "$ROOT/data/places.tsv.gz" "$SHARE/data/places.tsv.gz"
 install -m 755 "$HERE/deb/piklin" "$STAGE/usr/bin/piklin"
 
 # ------------------------------------------------------------ python libs
@@ -263,6 +266,7 @@ Maintainer: $MAINTAINER
 Installed-Size: $(du -sk --exclude=DEBIAN "$STAGE" | cut -f1)
 Depends: python3 (>= 3.12), python3 (<< 3.15), python3-gi (>= 3.42), python3-gi-cairo,
  gir1.2-glib-2.0, gir1.2-gtk-4.0 (>= 4.14), gir1.2-adw-1 (>= 1.5),
+ gir1.2-shumate-1.0,
  gir1.2-secret-1, pkexec | policykit-1, openssl, python3-cffi-backend
 Recommends: gvfs, gvfs-backends, usbmuxd, fonts-dejavu-core
 Replaces: pikalicious

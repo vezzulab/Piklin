@@ -866,6 +866,7 @@ class Catalog:
         search: str | None = None,
         order: str = "taken_desc",
         filters: Iterable[str] | None = None,
+        photo_ids: Sequence[int] | None = None,
         limit: int | None = None,
         offset: int = 0,
     ) -> list[sqlite3.Row]:
@@ -900,6 +901,11 @@ class Catalog:
             # The pictures Piklin's own Create made, newest first.
             where.append("p.id IN (SELECT photo_id FROM creations "
                          "WHERE photo_id IS NOT NULL)")
+        elif scope == "ids":
+            # A named set of photos: what a place on the map stands for.
+            chosen = list(photo_ids or ())
+            where.append(f"p.id IN ({','.join('?' * len(chosen))})" if chosen else "0")
+            params.extend(chosen)
         elif scope == "album" and album_id is not None:
             joins += " JOIN album_items ai ON ai.photo_id=p.id AND ai.album_id=?"
             params.append(album_id)
@@ -1014,6 +1020,8 @@ class Catalog:
             SELECT
               SUM(trashed_at IS NULL AND hidden=0)                AS library,
               SUM(trashed_at IS NULL AND hidden=0 AND favorite=1) AS favorites,
+              SUM(trashed_at IS NULL AND hidden=0 AND gps_lat IS NOT NULL
+                  AND NOT (gps_lat=0 AND gps_lon=0))                AS located,
               SUM(trashed_at IS NULL AND edit_version>0)          AS edited,
               SUM(trashed_at IS NULL AND hidden=1)                AS hidden,
               SUM(trashed_at IS NOT NULL)                         AS trash,
@@ -1172,6 +1180,17 @@ class Catalog:
         # number, so deleting from an album never brought the count down.
         return self.q("""
             SELECT a.*, COUNT(p.id) AS n,
+                   -- how many of them are on the map, so an album can show
+                   -- at a glance whether its place has been said yet
+                   SUM(CASE WHEN p.gps_lat IS NOT NULL
+                             AND NOT (p.gps_lat = 0 AND p.gps_lon = 0)
+                            THEN 1 ELSE 0 END) AS placed,
+                   -- and how far apart those places are, so an album that
+                   -- is placed but still scattered can be told from one
+                   -- that is settled. The spread of the coordinates says
+                   -- it without the cost of counting distinct ones.
+                   MAX(p.gps_lat) - MIN(p.gps_lat) AS lat_spread,
+                   MAX(p.gps_lon) - MIN(p.gps_lon) AS lon_spread,
                    COALESCE(
                      -- the cover chosen with Make Album Cover, while it is still in the album
                      (SELECT c.path FROM album_items x JOIN photos c ON c.id=x.photo_id

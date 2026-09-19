@@ -178,10 +178,27 @@ class SettingsDialog(Adw.PreferencesDialog):
         page = Adw.PreferencesPage(title=pgettext("preferences tab", "Storage"), name="storage",
                                    icon_name="drive-harddisk-symbolic")
 
+        # What making a photo smaller actually is, said once, plainly, for
+        # somebody who has never met the idea. Without it the choices below
+        # read as jargon and people pick nothing.
+        about = Adw.PreferencesGroup(
+            title=_("Making photos smaller"),
+            description=_(
+                "A photo from a modern camera holds far more detail than a screen, "
+                "or an eye, can use. Piklin can store it using less room on the "
+                "disk — the same picture, written more carefully.\n\n"
+                "It does not guess. Piklin tries each choice on your own photos, "
+                "compares the result against the original, and keeps the best "
+                "quality that still saves room.\n\n"
+                "Your own folders are never touched, and the photos already in "
+                "your library are left as they are. These choices apply to copies "
+                "Piklin makes from here on."))
+        page.add(about)
+
         export = Adw.PreferencesGroup(
             title=_("Photo Size When Exporting"),
-            description=_("Piklin tries each option on your photos and shows how much smaller "
-                          "the files get."))
+            description=_("For copies you send to someone, or save outside Piklin. "
+                          "The photo in your library is not affected."))
         first = None
         current = self.settings.get("export_profile", cz.DEFAULT_PROFILE)
         for pid, prof in cz.PROFILES.items():
@@ -253,8 +270,9 @@ class SettingsDialog(Adw.PreferencesDialog):
             names.append(label)
         storage = Adw.ComboRow(
             title=_("Make imported photos smaller"),
-            subtitle=_("For photos copied into the library: from a camera, a memory card, "
-                       "a USB drive or dragged in. Your folders are never changed."),
+            subtitle=_("For photos Piklin copies in from a camera, a memory card, a USB "
+                       "drive or a drag from the desktop. The originals on the camera or "
+                       "the card are never altered."),
             model=Gtk.StringList.new(names))
         current = self.settings.get("storage_profile", "visually_lossless")
         storage.set_selected(profile_ids.index(current)

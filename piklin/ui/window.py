@@ -47,6 +47,9 @@ class MainWindow(Adw.ApplicationWindow):
         width, height = fit(1400, 900, share=0.92)
         super().__init__(application=app, title="Piklin",
                          default_width=width, default_height=height)
+        # Photographs want the room. The size above is what the window
+        # returns to when it is un-maximised.
+        self.maximize()
         self.add_css_class("piklin")
         self.library = library
         self.settings = Settings(library.settings)
@@ -69,6 +72,11 @@ class MainWindow(Adw.ApplicationWindow):
         # Set while the sidebar is being rebuilt, so programmatically
         # restoring the selected row does not fire a redundant reload.
         self._syncing_sidebar = False
+        # The last counts the library reported, and the labels showing
+        # them: counting is done off this thread and filled in after.
+        self._counts: dict[str, int] = {}
+        self._count_labels: dict[str, Gtk.Label] = {}
+        self._recount_gen = 0
         # Folders collapsed by the user. Empty means everything starts
         # expanded, which is the more discoverable default for a library
         # that has not been organised into folders yet.
@@ -429,6 +437,15 @@ class MainWindow(Adw.ApplicationWindow):
         zoom.connect("value-changed", self._on_zoom)
         header.pack_start(zoom)
 
+        # After a pin opens an album, the way back to the map. The sidebar's
+        # own Map row cannot do it: it is still the selected row, and
+        # clicking a selected row selects nothing new.
+        self.map_back = Gtk.Button(icon_name="go-previous-symbolic",
+                                   label=_("Map"), visible=False,
+                                   tooltip_text=_("Back to the map"))
+        self.map_back.connect("clicked", lambda _b: self._back_to_map())
+        header.pack_start(self.map_back)
+
         # Shown in the bar at the bottom, not up here: a label appearing in
         # the header widened it, which narrowed the sidebar and resized
         # every tile - the photos jumped as soon as one was chosen.
@@ -568,6 +585,21 @@ class MainWindow(Adw.ApplicationWindow):
         self.folder_view.connect("open-smart", lambda _v, i: self._open_smart(i))
         self.folder_view.connect("open-folder", lambda _v, i: self._open_folder(i))
         self.content_stack.add_named(self.folder_view, "folder")
+        # The library on a map: every photo that recorded where it was
+        # taken, grouped into a pin per place. The map needs libshumate,
+        # which a build may not carry; without it the rest of Piklin still
+        # opens and the Map row simply is not offered.
+        try:
+            from .map_view import MapView
+            self.map_view = MapView(self.catalog, self.thumbs)
+        except (ImportError, ValueError) as exc:
+            self.map_view = None
+            from ..logs import log
+            log.warning("the map is unavailable: %s", exc)
+        else:
+            self.map_view.connect("open-place", self._on_map_place)
+            self.map_view.connect("open-album", self._on_map_album)
+            self.content_stack.add_named(self.map_view, "map")
         toolbar.set_content(self.content_stack)
         toolbar.add_bottom_bar(self.action_bar)
         # The bar lies over the photos rather than taking their space: the
@@ -612,8 +644,14 @@ class MainWindow(Adw.ApplicationWindow):
             self.autobackup.refresh_status()
 
     def refresh_sidebar(self):
-        counts = self.catalog.counts()
+        # Counting a large library takes long enough to be felt - half a
+        # second at a hundred thousand photos - and the sidebar is rebuilt
+        # after every import, edit and backup. So it is drawn from the
+        # last numbers known and the new ones are fetched behind it.
+        counts = self._counts
+        self._count_labels = {}
         self._update_footer(counts)
+        self._recount()
         selected_key = getattr(
             self.sidebar_list.get_selected_row(), "_key", "library")
         self._syncing_sidebar = True
@@ -624,7 +662,8 @@ class MainWindow(Adw.ApplicationWindow):
         section_state = {"collapsed": False}
 
         def add(key, label, icon, count=None, album_id=None, indent=0,
-                folder_id=None, smart_id=None, cover=None):
+                folder_id=None, smart_id=None, cover=None, placed=None,
+                count_key=None):
             if section_state["collapsed"]:
                 return None
             # A folder in the tree is purely organisational - there is no
@@ -674,7 +713,18 @@ class MainWindow(Adw.ApplicationWindow):
                 box.append(Gtk.Image(icon_name=icon))
             box.append(Gtk.Label(label=label, xalign=0.0, hexpand=True,
                                  ellipsize=3))
-            if count:
+            # A dot when the album is on the map: filled once every photo
+            # has a place, hollow while only some do.
+            if placed is not None:
+                from .folder_view import FolderView
+                box.append(FolderView._map_dot(placed, ""))
+            if count_key is not None:
+                c = Gtk.Label(label=f"{count:,}" if count else "")
+                c.add_css_class("pika-count")
+                c.set_visible(bool(count))
+                box.append(c)
+                self._count_labels[count_key] = c
+            elif count:
                 c = Gtk.Label(label=f"{count:,}")
                 c.add_css_class("pika-count")
                 box.append(c)
@@ -793,27 +843,32 @@ class MainWindow(Adw.ApplicationWindow):
         # downwards without pushing anything else out of view.
         # Library is where everything starts; it stays open.
         header(_("Library"), collapsible=False)
-        add("library", _("All Photos"), "image-x-generic-symbolic",
-            counts.get("library"))
+        # No number beside All Photos: the footer already carries the
+        # library's full count, and saying it twice only crowds the row.
+        add("library", _("All Photos"), "image-x-generic-symbolic")
         add("favorites", _("Favourites"), "starred-symbolic",
-            counts.get("favorites"))
+            counts.get("favorites"), count_key="favorites")
+        if self.map_view is not None:
+            add("map", _("Map"), "mark-location-symbolic", counts.get("located"),
+                count_key="located")
         add("trash", _("Recently Deleted"), "user-trash-symbolic",
-            counts.get("trash"))
+            counts.get("trash"), count_key="trash")
 
         header(_("Types"))
         add("videos", _("Videos"), "video-x-generic-symbolic",
-            counts.get("videos"))
+            counts.get("videos"), count_key="videos")
         add("screenshots", _("Screenshots"), "video-display-symbolic",
-            counts.get("screenshots"))
+            counts.get("screenshots"), count_key="screenshots")
 
         header(_("Utilities"))
-        add("hidden", _("Hidden"), "view-conceal-symbolic", counts.get("hidden"))
+        add("hidden", _("Hidden"), "view-conceal-symbolic", counts.get("hidden"),
+            count_key="hidden")
         add("duplicates", _("Duplicates"), "edit-copy-symbolic",
-            counts.get("duplicates"))
+            counts.get("duplicates"), count_key="duplicates")
         add("edited", _("Recently Edited"), "document-edit-symbolic",
-            counts.get("edited"))
+            counts.get("edited"), count_key="edited")
         add("imports", _("Imports"), "document-save-symbolic",
-            counts.get("imports"))
+            counts.get("imports"), count_key="imports")
         if counts.get("creations"):
             # Only once there is something to find here: an empty row
             # would be one more thing to explain on a new library.
@@ -943,6 +998,10 @@ class MainWindow(Adw.ApplicationWindow):
             if getattr(child, "_key", None) == key:
                 self.sidebar_list.select_row(child)
                 break
+        else:
+            # Its row is folded away; leaving the old one highlighted
+            # would say the window is somewhere it is not.
+            self.sidebar_list.unselect_all()
         self._syncing_sidebar = False
 
     def _on_devices_changed(self):
@@ -1518,14 +1577,16 @@ class MainWindow(Adw.ApplicationWindow):
                 smart = node["row"]
                 add_fn(f"smart:{smart['id']}", smart["name"],
                        "folder-saved-search-symbolic",
-                       self.catalog.smart_album_count(smart["id"]),
                        indent=indent, smart_id=smart["id"])
             else:
                 album = node["row"]
+                from .folder_view import FolderView
+                whole, any_placed = FolderView._placement("album", album)
                 add_fn(f"album:{album['id']}", album["name"],
-                      "folder-pictures-symbolic", album["n"],
+                      "folder-pictures-symbolic",
                       album_id=album["id"], indent=indent,
-                      cover=album["cover_path"])
+                      cover=album["cover_path"],
+                      placed=whole if any_placed else None)
 
     def _toggle_folder(self, folder_id):
         """The triangle beside a folder shows or hides what is inside it."""
@@ -1575,6 +1636,24 @@ class MainWindow(Adw.ApplicationWindow):
         if folder_id is not None:
             self._open_folder(folder_id)
 
+    def _show_map(self):
+        """The map stands on its own: it reads the whole library rather
+        than whatever the grid is currently showing, and is found as it
+        was left."""
+        if self.map_view is None:
+            return
+        self._scope = "map"
+        self._album_id = None
+        self.map_view.load()
+        self._sync_content_view()
+        self._on_selection_changed(self.grid)
+
+    def _back_to_map(self):
+        self.map_back.set_visible(False)
+        self._smart_id = None
+        self._select_sidebar_key("map")
+        self._show_map()
+
     def _on_sidebar_selected(self, _list, row):
         if row is None or self._syncing_sidebar:
             return
@@ -1586,6 +1665,10 @@ class MainWindow(Adw.ApplicationWindow):
             self._open_device(key[len("device:"):])
             return
         self._smart_id = None
+        self.map_back.set_visible(False)
+        if key == "map":
+            self._show_map()
+            return
         if key.startswith("album:"):
             self._scope = "album"
             self._album_id = row._album_id
@@ -2115,6 +2198,15 @@ class MainWindow(Adw.ApplicationWindow):
         return False
 
     def _refresh(self):
+        if self._scope == "map":
+            # A scan finding photos that recorded where they were taken
+            # should put them on the map that is open, not wait for it to
+            # be opened again.
+            if self.map_view is not None:
+                self.map_view.load(keep_view=True)
+            self.refresh_sidebar()
+            self._mirror_state()
+            return
         if self._scope == "folder":
             self.folder_view.load(getattr(self, "_folder_id", None))
         else:
@@ -2539,6 +2631,9 @@ class MainWindow(Adw.ApplicationWindow):
                 and not (self.search.get_text() or "").strip())
 
     def _sync_content_view(self):
+        if self._scope == "map":
+            self.content_stack.set_visible_child_name("map")
+            return
         if self._scope == "folder":
             self.content_stack.set_visible_child_name("folder")
             return
@@ -2547,6 +2642,108 @@ class MainWindow(Adw.ApplicationWindow):
             self.content_stack.set_visible_child_name("summary")
         else:
             self.content_stack.set_visible_child_name("grid")
+
+    def _place_albums(self, album_ids, label: str):
+        """Say where albums' photos were taken, by naming the place.
+
+        Every photo in the albums goes to the place chosen, including
+        ones that already had one: an album is one visit, and photos
+        left behind at an earlier guess - or at what a camera recorded
+        a few streets away - would stay scattered over the map after the
+        album was moved. Choosing again is how a pin is corrected, and
+        everything already placed follows.
+        """
+        from .place_dialog import ask_for_place
+        if not album_ids:
+            return
+        holes = ",".join("?" * len(album_ids))
+        rows = self.catalog.q(
+            f"SELECT DISTINCT p.id, p.gps_lat, p.gps_lon FROM photos p "
+            f"JOIN album_items ai ON ai.photo_id=p.id "
+            f"WHERE ai.album_id IN ({holes}) AND p.trashed_at IS NULL",
+            list(album_ids))
+        ids = [r["id"] for r in rows]
+        if not ids:
+            self._show_toast(_("“{album}” has no photos to place.")
+                             .format(album=label))
+            return
+        replacing = sum(1 for r in rows
+                        if r["gps_lat"] is not None
+                        and not (r["gps_lat"] == 0 and r["gps_lon"] == 0))
+
+        # Open the map where these albums' own photos already are, when
+        # any of them know: the rest were most likely nearby.
+        anchor = self.catalog.q1(
+            f"SELECT AVG(p.gps_lat) AS lat, AVG(p.gps_lon) AS lon FROM photos p "
+            f"JOIN album_items ai ON ai.photo_id=p.id "
+            f"WHERE ai.album_id IN ({holes}) "
+            f"AND p.gps_lat IS NOT NULL AND NOT(p.gps_lat=0 AND p.gps_lon=0)",
+            list(album_ids))
+        start = ((anchor["lat"], anchor["lon"])
+                 if anchor and anchor["lat"] is not None else None)
+
+        def chosen(lat, lon):
+            self.catalog.set_location(ids, lat, lon)
+            self._show_toast(ngettext(
+                "Placed {count} photo on the map",
+                "Placed {count} photos on the map",
+                len(ids)).format(count=f"{len(ids):,}"))
+            self._refresh()
+            # The choice lives only in the catalog until it is written to
+            # photo-state.json, which is what a backup carries.
+            self._mirror_state()
+
+        ask_for_place(self, _("Where was “{album}” taken?").format(album=label),
+                      len(ids), chosen, start, replacing)
+
+    def _place_photos(self, ids):
+        """Say where a chosen handful of photos were taken.
+
+        An album is not always one place - a birthday at home and the
+        park afterwards sit in the same album - so a selection can be
+        given its own place without disturbing the rest.
+        """
+        from .place_dialog import ask_for_place
+        if not ids:
+            return
+        marks = ",".join("?" * len(ids))
+        rows = self.catalog.q(
+            f"SELECT gps_lat, gps_lon FROM photos WHERE id IN ({marks})", list(ids))
+        known = [(r["gps_lat"], r["gps_lon"]) for r in rows
+                 if r["gps_lat"] is not None
+                 and not (r["gps_lat"] == 0 and r["gps_lon"] == 0)]
+        start = ((sum(k[0] for k in known) / len(known),
+                  sum(k[1] for k in known) / len(known)) if known else None)
+
+        def chosen(lat, lon):
+            self.catalog.set_location(ids, lat, lon)
+            self._show_toast(ngettext(
+                "Placed {count} photo on the map",
+                "Placed {count} photos on the map",
+                len(ids)).format(count=f"{len(ids):,}"))
+            self._refresh()
+            self._mirror_state()
+
+        ask_for_place(self, ngettext("Where was this photo taken?",
+                                     "Where were these {count} photos taken?",
+                                     len(ids)).format(count=f"{len(ids):,}"),
+                      len(ids), chosen, start, len(known))
+
+    def _on_map_album(self, _view, album_id):
+        """A pin's album opens in full, with a way back to the map."""
+        self._open_album(album_id)
+        self.map_back.set_visible(True)
+
+    def _on_map_place(self, _view, ids):
+        """Photos at a pin that are in no album open in the grid, with a
+        way back to the map."""
+        self._scope = "ids"
+        self._album_id = self._smart_id = None
+        self._select_sidebar_key("")
+        self.grid.load("ids", photo_ids=ids)
+        self.content_stack.set_visible_child_name("grid")
+        self._on_selection_changed(self.grid)
+        self.map_back.set_visible(True)
 
     def _on_summary_open(self, _view, mode, key, first, last):
         """A year card opens Months at that year; a month card opens Days at
@@ -2696,6 +2893,9 @@ class MainWindow(Adw.ApplicationWindow):
             sections = [
                 [("rename", _("Rename…"), None,
                   lambda: self._on_rename_album(album_id, name))],
+                [("place", _("Place on Map…"), None,
+                  lambda: self._place_albums([album_id], name))]
+                if self.map_view is not None else [],
                 [("move-to", _("Move To…"), None,
                   lambda: self._choose_move_target([("album", album_id, name)]))]
                 + ([("move-out", _("Move Out of “{folder}”").format(folder=holder["name"]), None,
@@ -3251,6 +3451,10 @@ class MainWindow(Adw.ApplicationWindow):
               lambda: self._on_rotate(-1, ids)),
              ("rotate-cw", _("Rotate Right"), "<Primary>r",
               lambda: self._on_rotate(1, ids))],
+            [("place", _("Place on Map…") if single
+              else _("Place {count} Photos on Map…").format(count=n_sel), None,
+              lambda: self._place_photos(ids))]
+            if self.map_view is not None else [],
             [("export", export_label, "<Primary>e",
               lambda: self._on_bulk_export(None))],
             [("cover", _("Make Album Cover"), None,
@@ -3259,6 +3463,41 @@ class MainWindow(Adw.ApplicationWindow):
             [("delete", delete_label, "Delete",
               lambda: self._on_bulk_trash(None))],
         ])
+
+    def _recount(self):
+        """Count the library away from the interface, then fill in what
+        the sidebar drew from the numbers it had.
+
+        Only the numbers change, not the rows, so nothing moves under the
+        pointer while somebody is reaching for it. A count arriving after
+        the sidebar has been rebuilt again is dropped.
+        """
+        self._recount_gen = getattr(self, "_recount_gen", 0) + 1
+        mine = self._recount_gen
+
+        def work():
+            try:
+                counts = self.catalog.counts()
+            except Exception:
+                return
+            GLib.idle_add(apply, counts)
+
+        def apply(counts):
+            if mine != self._recount_gen:
+                return False
+            had_creations = bool(self._counts.get("creations"))
+            self._counts = counts
+            self._update_footer(counts)
+            for key, label in self._count_labels.items():
+                n = int(counts.get(key) or 0)
+                label.set_text(f"{n:,}" if n else "")
+                label.set_visible(bool(n))
+            # Creations is a row that only exists once there is something
+            # in it, so its arrival needs the sidebar built again.
+            if bool(counts.get("creations")) != had_creations:
+                self.refresh_sidebar()
+            return False
+        threading.Thread(target=work, daemon=True, name="pika-counts").start()
 
     def _folder_here(self):
         """Where a new album or folder made from the view on screen goes: the
@@ -3288,9 +3527,21 @@ class MainWindow(Adw.ApplicationWindow):
                 kind, self._open_album)
             sections.append([("open", _("Open"), None, lambda: opener(item_id))])
         chosen = list(keys)
+        albums = [(item_id, name) for kind, item_id, name in keys if kind == "album"]
+        if albums and self.map_view is not None:
+            # Several albums at once: a holiday split across years was
+            # still one place, and saying so once is the point. This sits
+            # at the top, as far from Delete as the menu allows: placing
+            # albums is done over and over, and a slip of one row should
+            # not land on something destructive.
+            label = (albums[0][1] if len(albums) == 1
+                     else ngettext("{count} album", "{count} albums",
+                                   len(albums)).format(count=len(albums)))
+            sections.append([("place", _("Place on Map…"), None,
+                              lambda: self._place_albums([a for a, _n in albums],
+                                                         label))])
         sections.append([("move-to", _("Move To…"), None,
                           lambda: self._choose_move_target(chosen))])
-        albums =[(item_id, name) for kind, item_id, name in keys if kind == "album"]
         if len(albums) == 1 and len(keys) == 1:
             sections.append([("delete", _("Delete Album…"), None,
                               lambda: self._on_delete_album(*albums[0]))])

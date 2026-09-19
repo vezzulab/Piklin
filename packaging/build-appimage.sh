@@ -48,7 +48,8 @@ docker run --rm --platform "linux/$ARCH" -v "$ROOT":/src -w /src \
   apt-get update -qq
   apt-get install -y -qq --no-install-recommends python3 python3-venv python3-pip \
       python3-gi python3-gi-cairo python3-cffi-backend gir1.2-glib-2.0 gir1.2-gtk-4.0 \
-      gir1.2-adw-1 gir1.2-secret-1 libgtk-4-1 libadwaita-1-0 librsvg2-common \
+      gir1.2-adw-1 gir1.2-secret-1 gir1.2-shumate-1.0 libshumate-1.0-1 \
+      libgtk-4-1 libadwaita-1-0 librsvg2-common \
       libgdk-pixbuf-2.0-0 adwaita-icon-theme hicolor-icon-theme patchelf file git \
       ca-certificates dpkg-dev >/dev/null
   git config --global --add safe.directory /src

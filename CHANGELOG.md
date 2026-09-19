@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.0.0
+
+### Your photos on a map
+- The sidebar has a Map. It opens on everywhere you have been, as pins, and you travel through your library by place instead of by date. Photos taken close together are one pin, and the pins regroup as you zoom: a country, then a city, then a street corner. Each pin carries the number of albums behind it
+- Resting on a pin slides its albums in beside the map - cover, name and how many photos are there - and the map stays where it is, so the next pin is one movement away. The panel waits until you choose; clicking an album opens it, and an arrow in the bar brings you back to the map exactly as you left it
+- A button at the top left counts the countries your pins are in. Open it for the list, with the cities inside each country, and click a city to fly there
+
+### Telling Piklin where you were
+- Most photographs carry no coordinates. A camera without a receiver, a phone with location switched off, a picture that went through a messaging app - the place was never written, or was stripped on the way. A map built only on what cameras recorded stays nearly empty
+- So you can say it yourself. Right-click an album - a holiday, a birthday, a week at the coast - type the country, the city and, if you like, the name of the place, and pick it from the answers. Every photo in that album lands on the map at once. Several albums can be placed together, and a chosen handful of photos can be given their own place when an album covers more than one
+- Placing an album moves every photo in it, including any that already had coordinates, so nothing is left behind a few streets away
+- Each album shows a dot once it is on the map: filled when it is settled in one place, faint while it is only partly placed or still scattered. With a hundred albums to go through, what is left is visible at a glance
+- A place you set by hand is kept in your library and travels with your backup, and a later scan of the file never overwrites it
+
+### Places named without asking anyone
+- Piklin carries a list of the world's towns and reads it from your own disk, so turning a pin into "Santo Domingo" never sends a coordinate anywhere. With no connection the map still names its pins
+- Searching for a place by name is the one thing that reaches the network, and only the words you type are sent - never a photograph, a filename or a coordinate of yours
+
+### Clearer about making photos smaller
+- Preferences › Storage now explains what making a photo smaller is, in plain words, before offering the choices: what it does, that Piklin tries each one on your own photos and measures the result rather than guessing, and that your folders and the photos already in your library are left alone
+- Each choice says what it costs in room and what it costs in detail
+
+### Smaller things
+- The sidebar no longer counts the library on the interface's thread. On a large library the numbers used to hold everything up for half a second after every import, edit and backup; now the sidebar draws at once and the numbers arrive behind it
+- No number beside All Photos or the albums: the footer already carries the library's count
+- Piklin opens filling the screen
+- The grey block that stands in for a thumbnail still being made was drawn transparent, so a grid waiting for its photos looked empty rather than busy
+
 ## 1.0.8
 
 ### Restoring brings your library back as it was

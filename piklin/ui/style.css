@@ -2144,3 +2144,98 @@ window.piklin button.pika-tray-add:hover {
   border-color: alpha(currentColor, 0.6);
 }
 window.piklin button.pika-tray-tile { padding: 0; min-width: 0; min-height: 0; }
+
+/* ---- the map ------------------------------------------------------- */
+/* How many photos that one pin stands for, inside its head. */
+window.piklin label.pika-map-count {
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+/* The photos of the pin under the pointer, over the map's right edge. */
+window.piklin frame.pika-map-panel {
+  background: @pika_wall;
+  border: 1px solid alpha(#000000, 0.16);
+  border-radius: 14px;
+  /* The map behind is pale, so the card needs a real edge to sit on. */
+  box-shadow: 0 10px 34px alpha(#000000, 0.30);
+}
+window.piklin label.pika-map-panel-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: @pika_text;
+}
+window.piklin button.pika-map-thumb {
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 4px;
+}
+window.piklin button.pika-map-thumb:hover { background: alpha(#000000, 0.06); }
+window.piklin label.pika-map-panel-count {
+  color: @pika_text_dim;
+  font-size: 0.82rem;
+}
+/* The albums at a pin: a photo taken there, the album's name, and how
+   much of it is there. */
+window.piklin label.pika-map-album-name {
+  font-weight: 600;
+  color: @pika_text;
+}
+window.piklin list.pika-map-albums { background: none; }
+window.piklin list.pika-map-albums > row {
+  border-radius: 10px;
+  margin: 1px 0;
+}
+window.piklin list.pika-map-albums > row:hover { background: alpha(#000000, 0.06); }
+/* How many places a pin stands for, beside it when zoomed out. */
+window.piklin label.pika-map-badge {
+  background: #2b2b33;
+  color: #ffffff;
+  border: 1.5px solid #ffffff;
+  border-radius: 999px;
+  min-height: 18px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  box-shadow: 0 1px 4px alpha(#000000, 0.34);
+}
+/* Where you have been, counted, at the top left of the map. */
+window.piklin menubutton.pika-map-stats > button {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: @pika_wall;
+  color: @pika_text;
+  font-weight: 600;
+  border: 1px solid alpha(#000000, 0.14);
+  box-shadow: 0 2px 10px alpha(#000000, 0.22);
+}
+/* Closer and further, round, at the bottom right of the map. */
+window.piklin button.pika-map-zoom {
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 999px;
+  background: @pika_wall;
+  border: 1px solid alpha(#000000, 0.14);
+  box-shadow: 0 2px 10px alpha(#000000, 0.22);
+  color: @pika_text;
+}
+window.piklin button.pika-map-zoom:hover {
+  background: shade(@pika_wall, 0.94);
+}
+window.piklin button.pika-map-zoom:active {
+  background: shade(@pika_wall, 0.88);
+}
+/* The place being chosen for an album, under the picker's map. */
+window.piklin label.pika-place-where,
+dialog label.pika-place-where {
+  font-weight: 700;
+  font-size: 1.02rem;
+}
+/* Whether an album has been given its place on the map. */
+window.piklin image.pika-map-dot { color: @pika_accent; }
+window.piklin image.pika-map-dot-part { color: alpha(@pika_accent, 0.42); }

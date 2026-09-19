@@ -214,7 +214,18 @@ class FolderView(Gtk.ScrolledWindow):
         sub = Gtk.Label(label=detail, xalign=0.0)
         sub.add_css_class("pika-dim")
         box.append(title)
-        box.append(sub)
+        # A dot when the album is on the map: filled once every photo has
+        # a place, hollow while only some do. It follows the count rather
+        # than the name, which stretches to the card's width and would
+        # leave the dot stranded at the far edge.
+        placed, mapped = self._placement(kind, row)
+        if mapped:
+            line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            line.append(sub)
+            line.append(self._map_dot(placed, detail))
+            box.append(line)
+        else:
+            box.append(sub)
         box.update_property([Gtk.AccessibleProperty.LABEL],
                             [f"{row['name']}, {detail}"])
 
@@ -226,6 +237,36 @@ class FolderView(Gtk.ScrolledWindow):
         click.connect("released", self._on_card_click, key, signal)
         box.add_controller(click)
         return box
+
+    @staticmethod
+    def _placement(kind, row) -> tuple[bool, bool]:
+        """(the album is settled on the map, any of it is on the map).
+
+        Settled means every photo has a place *and* they are all at the
+        same one. An album half placed, or placed but still scattered
+        over a neighbourhood, is the thing that needs going back to.
+        """
+        if kind != "album":
+            return False, False
+        keys = row.keys()
+        if "placed" not in keys or "n" not in keys:
+            return False, False
+        placed, total = int(row["placed"] or 0), int(row["n"] or 0)
+        # About 20 metres: closer than that is one place by any reading,
+        # and it is the same distance the map itself folds into one pin.
+        spread = max(float(row["lat_spread"] or 0.0),
+                     float(row["lon_spread"] or 0.0)) \
+            if "lat_spread" in keys else 0.0
+        return placed >= total > 0 and spread < 0.0002, placed > 0
+
+    @staticmethod
+    def _map_dot(whole: bool, detail: str) -> Gtk.Widget:
+        dot = Gtk.Image(icon_name="media-record-symbolic",
+                        pixel_size=10, valign=Gtk.Align.CENTER)
+        dot.add_css_class("pika-map-dot" if whole else "pika-map-dot-part")
+        dot.set_tooltip_text(_("On the map") if whole
+                             else _("Partly on the map"))
+        return dot
 
     # -- choosing cards --------------------------------------------------------
     def _set_selected(self, keys):

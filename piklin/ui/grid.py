@@ -307,6 +307,7 @@ class PhotoGrid(Gtk.Box):
         self._scope = "library"
         self._album_id = None
         self._smart_id = None
+        self._photo_ids = None
         self._search = None
         self._order = "taken_desc"
         # The toolbar's Filter menu and Aspect Ratio button: both apply to
@@ -1469,7 +1470,8 @@ class PhotoGrid(Gtk.Box):
         self.status.set_icon_name(icon)
 
     def load(self, scope="library", album_id=None, search=None,
-             order=None, smart_id=None, keep_selection=None) -> None:
+             order=None, smart_id=None, keep_selection=None,
+             photo_ids=None) -> None:
         if (scope, album_id, smart_id) != self._kind_view:
             # another album opens showing everything in it
             self._kind_view = (scope, album_id, smart_id)
@@ -1477,6 +1479,7 @@ class PhotoGrid(Gtk.Box):
         self._scope = scope
         self._album_id = album_id
         self._smart_id = smart_id
+        self._photo_ids = list(photo_ids) if photo_ids else None
         self._search = search or None
         self._order = order or self._order
         self._offset = 0
@@ -1582,7 +1585,7 @@ class PhotoGrid(Gtk.Box):
                     scope=self._scope, album_id=self._album_id,
                     smart_id=self._smart_id,
                     search=self._search, order=self._order,
-                    filters=filters,
+                    filters=filters, photo_ids=self._photo_ids,
                     limit=limit, offset=offset)
             except Exception:
                 rows = []
@@ -1724,6 +1727,9 @@ class PhotoGrid(Gtk.Box):
         if 0 <= index < len(self._items):
             return self._items[index]
         return None
+
+    def item_by_id(self, photo_id: int):
+        return self._by_id.get(photo_id)
 
     def index_of(self, item) -> int:
         try:
