@@ -143,7 +143,9 @@ PY
   if strings "$R"/lib/girepository-1.0/*.typelib | grep -q "$CACHE"; then
     echo "a typelib still names the build folder - refusing to package" >&2; exit 1
   fi
+  # The TLS backend libsoup needs to download the map's tiles over https.
   mkdir -p "$R/lib/gio/modules"
+  cp -a "$P"/lib/gio/modules/*.so "$R/lib/gio/modules/"
   # Image loaders, and their list with the location left for boot.py to fill in.
   LOADERS="lib/gdk-pixbuf-2.0/2.10.0"
   mkdir -p "$R/$LOADERS"

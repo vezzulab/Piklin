@@ -183,6 +183,14 @@ fetch "$G/libadwaita/1.8/libadwaita-1.8.4.tar.xz" libadwaita-1.8.4.tar.xz
 fetch "$G/adwaita-icon-theme/49/adwaita-icon-theme-49.0.tar.xz" adwaita-icon-theme-49.0.tar.xz
 fetch "https://files.pythonhosted.org/packages/source/p/pycairo/pycairo-1.29.0.tar.gz" pycairo-1.29.0.tar.gz
 fetch "$G/pygobject/3.56/pygobject-3.56.0.tar.gz" pygobject-3.56.0.tar.gz
+# The map: libshumate draws it, libsoup downloads its tiles, and OpenSSL with
+# glib-networking lets libsoup speak https (a Mac has no GnuTLS to lend it).
+fetch "https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz" openssl-3.5.8.tar.gz
+fetch "https://github.com/nghttp2/nghttp2/releases/download/v1.70.0/nghttp2-1.70.0.tar.xz" nghttp2-1.70.0.tar.xz
+fetch "https://github.com/rockdaboot/libpsl/releases/download/0.21.5/libpsl-0.21.5.tar.gz" libpsl-0.21.5.tar.gz
+fetch "$G/libsoup/3.6/libsoup-3.6.6.tar.xz" libsoup-3.6.6.tar.xz
+fetch "$G/glib-networking/2.80/glib-networking-2.80.1.tar.xz" glib-networking-2.80.1.tar.xz
+fetch "$G/libshumate/1.5/libshumate-1.5.2.tar.xz" libshumate-1.5.2.tar.xz
 
 # --------------------------------------------------- libraries macOS provides
 # zlib, bzip2, expat, libffi, libxml2 and curl are part of macOS itself, but
@@ -203,6 +211,7 @@ sdk_pc expat 2.5.0 "" "-lexpat"
 sdk_pc libffi 3.4.0 "-I$SDK/usr/include/ffi" "-lffi"
 sdk_pc libxml-2.0 2.9.13 "-I$SDK/usr/include/libxml2" "-lxml2"
 sdk_pc libcurl 8.7.1 "" "-lcurl"
+sdk_pc sqlite3 3.32.3 "" "-lsqlite3"
 
 # ------------------------------------------------------------------- build
 cmake_pkg pcre2 pcre2-10.47.tar.bz2 -DBUILD_STATIC_LIBS=OFF -DPCRE2_BUILD_TESTS=OFF \
@@ -275,6 +284,29 @@ meson_pkg libadwaita libadwaita-1.8.4.tar.xz -Dintrospection=enabled -Dvapi=fals
 # Every icon Piklin shows (trash, star, camera, menu...) comes from this theme;
 # a Linux desktop has it installed, a Mac does not.
 meson_pkg adwaita-icon-theme adwaita-icon-theme-49.0.tar.xz
+
+# ------------------------------------------------------------------- the map
+# OpenSSL ships its own Configure script, so it gets a build of its own.
+if ! built openssl; then
+  say "openssl"
+  : > "$LOGS/openssl.log"
+  dir="$(unpack openssl-3.5.8.tar.gz)"
+  target=darwin64-arm64-cc; [ "$ARCH" = x86_64 ] && target=darwin64-x86_64-cc
+  (cd "$dir" && run_logged openssl ./Configure "$target" --prefix="$PREFIX" --libdir=lib \
+      no-tests no-docs no-apps shared "-mmacosx-version-min=$MIN_MACOS" \
+      && run_logged openssl make -j"$JOBS" && run_logged openssl make install_sw)
+  done_ openssl
+fi
+cmake_pkg nghttp2 nghttp2-1.70.0.tar.xz -DENABLE_LIB_ONLY=ON -DENABLE_STATIC_LIB=OFF \
+    -DENABLE_DOC=OFF -DBUILD_TESTING=OFF
+meson_pkg libpsl libpsl-0.21.5.tar.gz -Dtests=false -Ddocs=false -Druntime=no -Dbuiltin=true
+meson_pkg libsoup libsoup-3.6.6.tar.xz -Dgssapi=disabled -Dntlm=disabled -Dbrotli=disabled \
+    -Dtls_check=false -Dintrospection=enabled -Dvapi=disabled -Ddocs=disabled -Dtests=false \
+    -Dsysprof=disabled
+meson_pkg glib-networking glib-networking-2.80.1.tar.xz -Dgnutls=disabled -Dopenssl=enabled \
+    -Dlibproxy=disabled -Dgnome_proxy=disabled -Dinstalled_tests=false
+meson_pkg libshumate libshumate-1.5.2.tar.xz -Dgir=true -Dvapi=false -Dgtk_doc=false \
+    -Dvector_renderer=false -Dsysprof=disabled -Ddemos=false
 
 # ------------------------------------------------------------- Python side
 if ! built python-bindings; then
