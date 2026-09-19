@@ -33,6 +33,8 @@ class PhotoItem(GObject.Object):
         self.has_live = bool(row["has_live"]) if "has_live" in row.keys() else False
         # the content fingerprint: identical copies share it (Duplicates)
         self.fingerprint = row["fingerprint"] if "fingerprint" in row.keys() else None
+        # the name of the group the photo was placed in, if it was given one
+        self.place_name = row["place_name"] if "place_name" in row.keys() else None
         self.texture = None            # cached Gdk.Texture once loaded
         self.selected = False
 

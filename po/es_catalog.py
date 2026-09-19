@@ -1436,6 +1436,65 @@ ES = {
         "Elige fotos en tu biblioteca y después toca +",
     "+ adds {count} more": ("+ añade {count} más", "+ añade {count} más"),
     "The typeface for the words": "La letra de las palabras",
+    # -- the map ------------------------------------------------------------
+    "Map": "Mapa",
+    "Back to the map": "Volver al mapa",
+    "On the map": "En el mapa",
+    "Partly on the map": "En parte en el mapa",
+    "Antarctica": "Antártida",
+    "Not in an album": "Sin álbum",
+    "Other photos": "Otras fotos",
+    "Zoom in": "Acercar",
+    "Zoom out": "Alejar",
+    "No photos with a place": "Ninguna foto tiene lugar",
+    "Photos that recorded where they were taken appear on the map. Most cameras and phones record it.":
+        "Las fotos que guardaron dónde se tomaron aparecen en el mapa. La mayoría de las cámaras y los teléfonos lo guardan.",
+    "{count} country": ("{count} país", "{count} países"),
+    "{count} city": ("{count} ciudad", "{count} ciudades"),
+    "{count} place": ("{count} lugar", "{count} lugares"),
+    "{count} places in {country}": "{count} lugares en {country}",
+    "{count} photo here": ("{count} foto aquí", "{count} fotos aquí"),
+    "Place on Map…": "Poner en el mapa…",
+    "Place {count} Photos on Map…": "Poner {count} fotos en el mapa…",
+    "Where was this photo taken?": ("¿Dónde se tomó esta foto?", "¿Dónde se tomaron estas {count} fotos?"),
+    "Where was “{album}” taken?": "¿Dónde se tomó “{album}”?",
+    "“{album}” has no photos to place.": "“{album}” no tiene fotos que ubicar.",
+    "Placed {count} photo on the map": ("Se puso {count} foto en el mapa", "Se pusieron {count} fotos en el mapa"),
+    "Search for the place, or click the map": "Busca el lugar, o toca el mapa",
+    "Country": "País",
+    "City": "Ciudad",
+    "Place (optional)": "Lugar (opcional)",
+    "Searching…": "Buscando…",
+    "Nothing found. Check the spelling, or click the map.": "No se encontró nada. Revisa cómo está escrito, o toca el mapa.",
+    "Pick the right one": "Elige el correcto",
+    "No connection - showing towns Piklin knows. Click the map to be exact.":
+        "Sin conexión: se muestran los pueblos que Piklin conoce. Toca el mapa para ser exacto.",
+    "{count} photo will be placed here": ("{count} foto se pondrá aquí", "{count} fotos se pondrán aquí"),
+    "{count} already on the map will move": ("{count} que ya está en el mapa se moverá", "{count} que ya están en el mapa se moverán"),
+    "Place Photos": "Poner fotos",
+
+    # -- naming a group of photos -------------------------------------------
+    "Name this group": "Ponle nombre a este grupo",
+    "Optional": "Opcional",
+    "For example: Norwood Center": "Por ejemplo: Centro de Norwood",
+    "Photos placed with the same name stay together inside their album, under that name as a title. In an album from a trip you could have “Norwood Center”, “Downtown Boston” and “Cambridge”, each with its own photos. Leave it empty if you only want to move them on the map.":
+        "Las fotos con el mismo nombre se quedan juntas dentro de su álbum, con ese nombre como título. En el álbum de un viaje podrías tener “Centro de Norwood”, “Downtown Boston” y “Cambridge”, cada uno con sus fotos. Déjalo vacío si solo quieres moverlas en el mapa.",
+    "Name Group": "Poner nombre",
+    "Only the name changes: the photos stay where they are on the map":
+        "Solo cambia el nombre: las fotos siguen donde están en el mapa",
+    "Placed in “{name}”": "Puestas en “{name}”",
+    "Grouped as “{name}”": "Agrupadas como “{name}”",
+    "Remove from Group": "Quitar del grupo",
+
+    # -- making photos smaller ----------------------------------------------
+    "Making photos smaller": "Hacer las fotos más pequeñas",
+    "A photo from a modern camera holds far more detail than a screen, or an eye, can use. Piklin can store it using less room on the disk — the same picture, written more carefully.\n\nIt does not guess. Piklin tries each choice on your own photos, compares the result against the original, and keeps the best quality that still saves room.\n\nYour own folders are never touched, and the photos already in your library are left as they are. These choices apply to copies Piklin makes from here on.":
+        "Una foto de una cámara moderna guarda mucho más detalle del que una pantalla, o un ojo, pueden aprovechar. Piklin puede guardarla ocupando menos espacio en el disco: la misma imagen, escrita con más cuidado.\n\nNo adivina. Piklin prueba cada opción con tus propias fotos, compara el resultado con el original y se queda con la mejor calidad que todavía ahorra espacio.\n\nTus carpetas nunca se tocan, y las fotos que ya están en tu biblioteca se quedan como están. Estas opciones se aplican a las copias que Piklin haga de aquí en adelante.",
+    "For copies you send to someone, or save outside Piklin. The photo in your library is not affected.":
+        "Para las copias que envías a alguien, o guardas fuera de Piklin. La foto de tu biblioteca no se ve afectada.",
+    "For photos Piklin copies in from a camera, a memory card, a USB drive or a drag from the desktop. The originals on the camera or the card are never altered.":
+        "Para las fotos que Piklin copia desde una cámara, una tarjeta de memoria, una memoria USB o arrastrándolas desde el escritorio. Los originales en la cámara o en la tarjeta nunca se alteran.",
+
 }
 
 

@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS removed (
 GRID_FIELDS = ("id", "uuid", "path", "filename", "width", "height",
                "orientation", "taken_at", "favorite", "rating",
                "edit_version", "thumb_state", "bytes", "duration", "has_live",
-               "fingerprint")
+               "fingerprint", "place_name")
 GRID_COLUMNS = ", ".join(GRID_FIELDS)
 
 
@@ -457,6 +457,10 @@ class Catalog:
         if "gps_manual" not in pcols:
             cur.execute("ALTER TABLE photos ADD COLUMN gps_manual INTEGER "
                         "NOT NULL DEFAULT 0")
+        # The name a person gave a group of photos when placing them
+        # ("Norwood Center"); an album shows the photos under that name.
+        if "place_name" not in pcols:
+            cur.execute("ALTER TABLE photos ADD COLUMN place_name TEXT")
 
         cols = {row[1] for row in cur.execute("PRAGMA table_info(albums)")}
         if "folder_id" not in cols:
@@ -703,6 +707,24 @@ class Catalog:
                 "UPDATE photos SET gps_lat=?, gps_lon=?, gps_manual=1 WHERE id=?",
                 [(lat, lon, pid) for pid in ids])
 
+    def set_group_name(self, photo_ids: Sequence[int], name: str | None) -> None:
+        """Name a group of photos, or take them out of theirs with ``None``.
+        Photos with the same name are shown together in their album."""
+        ids = list(photo_ids)
+        name = " ".join((name or "").split()) or None
+        if not ids:
+            return
+        with self.write() as cur:
+            cur.executemany("UPDATE photos SET place_name=? WHERE id=?",
+                            [(name, pid) for pid in ids])
+
+    def album_has_groups(self, album_id: int) -> bool:
+        """Whether any photo of the album has been given a group name."""
+        return self.q1(
+            "SELECT 1 FROM album_items ai JOIN photos p ON p.id=ai.photo_id "
+            "WHERE ai.album_id=? AND p.place_name IS NOT NULL AND p.trashed_at IS NULL "
+            "LIMIT 1", (album_id,)) is not None
+
     def reindex_text(self, photo_ids: Sequence[int] | None = None) -> int:
         """Rebuild the search text from the rows as they are now."""
         if photo_ids is None:
@@ -867,6 +889,7 @@ class Catalog:
         order: str = "taken_desc",
         filters: Iterable[str] | None = None,
         photo_ids: Sequence[int] | None = None,
+        by_group: bool = False,
         limit: int | None = None,
         offset: int = 0,
     ) -> list[sqlite3.Row]:
@@ -945,9 +968,17 @@ class Catalog:
             "manual": "ai.position ASC" if scope == "album" else "p.taken_at DESC",
         }
         select = ", ".join(f"p.{c}" for c in GRID_FIELDS)
+        ordering = self._scope_order(scope, order, orders)
+        if scope == "album" and album_id is not None and by_group:
+            # Named groups side by side, in the order they were visited
+            # (the date of each group's earliest photo), the photos with no
+            # group last; inside a group, the album's usual order.
+            ordering = ("p.place_name IS NULL, "
+                        "MIN(p.taken_at) OVER (PARTITION BY p.place_name), "
+                        "p.place_name, " + ordering)
         sql = (f"SELECT {select} "
                f"FROM photos p{joins} WHERE {' AND '.join(where)} "
-               f"ORDER BY {self._scope_order(scope, order, orders)}")
+               f"ORDER BY {ordering}")
         if limit is not None:
             sql += " LIMIT ? OFFSET ?"
             params += [limit, offset]

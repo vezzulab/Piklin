@@ -308,6 +308,7 @@ class PhotoGrid(Gtk.Box):
         self._album_id = None
         self._smart_id = None
         self._photo_ids = None
+        self._by_group = False        # an album shown under its named groups
         self._search = None
         self._order = "taken_desc"
         # The toolbar's Filter menu and Aspect Ratio button: both apply to
@@ -1480,6 +1481,10 @@ class PhotoGrid(Gtk.Box):
         self._album_id = album_id
         self._smart_id = smart_id
         self._photo_ids = list(photo_ids) if photo_ids else None
+        # An album whose photos were placed in named groups ("Norwood
+        # Center") shows them under those names instead of by date.
+        self._by_group = bool(scope == "album" and album_id is not None
+                              and self.catalog.album_has_groups(album_id))
         self._search = search or None
         self._order = order or self._order
         self._offset = 0
@@ -1586,7 +1591,7 @@ class PhotoGrid(Gtk.Box):
                     smart_id=self._smart_id,
                     search=self._search, order=self._order,
                     filters=filters, photo_ids=self._photo_ids,
-                    limit=limit, offset=offset)
+                    by_group=self._by_group, limit=limit, offset=offset)
             except Exception:
                 rows = []
 
@@ -1647,6 +1652,9 @@ class PhotoGrid(Gtk.Box):
             if dupes:
                 # one set of identical copies per block, named after the photo
                 key, title, sub = (item.fingerprint or f"id{item.id}", item.filename, "")
+            elif self._by_group:
+                name = item.place_name or ""
+                key, title, sub = (f"group:{name}", name or _("Other photos"), "")
             elif not sort_by_date or mode == "none":
                 key, title, sub = ("all", "", "")
             else:

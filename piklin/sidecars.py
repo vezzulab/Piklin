@@ -66,10 +66,11 @@ def write_photo_state(library, catalog) -> None:
     """
     rows = catalog.q(
         "SELECT path, favorite, rating, hidden, trashed_at, title, caption, "
-        "keywords, taken_at, date_source, gps_lat, gps_lon, gps_manual FROM photos "
+        "keywords, taken_at, date_source, gps_lat, gps_lon, gps_manual, place_name FROM photos "
         "WHERE favorite=1 OR rating>0 OR hidden=1 OR trashed_at IS NOT NULL "
         "OR COALESCE(title,'') != '' OR COALESCE(caption,'') != '' "
-        "OR COALESCE(keywords,'') != '' OR date_source='manual' OR gps_manual=1")
+        "OR COALESCE(keywords,'') != '' OR date_source='manual' OR gps_manual=1 "
+        "OR COALESCE(place_name,'') != ''")
     photos = {}
     for r in rows:
         entry = {}
@@ -85,6 +86,8 @@ def write_photo_state(library, catalog) -> None:
         if r["gps_manual"]:
             entry["location"] = ([r["gps_lat"], r["gps_lon"]]
                                  if r["gps_lat"] is not None else None)
+        if r["place_name"]:
+            entry["group"] = r["place_name"]
         if r["favorite"]:
             entry["favorite"] = True
         if r["rating"]:
@@ -132,6 +135,9 @@ def restore_photo_state(library, catalog) -> int:
                 loc = entry["location"] or [None, None]
                 cur.execute("UPDATE photos SET gps_lat=?, gps_lon=?, gps_manual=1 "
                             "WHERE path=?", (loc[0], loc[1], path))
+            if entry.get("group"):
+                cur.execute("UPDATE photos SET place_name=? WHERE path=?",
+                            (entry["group"], path))
     # The search text is rebuilt from the restored words too.
     if restored:
         catalog.reindex_text()

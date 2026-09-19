@@ -35,12 +35,18 @@ class PlaceDialog(Adw.Dialog):
 
     __gsignals__ = {
         # the place somebody settled on: latitude, longitude
-        "chosen": (GObject.SignalFlags.RUN_FIRST, None, (float, float)),
+        # (and the name given to the group, empty when none)
+        "chosen": (GObject.SignalFlags.RUN_FIRST, None, (float, float, str)),
+        # only a name, for photos whose place stays as it is
+        "named": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
     }
 
     def __init__(self, title: str, subtitle: str,
-                 start: tuple[float, float] | None = None):
-        super().__init__(title=title, content_width=760, content_height=720)
+                 start: tuple[float, float] | None = None, ask_name: bool = False):
+        super().__init__(title=title, content_width=760,
+                         content_height=860 if ask_name else 720)
+        self._ask_name = ask_name
+        self._name_edited = False
         self.places = Places()
         self._picked: tuple[float, float] | None = None
         self._search_id = 0
@@ -74,6 +80,7 @@ class PlaceDialog(Adw.Dialog):
         self.where.add_css_class("pika-place-where")
         note = Gtk.Label(xalign=0.0, ellipsize=3, label=subtitle)
         note.add_css_class("pika-dim")
+        self._note, self._note_text = note, subtitle
 
         self.save = Gtk.Button(label=_("Place Photos"), sensitive=False)
         self.save.add_css_class("suggested-action")
@@ -99,6 +106,8 @@ class PlaceDialog(Adw.Dialog):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         box.append(self._build_search())
         box.append(self.map)
+        if ask_name:
+            box.append(self._build_group_name())
         box.append(bar)
 
         toolbar = Adw.ToolbarView()
@@ -107,6 +116,62 @@ class PlaceDialog(Adw.Dialog):
         self.set_child(toolbar)
 
     # ------------------------------------------------------------------
+    def _build_group_name(self) -> Gtk.Widget:
+        """A name for these photos, explained: it is what the album shows above them.
+        Set apart in a card of its own so nobody takes it for part of the map."""
+        heading = Gtk.Label(xalign=0.0, hexpand=True, label=_("Name this group"))
+        heading.add_css_class("title-4")
+        optional = Gtk.Label(label=_("Optional"))
+        optional.add_css_class("caption")
+        optional.add_css_class("pika-dim")
+        top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        top.append(heading)
+        top.append(optional)
+        self.group_name = Gtk.Entry(hexpand=True,
+                                    placeholder_text=_("For example: Norwood Center"))
+        self.group_name.connect("changed", self._on_name_typed)
+        explain = Gtk.Label(
+            xalign=0.0, wrap=True, label=_(
+                "Photos placed with the same name stay together inside their album, "
+                "under that name as a title. In an album from a trip you could have "
+                "“Norwood Center”, “Downtown Boston” and “Cambridge”, each with its own "
+                "photos. Leave it empty if you only want to move them on the map."))
+        explain.add_css_class("pika-dim")
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
+                       margin_top=12, margin_bottom=4, margin_start=16, margin_end=16)
+        card.add_css_class("card")
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
+                        margin_top=14, margin_bottom=14, margin_start=16, margin_end=16)
+        inner.append(top)
+        inner.append(self.group_name)
+        inner.append(explain)
+        card.append(inner)
+        return card
+
+    def _on_name_typed(self, _entry) -> None:
+        # Once somebody types a name, the suggestion never overwrites it.
+        if not getattr(self, "_suggesting", False):
+            self._name_edited = True
+        self._update_save()
+
+    def _update_save(self) -> None:
+        """The button says what it will do: place the photos, or only name them."""
+        named = self._ask_name and bool(self.group_name.get_text().strip())
+        if self._picked is not None:
+            self.save.set_label(_("Place Photos"))
+            self._note.set_text(self._note_text)
+        elif named:
+            self.save.set_label(_("Name Group"))
+            self._note.set_text(_("Only the name changes: the photos stay where they are on the map"))
+        self.save.set_sensitive(self._picked is not None or named)
+
+    def _suggest_name(self, name: str) -> None:
+        if not self._ask_name or self._name_edited or not name:
+            return
+        self._suggesting = True
+        self.group_name.set_text(name.split(",")[0].strip())
+        self._suggesting = False
+
     def _build_search(self) -> Gtk.Widget:
         """Country, city and an optional name, and the answers under them."""
         self.country = Gtk.Entry(placeholder_text=_("Country"), hexpand=True)
@@ -211,7 +276,8 @@ class PlaceDialog(Adw.Dialog):
             viewport.set_zoom_level(zoom)
         label = self.places.describe([(lat, lon)])
         self.where.set_text(name or label or f"{lat:.5f}, {lon:.5f}")
-        self.save.set_sensitive(True)
+        self._suggest_name(name or "")
+        self._update_save()
 
     def _on_map_clicked(self, gesture, _n, x, y):
         viewport = self.map.get_viewport()
@@ -220,14 +286,18 @@ class PlaceDialog(Adw.Dialog):
 
     def _on_save(self, _button):
         if self._picked is None:
+            if self._ask_name and self.group_name.get_text().strip():
+                self.emit("named", self.group_name.get_text().strip())
+                self.close()
             return
-        self.emit("chosen", self._picked[0], self._picked[1])
+        name = self.group_name.get_text().strip() if self._ask_name else ""
+        self.emit("chosen", self._picked[0], self._picked[1], name)
         self.close()
 
 
 def ask_for_place(parent, title: str, photos: int, on_chosen,
                   start: tuple[float, float] | None = None,
-                  replacing: int = 0) -> None:
+                  replacing: int = 0, ask_name: bool = False, on_named=None) -> None:
     """Open the picker for ``photos`` photos and call back with the
     coordinates if a place is settled on. ``replacing`` is how many of
     them already have a place, which this one will take over."""
@@ -240,6 +310,9 @@ def ask_for_place(parent, title: str, photos: int, on_chosen,
             "{count} already on the map will move",
             "{count} already on the map will move",
             replacing).format(count=f"{replacing:,}")
-    dialog = PlaceDialog(title, subtitle, start)
-    dialog.connect("chosen", lambda _d, lat, lon: on_chosen(lat, lon))
+    dialog = PlaceDialog(title, subtitle, start, ask_name)
+    dialog.connect("chosen", lambda _d, lat, lon, name:
+                   on_chosen(lat, lon, name) if ask_name else on_chosen(lat, lon))
+    if on_named is not None:
+        dialog.connect("named", lambda _d, name: on_named(name))
     dialog.present(parent)

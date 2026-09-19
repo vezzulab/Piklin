@@ -2715,19 +2715,36 @@ class MainWindow(Adw.ApplicationWindow):
         start = ((sum(k[0] for k in known) / len(known),
                   sum(k[1] for k in known) / len(known)) if known else None)
 
-        def chosen(lat, lon):
+        def chosen(lat, lon, name=""):
             self.catalog.set_location(ids, lat, lon)
-            self._show_toast(ngettext(
-                "Placed {count} photo on the map",
-                "Placed {count} photos on the map",
-                len(ids)).format(count=f"{len(ids):,}"))
+            if name:
+                self.catalog.set_group_name(ids, name)
+            self._show_toast(
+                _("Placed in “{name}”").format(name=name) if name else ngettext(
+                    "Placed {count} photo on the map",
+                    "Placed {count} photos on the map",
+                    len(ids)).format(count=f"{len(ids):,}"))
+            self._refresh()
+            self._mirror_state()
+
+        def named(name):
+            self.catalog.set_group_name(ids, name)
+            self._show_toast(_("Grouped as “{name}”").format(name=name))
             self._refresh()
             self._mirror_state()
 
         ask_for_place(self, ngettext("Where was this photo taken?",
                                      "Where were these {count} photos taken?",
                                      len(ids)).format(count=f"{len(ids):,}"),
-                      len(ids), chosen, start, len(known))
+                      len(ids), chosen, start, len(known), ask_name=True,
+                      on_named=named)
+
+    def _ungroup_photos(self, ids):
+        """Take photos out of the named group they were placed in. They stay
+        where they are on the map."""
+        self.catalog.set_group_name(ids, None)
+        self._refresh()
+        self._mirror_state()
 
     def _on_map_album(self, _view, album_id):
         """A pin's album opens in full, with a way back to the map."""
@@ -3432,6 +3449,9 @@ class MainWindow(Adw.ApplicationWindow):
         all_fav = bool(self.catalog.scalar(
             f"SELECT MIN(favorite) FROM photos WHERE id IN ({marks})", ids, 0))
         n_sel = len(ids)
+        grouped = bool(self.catalog.scalar(
+            f"SELECT COUNT(*) FROM photos WHERE id IN ({marks}) "
+            f"AND place_name IS NOT NULL", ids, 0))
         if self._scope == "hidden":
             hide_label = _("Unhide") if single else _("Unhide {count} Photos").format(count=n_sel)
         else:
@@ -3455,6 +3475,8 @@ class MainWindow(Adw.ApplicationWindow):
               else _("Place {count} Photos on Map…").format(count=n_sel), None,
               lambda: self._place_photos(ids))]
             if self.map_view is not None else [],
+            [("ungroup", _("Remove from Group"), None,
+              lambda: self._ungroup_photos(ids))] if grouped else [],
             [("export", export_label, "<Primary>e",
               lambda: self._on_bulk_export(None))],
             [("cover", _("Make Album Cover"), None,
