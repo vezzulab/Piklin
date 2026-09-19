@@ -1,17 +1,33 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-lang="en">
 <head>
 <meta charset="utf-8">
+<script>(function(){var l="en";try{l=localStorage.getItem("piklin-lang")||""}catch(e){}if(l!=="en"&&l!=="es")l=/^es/i.test(navigator.language||"")?"es":"en";var h=document.documentElement;h.setAttribute("data-lang",l);h.lang=l})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Piklin — your photos on a map</title>
 <meta name="description" content="A free, private photo and video library for Linux and Mac. Open the map, see everywhere you have been, and travel through your memories by place. Your coordinates never leave your computer.">
-<meta property="og:title" content="Piklin 2.0 — your photos and videos, on a map">
-<meta property="og:description" content="A free, private photo and video library for Linux and Mac. Your coordinates never leave your computer.">
-<meta property="og:image" content="https://vezzulab.github.io/Piklin/screenshots/hero.png">
+<meta property="og:site_name" content="Piklin">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://vezzulab.github.io/Piklin/">
+<meta property="og:title" content="Piklin 2.0 — your photos, on a map · tus fotos, en un mapa">
+<meta property="og:description" content="Free and private photo and video library for Linux and Mac. Your coordinates never leave your computer. · Biblioteca gratis y privada de fotos y videos para Linux y Mac.">
+<meta property="og:image" content="https://vezzulab.github.io/Piklin/screenshots/social.png">
+<meta property="og:image:secure_url" content="https://vezzulab.github.io/Piklin/screenshots/social.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Piklin 2.0: your photos on a world map with red pins">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Piklin 2.0 — your photos, on a map">
+<meta name="twitter:description" content="Free and private photo and video library for Linux and Mac.">
+<meta name="twitter:image" content="https://vezzulab.github.io/Piklin/screenshots/social.png">
 <link rel="icon" href="icon.png">
 <style>
+.l{display:none}html[data-lang=en] .l.en,html[data-lang=es] .l.es{display:inline}
+.hero img.banner.l{display:none}html[data-lang=en] .hero img.banner.l.en,html[data-lang=es] .hero img.banner.l.es{display:block}
+.lang{display:inline-flex;margin-left:22px;border:1px solid #ffffff44;border-radius:999px;overflow:hidden;vertical-align:middle}
+.lang button{background:none;border:0;color:#c9c9c9;font:600 12px/1 inherit;letter-spacing:.06em;padding:8px 12px;cursor:pointer}
+.lang button[aria-pressed=true]{background:#fff;color:#050505}
 :root{--ink:#0b0b0b;--paper:#fff;--soft:#f4f4f5;--line:#e4e4e7;--mute:#6b6b72;--max:1080px}
 *{box-sizing:border-box;margin:0}
 html{scroll-behavior:smooth}
@@ -58,7 +74,7 @@ footer{padding:44px 0;border-top:1px solid var(--line);color:var(--mute);font-si
 footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px}
 footer a{margin-left:18px;text-decoration:none}
 footer a:hover{color:var(--ink)}
-@media(max-width:820px){.grid{grid-template-columns:1fr}.two{grid-template-columns:1fr}section{padding:60px 0}nav div a:not(:last-child){display:none}th:nth-child(3),td.what{display:none}}
+@media(max-width:820px){.grid{grid-template-columns:1fr}.two{grid-template-columns:1fr}section{padding:60px 0}nav div a:not(:last-of-type){display:none}.lang{margin-left:12px}th:nth-child(3),td.what{display:none}}
 </style>
 </head>
 <body>
@@ -67,43 +83,44 @@ footer a:hover{color:var(--ink)}
   <div class="wrap">
     <nav>
       <b>PIKLIN</b>
-      <div><a href="#map">The map</a><a href="#features">Features</a><a href="#download">Download</a><a href="https://github.com/vezzulab/Piklin">GitHub</a></div>
+      <div><a href="#map"><span class="l en">The map</span><span class="l es">El mapa</span></a><a href="#features"><span class="l en">Features</span><span class="l es">Funciones</span></a><a href="#download"><span class="l en">Download</span><span class="l es">Descargar</span></a><a href="https://github.com/vezzulab/Piklin">GitHub</a><span class="lang" role="group" aria-label="Language"><button type="button" data-set="en">EN</button><button type="button" data-set="es">ES</button></span></div>
     </nav>
-    <img class="banner" src="screenshots/hero.png" alt="Piklin 2.0 — your photos and videos, on a map">
-    <h1>Every place you have been, one map away.</h1>
-    <p class="sub">A free photo and video library for Linux and Mac. Your photos never leave your computer, and neither do their coordinates.</p>
+    <img class="banner l en" src="screenshots/hero.png" alt="Piklin 2.0 — your photos and videos, on a map">
+    <img class="banner l es" src="screenshots/hero-es.png" alt="Piklin 2.0 — tus fotos y videos, en un mapa">
+    <h1><span class="l en">Every place you have been, one map away.</span><span class="l es">Cada lugar donde has estado, a un mapa de distancia.</span></h1>
+    <p class="sub"><span class="l en">A free photo and video library for Linux and Mac. Your photos never leave your computer, and neither do their coordinates.</span><span class="l es">Una biblioteca de fotos y videos gratis para Linux y Mac. Tus fotos no salen de tu computadora, ni sus coordenadas tampoco.</span></p>
     <div class="btns">
-      <a class="btn primary" id="dl-main" href="https://github.com/vezzulab/Piklin/releases/latest">Download Piklin</a>
-      <a class="btn" href="#download">All downloads</a>
+      <a class="btn primary" id="dl-main" href="https://github.com/vezzulab/Piklin/releases/latest"><span id="dl-main-t"><span class="l en">Download Piklin</span><span class="l es">Descargar Piklin</span></span></a>
+      <a class="btn" href="#download"><span class="l en">All downloads</span><span class="l es">Todas las descargas</span></a>
     </div>
-    <p class="note" id="dl-note">Free for any use · Linux and macOS · <span id="dl-version">version 2.0.0</span></p>
+    <p class="note" id="dl-note"><span class="l en">Free for any use · Linux and macOS · version </span><span class="l es">Gratis para cualquier uso · Linux y macOS · versión </span><span id="dl-version">2.0.0</span></p>
   </div>
 </header>
 
 <section id="map" class="center">
   <div class="wrap">
-    <h2>The map is the way into your library.</h2>
-    <p class="lead">Open it and see everywhere you have been, as pins. Rest on a pin and its albums slide in beside the map. Zoom from a country to a city to a street corner.</p>
+    <h2><span class="l en">The map is the way into your library.</span><span class="l es">El mapa es la puerta a tu biblioteca.</span></h2>
+    <p class="lead"><span class="l en">Open it and see everywhere you have been, as pins. Rest on a pin and its albums slide in beside the map. Zoom from a country to a city to a street corner.</span><span class="l es">Ábrelo y verás todos los lugares donde has estado, como pines. Detente sobre un pin y sus álbumes aparecen junto al mapa. Acerca de un país a una ciudad y a una esquina.</span></p>
     <img class="shot" src="screenshots/map.png" alt="Piklin's map, with a pin for every place in the library" loading="lazy">
     <div class="grid">
-      <div class="card"><h3>Say where you were</h3><p>Most photos carry no location. Right-click an album, type the place, and every photo in it lands on the map at once. Thousands of photos in a few clicks.</p></div>
-      <div class="card"><h3>Named without asking anyone</h3><p>Piklin carries a list of the world's towns on your own disk. Turning a pin into a city name never sends a coordinate anywhere.</p></div>
-      <div class="card"><h3>Countries and cities, counted</h3><p>See how many countries and places you have visited, with the cities listed inside each country.</p></div>
+      <div class="card"><h3><span class="l en">Say where you were</span><span class="l es">Di dónde estuviste</span></h3><p><span class="l en">Most photos carry no location. Right-click an album, type the place, and every photo in it lands on the map at once. Thousands of photos in a few clicks.</span><span class="l es">La mayoría de las fotos no traen ubicación. Haz clic derecho en un álbum, escribe el lugar y todas sus fotos caen en el mapa a la vez. Miles de fotos en unos pocos clics.</span></p></div>
+      <div class="card"><h3><span class="l en">Named without asking anyone</span><span class="l es">Nombrados sin preguntarle a nadie</span></h3><p><span class="l en">Piklin carries a list of the world's towns on your own disk. Turning a pin into a city name never sends a coordinate anywhere.</span><span class="l es">Piklin lleva una lista de los pueblos del mundo en tu propio disco. Convertir un pin en el nombre de una ciudad nunca envía una coordenada a ninguna parte.</span></p></div>
+      <div class="card"><h3><span class="l en">Countries and cities, counted</span><span class="l es">Países y ciudades, contados</span></h3><p><span class="l en">See how many countries and places you have visited, with the cities listed inside each country.</span><span class="l es">Mira cuántos países y lugares has visitado, con las ciudades listadas dentro de cada país.</span></p></div>
     </div>
   </div>
 </section>
 
 <section id="features" class="alt center">
   <div class="wrap">
-    <h2>A whole photo studio, and it stays yours.</h2>
-    <p class="lead">Organize, edit and share your memories without an account, a subscription or a cloud.</p>
+    <h2><span class="l en">A whole photo studio, and it stays yours.</span><span class="l es">Un estudio de fotos completo, y sigue siendo tuyo.</span></h2>
+    <p class="lead"><span class="l en">Organize, edit and share your memories without an account, a subscription or a cloud.</span><span class="l es">Organiza, edita y comparte tus recuerdos sin cuenta, sin suscripción y sin nube.</span></p>
     <div class="grid" style="margin-top:0">
-      <div class="card"><h3>Made for big libraries</h3><p>Tested with 150,000 photos on a normal computer. Browsing stays instant, and Piklin stays light on memory.</p></div>
-      <div class="card"><h3>RAW photos and video</h3><p>22 RAW formats from Nikon, Canon, Sony and more, plus a full video player and editor.</p></div>
-      <div class="card"><h3>Edit without fear</h3><p>Tune, curves, looks, crop and perspective. Your originals are never touched.</p></div>
-      <div class="card"><h3>Make photos smaller, safely</h3><p>Free up disk space with compression that checks the result looks the same as the original.</p></div>
-      <div class="card"><h3>Backups that match exactly</h3><p>Back up to a drive, a NAS or a cloud you own. A restore returns your library exactly as it was.</p></div>
-      <div class="card"><h3>Import from anywhere</h3><p>Cameras, iPhones and iPads, folders and drives, on Linux and on Mac.</p></div>
+      <div class="card"><h3><span class="l en">Made for big libraries</span><span class="l es">Hecho para bibliotecas grandes</span></h3><p><span class="l en">Tested with 150,000 photos on a normal computer. Browsing stays instant, and Piklin stays light on memory.</span><span class="l es">Probado con 150,000 fotos en una computadora normal. Navegar sigue siendo instantáneo y Piklin gasta poca memoria.</span></p></div>
+      <div class="card"><h3><span class="l en">RAW photos and video</span><span class="l es">Fotos RAW y video</span></h3><p><span class="l en">22 RAW formats from Nikon, Canon, Sony and more, plus a full video player and editor.</span><span class="l es">22 formatos RAW de Nikon, Canon, Sony y más, además de un reproductor y editor de video completos.</span></p></div>
+      <div class="card"><h3><span class="l en">Edit without fear</span><span class="l es">Edita sin miedo</span></h3><p><span class="l en">Tune, curves, looks, crop and perspective. Your originals are never touched.</span><span class="l es">Ajustes, curvas, estilos, recorte y perspectiva. Tus originales nunca se tocan.</span></p></div>
+      <div class="card"><h3><span class="l en">Make photos smaller, safely</span><span class="l es">Reduce el tamaño de las fotos, sin riesgo</span></h3><p><span class="l en">Free up disk space with compression that checks the result looks the same as the original.</span><span class="l es">Libera espacio en el disco con una compresión que comprueba que el resultado se ve igual que el original.</span></p></div>
+      <div class="card"><h3><span class="l en">Backups that match exactly</span><span class="l es">Respaldos idénticos al original</span></h3><p><span class="l en">Back up to a drive, a NAS or a cloud you own. A restore returns your library exactly as it was.</span><span class="l es">Respalda en un disco, un NAS o una nube tuya. Al restaurar, tu biblioteca vuelve exactamente como estaba.</span></p></div>
+      <div class="card"><h3><span class="l en">Import from anywhere</span><span class="l es">Importa desde cualquier lugar</span></h3><p><span class="l en">Cameras, iPhones and iPads, folders and drives, on Linux and on Mac.</span><span class="l es">Cámaras, iPhones y iPads, carpetas y discos, en Linux y en Mac.</span></p></div>
     </div>
     <div class="two">
       <img class="shot" src="screenshots/editor.png" alt="The Piklin photo editor" loading="lazy">
@@ -114,33 +131,52 @@ footer a:hover{color:var(--ink)}
 
 <section id="download" class="center">
   <div class="wrap">
-    <h2>Download Piklin</h2>
-    <p class="lead">Find your computer and download one file. The buttons above pick the right one for you.</p>
+    <span class="l en"><h2><span class="l en">Download Piklin</span><span class="l es">Descarga Piklin</span></h2></span><span class="l es"><h2>Descarga Piklin</h2></span>
+    <p class="lead"><span class="l en">Find your computer and download one file. The buttons above pick the right one for you.</span><span class="l es">Busca tu computadora y descarga un archivo. Los botones de arriba eligen el correcto por ti.</span></p>
     <table>
-      <thead><tr><th>Your computer</th><th>File</th><th>What it is</th></tr></thead>
+      <thead><tr><th><span class="l en">Your computer</span><span class="l es">Tu computadora</span></th><th><span class="l en">File</span><span class="l es">Archivo</span></th><th><span class="l en">What it is</span><span class="l es">Qué es</span></th></tr></thead>
       <tbody id="dl-rows">
-        <tr><td>🍎 Mac — Apple Silicon and Intel</td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">Piklin .dmg</a></td><td class="what">Open it and drag Piklin to Applications</td></tr>
-        <tr><td>🐧 Linux PC — Intel or AMD</td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">piklin .deb</a></td><td class="what">Installer for Ubuntu, Mint and Debian</td></tr>
-        <tr><td>🐧 Linux PC — Intel or AMD</td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">Piklin AppImage</a></td><td class="what">Runs without installing; works on Fedora too</td></tr>
-        <tr><td>🐧 Linux ARM — 64-bit</td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">piklin arm64 .deb</a></td><td class="what">Installer for Ubuntu and Debian</td></tr>
-        <tr><td>🐧 Linux ARM — 64-bit</td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">Piklin aarch64 AppImage</a></td><td class="what">Runs without installing; works on Fedora too</td></tr>
+        <tr><td><span class="l en">🍎 Mac — Apple Silicon and Intel</span><span class="l es">🍎 Mac — Apple Silicon e Intel</span></td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">Piklin .dmg</a></td><td class="what"><span class="l en">Open it and drag Piklin to Applications</span><span class="l es">Ábrelo y arrastra Piklin a Aplicaciones</span></td></tr>
+        <tr><td><span class="l en">🐧 Linux PC — Intel or AMD</span><span class="l es">🐧 PC con Linux — Intel o AMD</span></td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">piklin .deb</a></td><td class="what"><span class="l en">Installer for Ubuntu, Mint and Debian</span><span class="l es">Instalador para Ubuntu, Mint y Debian</span></td></tr>
+        <tr><td><span class="l en">🐧 Linux PC — Intel or AMD</span><span class="l es">🐧 PC con Linux — Intel o AMD</span></td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">Piklin AppImage</a></td><td class="what"><span class="l en">Runs without installing; works on Fedora too</span><span class="l es">Funciona sin instalar; también en Fedora</span></td></tr>
+        <tr><td><span class="l en">🐧 Linux ARM — 64-bit</span><span class="l es">🐧 Linux ARM — 64 bits</span></td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">piklin arm64 .deb</a></td><td class="what"><span class="l en">Installer for Ubuntu and Debian</span><span class="l es">Instalador para Ubuntu y Debian</span></td></tr>
+        <tr><td><span class="l en">🐧 Linux ARM — 64-bit</span><span class="l es">🐧 Linux ARM — 64 bits</span></td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">Piklin aarch64 AppImage</a></td><td class="what"><span class="l en">Runs without installing; works on Fedora too</span><span class="l es">Funciona sin instalar; también en Fedora</span></td></tr>
       </tbody>
     </table>
-    <p class="note" style="color:var(--mute);margin-top:22px;font-size:14.5px">Mac needs macOS 11 Big Sur or newer. The Mac app is not signed by Apple: the first time, right-click Piklin and choose Open. Every download is signed, and Piklin checks that signature before it updates itself.</p>
+    <p class="note" style="color:var(--mute);margin-top:22px;font-size:14.5px"><span class="l en">Mac needs macOS 11 Big Sur or newer. The Mac app is not signed by Apple: the first time, right-click Piklin and choose Open. Every download is signed, and Piklin checks that signature before it updates itself.</span><span class="l es">El Mac necesita macOS 11 Big Sur o más nuevo. La app de Mac no está firmada por Apple: la primera vez, haz clic derecho sobre Piklin y elige Abrir. Cada descarga está firmada, y Piklin comprueba esa firma antes de actualizarse.</span></p>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <span>© Vezzu Studio · Piklin is free for any use. <a href="https://github.com/vezzulab/Piklin/blob/main/LICENSE" style="margin-left:0">License</a></span>
-    <span><a href="https://github.com/vezzulab/Piklin">GitHub</a><a href="https://github.com/vezzulab/Piklin/releases">Releases</a><a href="https://ko-fi.com/vezzustudio">Support on Ko-fi</a></span>
+    <span>© Vezzu Studio · <span class="l en">Piklin is free for any use.</span><span class="l es">Piklin es gratis para cualquier uso.</span> <a href="https://github.com/vezzulab/Piklin/blob/main/LICENSE" style="margin-left:0"><span class="l en">License</span><span class="l es">Licencia</span></a></span>
+    <span><a href="https://github.com/vezzulab/Piklin">GitHub</a><a href="https://github.com/vezzulab/Piklin/releases">Releases</a><a href="https://ko-fi.com/vezzustudio"><span class="l en">Support on Ko-fi</span><span class="l es">Apoya en Ko-fi</span></a></span>
   </div>
 </footer>
 
 <script>
-// Picks the right download for this visitor. The only request made is to
-// GitHub for the list of files in the latest release; nothing is sent about you.
 (function () {
+// Language: the choice is remembered on this device only.
+  var T = {
+    en: { title: "Piklin — your photos on a map", mac: "Download for Mac", lin: "Download for Linux", arm: "Download for Linux ARM" },
+    es: { title: "Piklin — tus fotos en un mapa", mac: "Descargar para Mac", lin: "Descargar para Linux", arm: "Descargar para Linux ARM" }
+  };
+  function setLang(l) {
+    var h = document.documentElement; h.setAttribute("data-lang", l); h.lang = l;
+    document.title = T[l].title;
+    try { localStorage.setItem("piklin-lang", l); } catch (e) {}
+    Array.prototype.forEach.call(document.querySelectorAll(".lang button"), function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-set") === l); });
+    var t = document.getElementById("dl-main-t"); if (t && t.getAttribute("data-kind")) label(t.getAttribute("data-kind"));
+  }
+  function label(kind) {
+    var t = document.getElementById("dl-main-t"); t.setAttribute("data-kind", kind);
+    ["en", "es"].forEach(function (l) { t.querySelector(".l." + l).textContent = T[l][kind]; });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".lang button"), function (b) { b.addEventListener("click", function () { setLang(b.getAttribute("data-set")); }); });
+  setLang(document.documentElement.getAttribute("data-lang"));
+
+  // Picks the right download for this visitor. The only request made is to
+  // GitHub for the list of files in the latest release; nothing is sent about you.
   var ua = navigator.userAgent || "", plat = navigator.platform || "";
   var mac = /Mac/i.test(plat) || /Mac OS X/i.test(ua);
   var arm = /aarch64|arm64|armv8/i.test(ua + plat);
@@ -156,9 +192,8 @@ footer a:hover{color:var(--ink)}
         else if (/aarch64\.AppImage$/.test(a.name)) by.armai = a;
       });
       var pick = mac ? by.mac : (arm ? by.armdeb : by.deb);
-      var label = mac ? "Download for Mac" : (arm ? "Download for Linux ARM" : "Download for Linux");
-      if (pick) { var b = document.getElementById("dl-main"); b.href = pick.browser_download_url; b.textContent = label; }
-      document.getElementById("dl-version").textContent = "version " + rel.tag_name.replace(/^v/, "");
+      if (pick) { document.getElementById("dl-main").href = pick.browser_download_url; label(mac ? "mac" : (arm ? "arm" : "lin")); }
+      document.getElementById("dl-version").textContent = rel.tag_name.replace(/^v/, "");
       var rows = document.querySelectorAll("#dl-rows tr"), order = [by.mac, by.deb, by.ai, by.armdeb, by.armai];
       order.forEach(function (a, i) {
         if (!a || !rows[i]) return;
