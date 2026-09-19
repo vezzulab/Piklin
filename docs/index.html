@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piklin — your photos on a map</title>
+<meta name="description" content="A free, private photo and video library for Linux and Mac. Open the map, see everywhere you have been, and travel through your memories by place. Your coordinates never leave your computer.">
+<meta property="og:title" content="Piklin 2.0 — your photos and videos, on a map">
+<meta property="og:description" content="A free, private photo and video library for Linux and Mac. Your coordinates never leave your computer.">
+<meta property="og:image" content="https://vezzulab.github.io/Piklin/screenshots/hero.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="icon.png">
+<style>
+:root{--ink:#0b0b0b;--paper:#fff;--soft:#f4f4f5;--line:#e4e4e7;--mute:#6b6b72;--max:1080px}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,"Inter","Helvetica Neue",Arial,sans-serif;color:var(--ink);background:var(--paper);line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+.center{text-align:center}
+/* hero */
+.hero{background:#050505;color:#fff;padding:28px 0 84px;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 60% 55% at 50% 40%,#262626 0%,#050505 70%)}
+.hero .wrap{position:relative}
+nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:56px;font-size:15px}
+nav b{letter-spacing:.32em;font-weight:600;font-size:15px}
+nav div a{margin-left:22px;text-decoration:none;color:#c9c9c9}
+nav div a:hover{color:#fff}
+.hero img.banner{width:100%;max-width:880px;display:block;margin:0 auto 40px;border-radius:14px;box-shadow:0 30px 80px #000a}
+h1{font-size:clamp(30px,5vw,52px);font-weight:600;letter-spacing:-.02em;line-height:1.1;max-width:780px;margin:0 auto 18px}
+.sub{font-size:clamp(17px,2vw,20px);color:#bdbdbd;max-width:640px;margin:0 auto 34px}
+.btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:15px 28px;border-radius:999px;font-weight:600;font-size:16px;text-decoration:none;border:1px solid #ffffff55;color:#fff;transition:transform .15s,background .15s}
+.btn:hover{transform:translateY(-1px);background:#ffffff14}
+.btn.primary{background:#fff;color:#050505;border-color:#fff}
+.btn.primary:hover{background:#ececec}
+.note{margin-top:16px;font-size:14px;color:#8d8d94}
+/* sections */
+section{padding:88px 0}
+section.alt{background:var(--soft)}
+h2{font-size:clamp(26px,3.6vw,38px);letter-spacing:-.02em;line-height:1.15;margin-bottom:16px}
+.lead{font-size:19px;color:var(--mute);max-width:680px;margin:0 auto 44px}
+.shot{width:100%;border-radius:14px;border:1px solid var(--line);box-shadow:0 24px 60px #0000001f;display:block}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:44px;text-align:left}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px}
+.alt .card{background:#fff}
+.card h3{font-size:18px;margin-bottom:8px;letter-spacing:-.01em}
+.card p{color:var(--mute);font-size:15.5px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:44px}
+/* downloads */
+table{width:100%;border-collapse:collapse;margin-top:36px;text-align:left;font-size:16px}
+th,td{padding:16px 14px;border-bottom:1px solid var(--line)}
+th{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);font-weight:600}
+td a{font-weight:600}
+td.what{color:var(--mute);font-size:15px}
+footer{padding:44px 0;border-top:1px solid var(--line);color:var(--mute);font-size:14.5px}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px}
+footer a{margin-left:18px;text-decoration:none}
+footer a:hover{color:var(--ink)}
+@media(max-width:820px){.grid{grid-template-columns:1fr}.two{grid-template-columns:1fr}section{padding:60px 0}nav div a:not(:last-child){display:none}th:nth-child(3),td.what{display:none}}
+</style>
+</head>
+<body>
+
+<header class="hero center">
+  <div class="wrap">
+    <nav>
+      <b>PIKLIN</b>
+      <div><a href="#map">The map</a><a href="#features">Features</a><a href="#download">Download</a><a href="https://github.com/vezzulab/Piklin">GitHub</a></div>
+    </nav>
+    <img class="banner" src="screenshots/hero.png" alt="Piklin 2.0 — your photos and videos, on a map">
+    <h1>Every place you have been, one map away.</h1>
+    <p class="sub">A free photo and video library for Linux and Mac. Your photos never leave your computer, and neither do their coordinates.</p>
+    <div class="btns">
+      <a class="btn primary" id="dl-main" href="https://github.com/vezzulab/Piklin/releases/latest">Download Piklin</a>
+      <a class="btn" href="#download">All downloads</a>
+    </div>
+    <p class="note" id="dl-note">Free for any use · Linux and macOS · <span id="dl-version">version 2.0.0</span></p>
+  </div>
+</header>
+
+<section id="map" class="center">
+  <div class="wrap">
+    <h2>The map is the way into your library.</h2>
+    <p class="lead">Open it and see everywhere you have been, as pins. Rest on a pin and its albums slide in beside the map. Zoom from a country to a city to a street corner.</p>
+    <img class="shot" src="screenshots/map.png" alt="Piklin's map, with a pin for every place in the library" loading="lazy">
+    <div class="grid">
+      <div class="card"><h3>Say where you were</h3><p>Most photos carry no location. Right-click an album, type the place, and every photo in it lands on the map at once. Thousands of photos in a few clicks.</p></div>
+      <div class="card"><h3>Named without asking anyone</h3><p>Piklin carries a list of the world's towns on your own disk. Turning a pin into a city name never sends a coordinate anywhere.</p></div>
+      <div class="card"><h3>Countries and cities, counted</h3><p>See how many countries and places you have visited, with the cities listed inside each country.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="alt center">
+  <div class="wrap">
+    <h2>A whole photo studio, and it stays yours.</h2>
+    <p class="lead">Organize, edit and share your memories without an account, a subscription or a cloud.</p>
+    <div class="grid" style="margin-top:0">
+      <div class="card"><h3>Made for big libraries</h3><p>Tested with 150,000 photos on a normal computer. Browsing stays instant, and Piklin stays light on memory.</p></div>
+      <div class="card"><h3>RAW photos and video</h3><p>22 RAW formats from Nikon, Canon, Sony and more, plus a full video player and editor.</p></div>
+      <div class="card"><h3>Edit without fear</h3><p>Tune, curves, looks, crop and perspective. Your originals are never touched.</p></div>
+      <div class="card"><h3>Make photos smaller, safely</h3><p>Free up disk space with compression that checks the result looks the same as the original.</p></div>
+      <div class="card"><h3>Backups that match exactly</h3><p>Back up to a drive, a NAS or a cloud you own. A restore returns your library exactly as it was.</p></div>
+      <div class="card"><h3>Import from anywhere</h3><p>Cameras, iPhones and iPads, folders and drives, on Linux and on Mac.</p></div>
+    </div>
+    <div class="two">
+      <img class="shot" src="screenshots/editor.png" alt="The Piklin photo editor" loading="lazy">
+      <img class="shot" src="screenshots/video-editor.png" alt="The Piklin video editor" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<section id="download" class="center">
+  <div class="wrap">
+    <h2>Download Piklin</h2>
+    <p class="lead">Find your computer and download one file. The buttons above pick the right one for you.</p>
+    <table>
+      <thead><tr><th>Your computer</th><th>File</th><th>What it is</th></tr></thead>
+      <tbody id="dl-rows">
+        <tr><td>🍎 Mac — Apple Silicon and Intel</td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">Piklin .dmg</a></td><td class="what">Open it and drag Piklin to Applications</td></tr>
+        <tr><td>🐧 Linux PC — Intel or AMD</td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">piklin .deb</a></td><td class="what">Installer for Ubuntu, Mint and Debian</td></tr>
+        <tr><td>🐧 Linux PC — Intel or AMD</td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">Piklin AppImage</a></td><td class="what">Runs without installing; works on Fedora too</td></tr>
+        <tr><td>🐧 Linux ARM — 64-bit</td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">piklin arm64 .deb</a></td><td class="what">Installer for Ubuntu and Debian</td></tr>
+        <tr><td>🐧 Linux ARM — 64-bit</td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">Piklin aarch64 AppImage</a></td><td class="what">Runs without installing; works on Fedora too</td></tr>
+      </tbody>
+    </table>
+    <p class="note" style="color:var(--mute);margin-top:22px;font-size:14.5px">Mac needs macOS 11 Big Sur or newer. The Mac app is not signed by Apple: the first time, right-click Piklin and choose Open. Every download is signed, and Piklin checks that signature before it updates itself.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© Vezzu Studio · Piklin is free for any use. <a href="https://github.com/vezzulab/Piklin/blob/main/LICENSE" style="margin-left:0">License</a></span>
+    <span><a href="https://github.com/vezzulab/Piklin">GitHub</a><a href="https://github.com/vezzulab/Piklin/releases">Releases</a><a href="https://ko-fi.com/vezzustudio">Support on Ko-fi</a></span>
+  </div>
+</footer>
+
+<script>
+// Picks the right download for this visitor. The only request made is to
+// GitHub for the list of files in the latest release; nothing is sent about you.
+(function () {
+  var ua = navigator.userAgent || "", plat = navigator.platform || "";
+  var mac = /Mac/i.test(plat) || /Mac OS X/i.test(ua);
+  var arm = /aarch64|arm64|armv8/i.test(ua + plat);
+  fetch("https://api.github.com/repos/vezzulab/Piklin/releases/latest")
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+    .then(function (rel) {
+      var by = {};
+      rel.assets.forEach(function (a) {
+        if (/\.dmg$/.test(a.name)) by.mac = a;
+        else if (/_amd64\.deb$/.test(a.name)) by.deb = a;
+        else if (/_arm64\.deb$/.test(a.name)) by.armdeb = a;
+        else if (/x86_64\.AppImage$/.test(a.name)) by.ai = a;
+        else if (/aarch64\.AppImage$/.test(a.name)) by.armai = a;
+      });
+      var pick = mac ? by.mac : (arm ? by.armdeb : by.deb);
+      var label = mac ? "Download for Mac" : (arm ? "Download for Linux ARM" : "Download for Linux");
+      if (pick) { var b = document.getElementById("dl-main"); b.href = pick.browser_download_url; b.textContent = label; }
+      document.getElementById("dl-version").textContent = "version " + rel.tag_name.replace(/^v/, "");
+      var rows = document.querySelectorAll("#dl-rows tr"), order = [by.mac, by.deb, by.ai, by.armdeb, by.armai];
+      order.forEach(function (a, i) {
+        if (!a || !rows[i]) return;
+        var link = rows[i].querySelector("a"); link.href = a.browser_download_url; link.textContent = a.name;
+      });
+    })
+    .catch(function () {});
+})();
+</script>
+</body>
+</html>
