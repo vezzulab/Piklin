@@ -1543,6 +1543,10 @@ ES = {
     "The least room possible. Photos are also made smaller in size, so this is for keeping memories, not for printing them.":
         "El menor espacio posible. Además las fotos se hacen de menor tamaño, así que es para guardar recuerdos, no para imprimirlos.",
 
+    # -- export: picking a folder ----------------------------------------------
+    "Choose Another Folder…": "Elegir otra carpeta…",
+    "Choose where to export": "Elige dónde exportar",
+
 }
 
 

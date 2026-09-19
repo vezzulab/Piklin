@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-19 15:42-0400\n"
+"POT-Creation-Date: 2026-09-19 15:44-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2251,7 +2251,7 @@ msgstr ""
 msgid "Export Creation"
 msgstr ""
 
-#: piklin/ui/creation_view.py:589 piklin/ui/export_dialog.py:369
+#: piklin/ui/creation_view.py:589 piklin/ui/export_dialog.py:395
 msgid "Exporting…"
 msgstr ""
 
@@ -2384,7 +2384,7 @@ msgid ""
 msgstr ""
 
 #: piklin/ui/editor.py:867 piklin/ui/export_dialog.py:205
-#: piklin/ui/export_dialog.py:318 piklin/ui/place_dialog.py:93
+#: piklin/ui/export_dialog.py:344 piklin/ui/place_dialog.py:93
 #: piklin/ui/rename_dialog.py:43 piklin/ui/settings_dialog.py:602
 #: piklin/ui/settings_dialog.py:619 piklin/ui/settings_dialog.py:673
 #: piklin/ui/settings_dialog.py:866 piklin/ui/settings_dialog.py:1065
@@ -2608,31 +2608,41 @@ msgstr ""
 msgid "Choose where the exported photos should go."
 msgstr ""
 
-#: piklin/ui/export_dialog.py:315
+#. Any other folder is picked in the system's own chooser, as anywhere
+#. else in Piklin: nobody should have to know a path by heart.
+#: piklin/ui/export_dialog.py:317
+msgid "Choose Another Folder…"
+msgstr ""
+
+#: piklin/ui/export_dialog.py:321
 msgid "…or type another folder path"
 msgstr ""
 
-#: piklin/ui/export_dialog.py:319
+#: piklin/ui/export_dialog.py:326
+msgid "Choose where to export"
+msgstr ""
+
+#: piklin/ui/export_dialog.py:345
 msgid "Use Folder"
 msgstr ""
 
-#: piklin/ui/export_dialog.py:483
+#: piklin/ui/export_dialog.py:509
 msgid "Exporting originals…"
 msgstr ""
 
-#: piklin/ui/export_dialog.py:509
+#: piklin/ui/export_dialog.py:535
 #, python-brace-format
 msgid "Exported {count} item"
 msgid_plural "Exported {count} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: piklin/ui/export_dialog.py:511
+#: piklin/ui/export_dialog.py:537
 #, python-brace-format
 msgid "to {folder}"
 msgstr ""
 
-#: piklin/ui/export_dialog.py:515 piklin/ui/settings_dialog.py:1171
+#: piklin/ui/export_dialog.py:541 piklin/ui/settings_dialog.py:1171
 #: piklin/ui/settings_dialog.py:1244
 #, python-brace-format
 msgid "{count} failed"

@@ -271,9 +271,9 @@ class ExportDialog(Adw.Dialog):
     def _on_choose_dest(self, _btn):
         """Pick a destination without leaving the window.
 
-        The system folder chooser is a separate toplevel; exporting is
-        part of the editing flow, which stays inside the app.  The common
-        destinations are offered directly and anything else can be typed.
+        The common destinations are offered right here, so exporting stays
+        inside the editing flow; any other folder is chosen in the system's
+        folder chooser, or typed.
         """
         import os
         home = Path.home()
@@ -312,9 +312,35 @@ class ExportDialog(Adw.Dialog):
             group.add(row)
         box.append(group)
 
+        # Any other folder is picked in the system's own chooser, as anywhere
+        # else in Piklin: nobody should have to know a path by heart.
+        browse = Gtk.Button(label=_("Choose Another Folder…"),
+                            halign=Gtk.Align.FILL)
+        browse.add_css_class("pika-choose-folder")
+        box.append(browse)
         custom = Gtk.Entry(placeholder_text=_("…or type another folder path"))
         box.append(custom)
         dialog.set_extra_child(box)
+
+        def on_browse(_b):
+            chooser = Gtk.FileDialog(title=_("Choose where to export"), modal=True)
+            start = Path(custom.get_text().strip() or selected["path"]).expanduser()
+            if start.is_dir():
+                chooser.set_initial_folder(Gio.File.new_for_path(str(start)))
+
+            def picked(dlg, result):
+                try:
+                    folder = dlg.select_folder_finish(result)
+                except GLib.Error:
+                    return                      # cancelled
+                path = folder.get_path() if folder else None
+                if not path:
+                    return
+                self.destination = Path(path)
+                self.dest_row.set_subtitle(path)
+                dialog.force_close()
+            chooser.select_folder(self.get_root(), None, picked)
+        browse.connect("clicked", on_browse)
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("use", _("Use Folder"))
         dialog.set_close_response("cancel")

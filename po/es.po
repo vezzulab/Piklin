@@ -2211,7 +2211,7 @@ msgstr "Guardada en tu biblioteca"
 msgid "Export Creation"
 msgstr "Exportar creación"
 
-#: piklin/ui/creation_view.py:589 piklin/ui/export_dialog.py:369
+#: piklin/ui/creation_view.py:589 piklin/ui/export_dialog.py:395
 msgid "Exporting…"
 msgstr "Exportando…"
 
@@ -2344,7 +2344,7 @@ msgid "Your original photo is untouched either way — this just clears the adju
 msgstr "Tu foto original no se toca en ningún caso: esto solo borra los ajustes que le hiciste."
 
 #: piklin/ui/editor.py:867 piklin/ui/export_dialog.py:205
-#: piklin/ui/export_dialog.py:318 piklin/ui/place_dialog.py:93
+#: piklin/ui/export_dialog.py:344 piklin/ui/place_dialog.py:93
 #: piklin/ui/rename_dialog.py:43 piklin/ui/settings_dialog.py:602
 #: piklin/ui/settings_dialog.py:619 piklin/ui/settings_dialog.py:673
 #: piklin/ui/settings_dialog.py:866 piklin/ui/settings_dialog.py:1065
@@ -2565,31 +2565,41 @@ msgstr "Exportar a"
 msgid "Choose where the exported photos should go."
 msgstr "Elige dónde guardar las fotos exportadas."
 
-#: piklin/ui/export_dialog.py:315
+#. Any other folder is picked in the system's own chooser, as anywhere
+#. else in Piklin: nobody should have to know a path by heart.
+#: piklin/ui/export_dialog.py:317
+msgid "Choose Another Folder…"
+msgstr "Elegir otra carpeta…"
+
+#: piklin/ui/export_dialog.py:321
 msgid "…or type another folder path"
 msgstr "…o escribe la ruta de otra carpeta"
 
-#: piklin/ui/export_dialog.py:319
+#: piklin/ui/export_dialog.py:326
+msgid "Choose where to export"
+msgstr "Elige dónde exportar"
+
+#: piklin/ui/export_dialog.py:345
 msgid "Use Folder"
 msgstr "Usar carpeta"
 
-#: piklin/ui/export_dialog.py:483
+#: piklin/ui/export_dialog.py:509
 msgid "Exporting originals…"
 msgstr "Exportando originales…"
 
-#: piklin/ui/export_dialog.py:509
+#: piklin/ui/export_dialog.py:535
 #, python-brace-format
 msgid "Exported {count} item"
 msgid_plural "Exported {count} items"
 msgstr[0] "Se exportó {count} elemento"
 msgstr[1] "Se exportaron {count} elementos"
 
-#: piklin/ui/export_dialog.py:511
+#: piklin/ui/export_dialog.py:537
 #, python-brace-format
 msgid "to {folder}"
 msgstr "a {folder}"
 
-#: piklin/ui/export_dialog.py:515 piklin/ui/settings_dialog.py:1171
+#: piklin/ui/export_dialog.py:541 piklin/ui/settings_dialog.py:1171
 #: piklin/ui/settings_dialog.py:1244
 #, python-brace-format
 msgid "{count} failed"
