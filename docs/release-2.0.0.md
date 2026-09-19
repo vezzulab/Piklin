@@ -68,7 +68,7 @@ Most photographs carry no coordinates at all — a camera without a receiver, a 
 
 ### Places named without asking anyone
 
-Piklin carries a list of the world's towns and reads it from your own disk, so turning a pin into "Santo Domingo" never sends a coordinate anywhere. With no connection the map still names its pins.
+Piklin carries a list of the world's towns and reads it from your own disk, so turning a pin into "Miami" never sends a coordinate anywhere. With no connection the map still names its pins.
 
 Searching for a place by name is the one thing that reaches the network, and only the words you type are sent — never a photograph, a filename or a coordinate of yours.
 
@@ -174,7 +174,7 @@ La mayoría de las fotos no llevan coordenadas: una cámara sin receptor, un tel
 
 #### Lugares con nombre sin preguntarle a nadie
 
-Piklin lleva consigo una lista de los pueblos del mundo y la lee de tu propio disco, así que convertir un pin en "Santo Domingo" no envía ninguna coordenada a ninguna parte. Sin conexión, el mapa sigue nombrando sus pines.
+Piklin lleva consigo una lista de los pueblos del mundo y la lee de tu propio disco, así que convertir un pin en "Miami" no envía ninguna coordenada a ninguna parte. Sin conexión, el mapa sigue nombrando sus pines.
 
 Buscar un lugar por su nombre es lo único que sale a la red, y solo viajan las palabras que escribes — nunca una foto, ni un nombre de archivo, ni una coordenada tuya.
 

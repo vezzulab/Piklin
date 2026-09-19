@@ -15,7 +15,7 @@
 - A place you set by hand is kept in your library and travels with your backup, and a later scan of the file never overwrites it
 
 ### Places named without asking anyone
-- Piklin carries a list of the world's towns and reads it from your own disk, so turning a pin into "Santo Domingo" never sends a coordinate anywhere. With no connection the map still names its pins
+- Piklin carries a list of the world's towns and reads it from your own disk, so turning a pin into "Miami" never sends a coordinate anywhere. With no connection the map still names its pins
 - Searching for a place by name is the one thing that reaches the network, and only the words you type are sent - never a photograph, a filename or a coordinate of yours
 
 ### Clearer about making photos smaller
