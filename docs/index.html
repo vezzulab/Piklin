@@ -85,6 +85,11 @@ th,td{padding:16px 14px;border-bottom:1px solid var(--line)}
 th{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);font-weight:600}
 td a{font-weight:600}
 td.what{color:var(--mute);font-size:15px}
+.macsteps{max-width:700px;margin:44px auto 0;text-align:left;background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:26px 30px}
+.macsteps h3{font-size:19px;margin-bottom:12px}
+.macsteps ol{padding-left:22px}
+.macsteps li{margin:8px 0}
+.macsteps p{color:var(--mute);font-size:14.5px;margin-top:14px}
 footer{padding:44px 0;border-top:1px solid var(--line);color:var(--mute);font-size:14.5px}
 footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px}
 footer a{margin-left:18px;text-decoration:none}
@@ -158,7 +163,16 @@ footer a:hover{color:var(--ink)}
         <tr><td><span class="l en">🐧 Linux ARM — 64-bit</span><span class="l es">🐧 Linux ARM — 64 bits</span></td><td><a href="https://github.com/vezzulab/Piklin/releases/latest">Piklin aarch64 AppImage</a></td><td class="what"><span class="l en">Runs without installing; works on Fedora too</span><span class="l es">Funciona sin instalar; también en Fedora</span></td></tr>
       </tbody>
     </table>
-    <p class="note" style="color:var(--mute);margin-top:22px;font-size:14.5px"><span class="l en">Mac needs macOS 11 Big Sur or newer. The Mac app is not signed by Apple: the first time, right-click Piklin and choose Open. Every download is signed, and Piklin checks that signature before it updates itself.</span><span class="l es">El Mac necesita macOS 11 Big Sur o más nuevo. La app de Mac no está firmada por Apple: la primera vez, haz clic derecho sobre Piklin y elige Abrir. Cada descarga está firmada, y Piklin comprueba esa firma antes de actualizarse.</span></p>
+    <div class="macsteps">
+      <h3><span class="l en">Installing on a Mac</span><span class="l es">Instalar en un Mac</span></h3>
+      <ol>
+        <li><span class="l en">Open the <b>.dmg</b> and drag Piklin into <b>Applications</b>.</span><span class="l es">Abre el <b>.dmg</b> y arrastra Piklin a <b>Aplicaciones</b>.</span></li>
+        <li><span class="l en">Open Piklin. macOS says it cannot check it for malware: that is expected, Piklin is free and not sold through Apple. Click <b>Done</b>, not <i>Move to Trash</i>.</span><span class="l es">Abre Piklin. macOS dice que no puede comprobar si tiene malware: es lo esperado, Piklin es gratis y no se vende por Apple. Pulsa <b>Listo</b>, no <i>Mover a la Papelera</i>.</span></li>
+        <li><span class="l en">Go to <b>System Settings › Privacy &amp; Security</b>, scroll to <b>Security</b> and click <b>Open Anyway</b> beside Piklin. Enter your password and click <b>Open</b>.</span><span class="l es">Ve a <b>Ajustes del Sistema › Privacidad y seguridad</b>, baja hasta <b>Seguridad</b> y pulsa <b>Abrir igualmente</b> junto a Piklin. Escribe tu contraseña y pulsa <b>Abrir</b>.</span></li>
+        <li><span class="l en">When macOS asks whether Piklin may use your Pictures or Downloads folder, click <b>Allow</b>.</span><span class="l es">Cuando macOS pregunte si Piklin puede usar tu carpeta Imágenes o Descargas, pulsa <b>Permitir</b>.</span></li>
+      </ol>
+      <p><span class="l en">It asks only once. Needs macOS 11 Big Sur or newer. Every download is signed, and Piklin checks that signature before it updates itself.</span><span class="l es">Lo pide solo una vez. Necesita macOS 11 Big Sur o más nuevo. Cada descarga está firmada, y Piklin comprueba esa firma antes de actualizarse.</span></p>
+    </div>
   </div>
 </section>
 

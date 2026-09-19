@@ -172,11 +172,21 @@ It carries its own GTK 4 and libadwaita and runs on Ubuntu 24.04, Linux Mint 22,
 
 ### Mac
 
-Download `Piklin-<version>.dmg`, open it and drag Piklin into Applications. One app works on Apple Silicon and Intel Macs with macOS 14 Sonoma or newer.
+1. Download `Piklin-<version>.dmg`, open it and drag Piklin into **Applications**. One app works on Apple Silicon and Intel Macs with macOS 11 Big Sur or newer.
+2. Open Piklin from Applications. macOS will say it cannot check Piklin for malware. That is expected: Piklin is free and is not sold through Apple, so it is not signed with an Apple Developer ID. Click **Done** (not *Move to Trash*).
+3. Open **System Settings › Privacy & Security** and scroll down to **Security**. Beside *"Piklin" was blocked* click **Open Anyway**, type your Mac's password, then click **Open**.
 
-Piklin is not yet signed with an Apple Developer ID, so the first time you open it macOS asks whether to trust it: open **System Settings › Privacy & Security** and choose **Open Anyway** beside Piklin.
+macOS asks this **once**. After that Piklin opens like any other app.
 
-Your library is created in your Pictures folder the first time you open Piklin.
+On macOS 11 to 14 there is a shortcut for step 2 and 3: hold **Control** and click Piklin, choose **Open**, then **Open** again.
+
+The first time Piklin looks in a folder such as Pictures, Desktop or Downloads, macOS asks whether Piklin may use it. Click **Allow**; Piklin can only see the folders you say yes to. Your library is created in your Pictures folder.
+
+If macOS still refuses to open it, open Terminal and run this once, then open Piklin again:
+
+```
+xattr -dr com.apple.quarantine /Applications/Piklin.app
+```
 
 ### iPhones and iPads
 

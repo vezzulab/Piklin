@@ -20,7 +20,7 @@
 
 **64-bit ARM (arm64):** this release is for 64-bit PCs. 
 
-**macOS:** Piklin 2.0 for Mac has the map too. One download runs on Apple Silicon and on Intel Macs, macOS 11 Big Sur or newer. The Mac app is not signed by Apple: the first time, right-click Piklin and choose Open.
+**macOS:** Piklin 2.0 for Mac has the map too. One download runs on Apple Silicon and on Intel Macs, macOS 11 Big Sur or newer. The Mac app is not sold through Apple, so macOS asks you to allow it once: see **Install** below.
 
 ## Download
 
@@ -40,7 +40,13 @@ The `.sha256`, `.sha256.sig` and `.build` files are for Piklin's automatic updat
 
 ## Install or update
 
-**On a Mac:** open `Piklin-2.0.0.dmg` and drag Piklin to Applications. The first time, right-click Piklin and choose Open, because the app is not signed by Apple.
+**On a Mac:**
+1. Open `Piklin-2.0.0.dmg` and drag Piklin into **Applications**.
+2. Open Piklin. macOS says it cannot check it for malware. That is expected: Piklin is free and not sold through Apple. Click **Done** (not *Move to Trash*).
+3. Open **System Settings › Privacy & Security**, scroll to **Security**, click **Open Anyway** beside Piklin, enter your password and click **Open**.
+4. When macOS asks whether Piklin may use your Pictures or Downloads folder, click **Allow**.
+
+It asks only once. On macOS 11 to 14 you can also hold **Control**, click Piklin and choose **Open**.
 
 **On Linux:** if Piklin 1.0.4 or newer is installed, Piklin offers the update itself. Your library, albums, edits and backups stay as they are.
 
@@ -159,7 +165,7 @@ Piklin is free. If it helps you, you can [buy us a coffee on Ko-fi](https://ko-f
 
 **ARM de 64 bits (arm64):** incluido en esta versión, como `.deb` y como AppImage.
 
-**macOS:** Piklin 2.0 para Mac también trae el mapa. Una sola descarga funciona en Apple Silicon y en Mac Intel, con macOS 11 Big Sur o más nuevo. La app de Mac no está firmada por Apple: la primera vez, clic derecho sobre Piklin y elige Abrir.
+**macOS:** Piklin 2.0 para Mac también trae el mapa. Una sola descarga funciona en Apple Silicon y en Mac Intel, con macOS 11 Big Sur o más nuevo. La app de Mac no se vende por Apple, así que macOS te pide permitirla una vez: mira **Instalar** más abajo.
 
 ### Descargar
 
@@ -179,7 +185,13 @@ Los archivos `.sha256`, `.sha256.sig` y `.build` son para las actualizaciones au
 
 ### Instalar o actualizar
 
-**En un Mac:** abre `Piklin-2.0.0.dmg` y arrastra Piklin a Aplicaciones. La primera vez, clic derecho sobre Piklin y elige Abrir, porque la app no está firmada por Apple.
+**En un Mac:**
+1. Abre `Piklin-2.0.0.dmg` y arrastra Piklin a **Aplicaciones**.
+2. Abre Piklin. macOS dice que no puede comprobar si tiene malware. Es lo esperado: Piklin es gratis y no se vende por Apple. Pulsa **Listo** (no *Mover a la Papelera*).
+3. Abre **Ajustes del Sistema › Privacidad y seguridad**, baja hasta **Seguridad**, pulsa **Abrir igualmente** junto a Piklin, escribe tu contraseña y pulsa **Abrir**.
+4. Cuando macOS pregunte si Piklin puede usar tu carpeta Imágenes o Descargas, pulsa **Permitir**.
+
+Lo pide solo una vez. En macOS 11 a 14 también puedes mantener **Control**, hacer clic en Piklin y elegir **Abrir**.
 
 **En Linux:** si tienes Piklin 1.0.4 o más nuevo, Piklin te ofrece la actualización. Tu biblioteca, álbumes, cambios y copias se quedan como están.
 
