@@ -56,10 +56,19 @@ coordinate in their life.
 - **It stays yours.** A place you set by hand is kept in your library and
   travels with your backup, and a later scan never overwrites it.
 
-Searching for a place by name is the one thing that reaches the network,
-and only the words you type are sent — never a photograph, a filename or a
-coordinate of yours. With no connection, the search falls back to the town
-list Piklin already carries.
+The map is drawn in quiet greys and whites, so your pins are what stands
+out, and streets, parks and places are named in grey. A place can also be
+found by name, or pasted as a link from Google Maps, Apple Maps or
+OpenStreetMap, or as coordinates. Two things reach the network: the
+background of the part of the map you are looking at, and the words you
+type when searching for a place. Never a photograph, a filename or a
+coordinate of yours. With no connection your pins still show, and the
+search falls back to the town list Piklin already carries.
+
+Photos placed together can be given a name — "Norwood Center", "Downtown
+Boston" — and an album then shows them under those names. The albums in the
+sidebar, at a pin, and the countries and cities on the map can be searched
+and sorted A to Z, Z to A, or by how many photos they hold.
 
 ## Features
 

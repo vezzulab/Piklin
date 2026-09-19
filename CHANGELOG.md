@@ -22,6 +22,22 @@
 - Preferences › Storage now explains what making a photo smaller is, in plain words, before offering the choices: what it does, that Piklin tries each one on your own photos and measures the result rather than guessing, and that your folders and the photos already in your library are left alone
 - Each choice says what it costs in room and what it costs in detail
 
+### A quieter, clearer map
+- The map is drawn in soft greys and whites, so the pins stand out, with streets, parks, neighbourhoods and places named in grey and no red crosses to be mistaken for a pin. Names come in the language Piklin is in. The background comes from OpenFreeMap; the ordinary map stays as the fallback
+
+### Finding a place
+- Searching asks two free map searches at once, shows each place once, and says what kind of place it is
+- A link from Google Maps, Apple Maps or OpenStreetMap, or coordinates, pasted in the Place box become the place
+
+### Name a group of photos
+- Placing a selection lets you name the group. Photos placed under the same name stay together inside their album, under it as a title, and the name travels with your backup
+
+### Search and sort your lists
+- The albums in the sidebar, the albums at a pin, and the countries and cities on the map can be searched, and sorted A to Z, Z to A, or by how many photos they hold
+
+### Export
+- Any other folder is chosen in the system's folder chooser instead of typed
+
 ### Smaller things
 - The sidebar no longer counts the library on the interface's thread. On a large library the numbers used to hold everything up for half a second after every import, edit and backup; now the sidebar draws at once and the numbers arrive behind it
 - No number beside All Photos or the albums: the footer already carries the library's count
