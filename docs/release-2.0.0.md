@@ -87,6 +87,28 @@ Searching for a place by name is the one thing that reaches the network, and onl
 
 Preferences › Storage now explains, in plain words, what making a photo smaller actually is: what it does, that Piklin tries each choice on your own photos and measures the result rather than guessing, and that your folders and the photos already in your library are left alone. Each choice says what it costs in room and what it costs in detail.
 
+### A quieter, clearer map
+
+The map is drawn in soft greys and whites, so your pins are what stands out. Streets, parks, neighbourhoods and places are named in grey — no red crosses on hospitals to be mistaken for a pin. Names appear in the language Piklin is in, and more of them the closer you zoom.
+
+### Finding a place
+
+- Searching a place now asks two free map searches at once and shows each place once, with what kind of place it is — a museum, a neighbourhood, a café.
+- If a place is only on Google Maps, paste its link, or its coordinates, in the Place box and the pin lands there. Links from Google Maps, Apple Maps and OpenStreetMap work.
+- Only the words you type are sent. Never a photo, a filename or a coordinate from your library.
+
+### Name a group of photos
+
+Placing a selection now lets you name the group: "Norwood Center", "Downtown Boston". Photos placed under the same name stay together inside their album, under that name as a title. The name travels with your backup.
+
+### Search and sort your lists
+
+The albums in the sidebar, the albums at a pin, and the countries and cities on the map can each be searched, and sorted A to Z, Z to A, or by how many photos they hold.
+
+### Export
+
+Any other folder is now chosen in the system's own folder chooser; nobody has to type a path.
+
 ### Smaller things
 
 - The sidebar no longer counts the library on the interface's thread. On a large library the numbers used to hold everything up for half a second after every import, edit and backup.
@@ -96,7 +118,7 @@ Preferences › Storage now explains, in plain words, what making a photo smalle
 
 ### A note on the map's background
 
-The map is drawn with OpenStreetMap's own tile servers while this feature finds its feet. Those servers are donated infrastructure for OpenStreetMap's website rather than for applications, so Piklin will move to a background of its own — which will also let the map work with no connection at all. If the map ever comes up blank, that is why, and an update will fix it.
+The map's background comes from OpenFreeMap, a free map service made for applications. Only the part of the map you are looking at is asked for, and nothing about your photos goes with it. Without a connection your pins still show, but the background may not load.
 
 ## Verify your download
 
@@ -204,6 +226,28 @@ Buscar un lugar por su nombre es lo único que sale a la red, y solo viajan las 
 
 Ajustes › Almacenamiento ahora explica, en palabras llanas, qué es hacer una foto más pequeña: qué hace, que Piklin prueba cada opción sobre tus propias fotos y mide el resultado en vez de adivinar, y que tus carpetas y las fotos que ya están en tu biblioteca no se tocan. Cada opción dice lo que cuesta en espacio y lo que cuesta en detalle.
 
+#### Un mapa más tranquilo y claro
+
+El mapa se dibuja en grises y blancos suaves, para que lo que destaque sean tus pines. Las calles, los parques, los barrios y los lugares llevan su nombre en gris, sin cruces rojas en los hospitales que se confundan con un pin. Los nombres salen en el idioma de Piklin, y aparecen más cuanto más te acercas.
+
+#### Encontrar un lugar
+
+- Al buscar un lugar, Piklin consulta dos buscadores de mapas libres a la vez y muestra cada sitio una sola vez, diciendo qué tipo de lugar es: un museo, un barrio, un café.
+- Si un lugar solo está en Google Maps, pega su enlace, o sus coordenadas, en la casilla del lugar y el pin cae ahí. Sirven enlaces de Google Maps, Apple Maps y OpenStreetMap.
+- Solo se envían las palabras que escribes. Nunca una foto, un nombre de archivo ni una coordenada de tu biblioteca.
+
+#### Ponle nombre a un grupo de fotos
+
+Al colocar una selección ahora puedes ponerle nombre al grupo: "Centro de Norwood", "Downtown Boston". Las fotos colocadas con el mismo nombre se quedan juntas dentro de su álbum, con ese nombre como título. El nombre viaja con tu copia de seguridad.
+
+#### Busca y ordena tus listas
+
+Los álbumes de la barra lateral, los álbumes de un pin y los países y ciudades del mapa se pueden buscar, y ordenar de la A a la Z, de la Z a la A, o por cuántas fotos tienen.
+
+#### Exportar
+
+Cualquier otra carpeta se elige ahora en el selector de carpetas del sistema; nadie tiene que escribir una ruta.
+
 #### Cosas pequeñas
 
 - El sidebar ya no cuenta la biblioteca en el hilo de la interfaz. En una biblioteca grande, los números frenaban todo medio segundo después de cada importación, cambio y copia de seguridad.
@@ -213,7 +257,7 @@ Ajustes › Almacenamiento ahora explica, en palabras llanas, qué es hacer una 
 
 #### Una nota sobre el fondo del mapa
 
-El mapa se dibuja con los servidores de OpenStreetMap mientras esta función se asienta. Esos servidores son infraestructura donada para la web de OpenStreetMap, no para aplicaciones, así que Piklin pasará a un fondo propio — que además hará que el mapa funcione sin conexión. Si alguna vez el mapa sale en blanco, es por esto, y una actualización lo arreglará.
+El fondo del mapa viene de OpenFreeMap, un servicio de mapas libre hecho para aplicaciones. Solo se pide la parte del mapa que estás mirando, y nada sobre tus fotos la acompaña. Sin conexión tus pines se ven igual, pero el fondo puede no cargar.
 
 Piklin es gratis. Si te sirve, puedes [invitarnos a un café en Ko-fi](https://ko-fi.com/vezzustudio) ☕
 
