@@ -308,13 +308,24 @@ class MainWindow(Adw.ApplicationWindow):
         scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER,
                                       vexpand=True)
         scroller.set_child(self.sidebar_list)
+
+        # Search for an album: opened by the magnifier beside ALBUMS, above
+        # the list so typing never rebuilds the box being typed in.
+        self._album_query = ""
+        self.album_search_entry = Gtk.SearchEntry(
+            hexpand=True, placeholder_text=_("Search albums"))
+        self.album_search_entry.connect("search-changed", self._on_album_search)
+        self.album_search_entry.connect("stop-search", self._close_album_search)
+        holder = Gtk.Box(margin_start=12, margin_end=12, margin_top=6, margin_bottom=6)
+        holder.append(self.album_search_entry)
+        self.album_search_revealer = Gtk.Revealer(
+            transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN, child=holder)
+        column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         if BRAND_IN_SIDEBAR:
-            column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             column.append(self.brand)
-            column.append(scroller)
-            toolbar.set_content(column)
-        else:
-            toolbar.set_content(scroller)
+        column.append(self.album_search_revealer)
+        column.append(scroller)
+        toolbar.set_content(column)
 
         self.scan_bar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2,
                                 margin_start=12, margin_end=12,
@@ -776,7 +787,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         collapsed_sections = set(self.settings.get("sidebar_collapsed", []) or [])
 
-        def header(text, menu_model=None, collapsible=True):
+        def header(text, menu_model=None, collapsible=True, tools=False):
             """A section heading - LIBRARY, ALBUMS, MEDIA TYPES, UTILITIES.
 
             Clicking the heading (or its chevron) folds the section away and
@@ -817,6 +828,31 @@ class MainWindow(Adw.ApplicationWindow):
                 toggle.remove_css_class("pika-sidebar-toggle")
                 toggle.set_cursor_from_name("default")
             box.append(toggle)
+
+            if tools:
+                # Find one album among many and put them in order.
+                find = Gtk.ToggleButton(icon_name="system-search-symbolic",
+                                        valign=Gtk.Align.CENTER,
+                                        tooltip_text=_("Search albums"),
+                                        active=self.album_search_revealer.get_reveal_child())
+                find.add_css_class("flat")
+                find.add_css_class("pika-sidebar-add")
+                find.connect("toggled", self._on_album_search_toggled)
+                box.append(find)
+                order_menu = Gio.Menu()
+                for key, label in (("az", _("A to Z")), ("za", _("Z to A")),
+                                   ("count_desc", _("Most photos")),
+                                   ("count_asc", _("Fewest photos"))):
+                    item = Gio.MenuItem.new(label, None)
+                    item.set_action_and_target_value(
+                        "win.album-sort", GLib.Variant.new_string(key))
+                    order_menu.append_item(item)
+                by = Gtk.MenuButton(icon_name="view-sort-ascending-symbolic",
+                                    menu_model=order_menu, valign=Gtk.Align.CENTER,
+                                    tooltip_text=_("Sort albums"))
+                by.add_css_class("flat")
+                by.add_css_class("pika-sidebar-add")
+                box.append(by)
 
             if menu_model is not None:
                 plus = Gtk.MenuButton(icon_name="list-add-symbolic",
@@ -886,9 +922,20 @@ class MainWindow(Adw.ApplicationWindow):
         add_menu.append(_("New Album…"), "win.new-album")
         add_menu.append(_("New Smart Album…"), "win.new-smart-album")
         add_menu.append(_("New Folder…"), "win.new-folder")
-        albums_heading = header(_("Albums"), add_menu)
+        albums_heading = header(_("Albums"), add_menu, tools=True)
         self._make_drop_target(albums_heading, None, None, top=True)
-        self._add_tree_rows(self.catalog.tree(), add, depth=0)
+        nodes = self._album_nodes()
+        if self._album_query and not nodes and not section_state["collapsed"]:
+            none = Gtk.ListBoxRow(selectable=False, activatable=False, focusable=False)
+            note = Gtk.Label(label=_("No album matches “{words}”")
+                             .format(words=self._album_query),
+                             margin_top=10, margin_bottom=10, margin_start=16,
+                             margin_end=16, xalign=0.0, wrap=True)
+            note.add_css_class("pika-dim")
+            none.set_child(note)
+            none._key = "albums:none"
+            self.sidebar_list.append(none)
+        self._add_tree_rows(nodes, add, depth=0)
 
         for child in self.sidebar_list:
             if getattr(child, "_key", None) == selected_key:
@@ -1553,6 +1600,44 @@ class MainWindow(Adw.ApplicationWindow):
         self.thumbs.request(path, GRID_SIZE, done)
         return tile
 
+    def _album_nodes(self):
+        """The albums as the sidebar lists them: the folder tree in the order
+        chosen, or - while something is typed in the search - just the albums
+        whose names match, flat, in that same order."""
+        from .list_tools import matches, order
+        mode = self.settings.get("album_sort", "az") or "az"
+        if not self._album_query:
+            return self.catalog.tree(sort=mode)
+
+        def leaves(nodes):
+            for node in nodes:
+                if node["kind"] == "folder":
+                    yield from leaves(node["children"])
+                else:
+                    yield node
+        found = [n for n in leaves(self.catalog.tree())
+                 if matches(self._album_query, n["row"]["name"])]
+        return order(found, mode, lambda n: n["row"]["name"],
+                     lambda n: int(n["row"]["n"]) if "n" in n["row"].keys()
+                     and n["row"]["n"] else 0)
+
+    def _on_album_search(self, entry):
+        self._album_query = entry.get_text().strip()
+        self.refresh_sidebar()
+
+    def _on_album_search_toggled(self, button):
+        opened = button.get_active()
+        self.album_search_revealer.set_reveal_child(opened)
+        if opened:
+            self.album_search_entry.grab_focus()
+        elif self._album_query or self.album_search_entry.get_text():
+            self.album_search_entry.set_text("")      # ends the search
+
+    def _close_album_search(self, *_a):
+        self.album_search_entry.set_text("")
+        self.album_search_revealer.set_reveal_child(False)
+        self.refresh_sidebar()
+
     def _add_tree_rows(self, nodes, add_fn, depth):
         """Render the folders/albums tree, respecting collapsed state.
 
@@ -1734,6 +1819,18 @@ class MainWindow(Adw.ApplicationWindow):
             act = Gio.SimpleAction.new(name, None)
             act.connect("activate", cb)
             self.add_action(act)
+
+        album_sort = Gio.SimpleAction.new_stateful(
+            "album-sort", GLib.VariantType.new("s"),
+            GLib.Variant.new_string(self.settings.get("album_sort", "az") or "az"))
+
+        def on_album_sort(action, param):
+            value = param.get_string()
+            action.set_state(param)
+            self.settings.set("album_sort", value)
+            self.refresh_sidebar()
+        album_sort.connect("activate", on_album_sort)
+        self.add_action(album_sort)
 
         sort = Gio.SimpleAction.new("sort", GLib.VariantType.new("s"))
         sort.connect("activate",

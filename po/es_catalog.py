@@ -1495,6 +1495,54 @@ ES = {
     "For photos Piklin copies in from a camera, a memory card, a USB drive or a drag from the desktop. The originals on the camera or the card are never altered.":
         "Para las fotos que Piklin copia desde una cámara, una tarjeta de memoria, una memoria USB o arrastrándolas desde el escritorio. Los originales en la cámara o en la tarjeta nunca se alteran.",
 
+    # -- searching and ordering lists ---------------------------------------
+    "Most photos": "Más fotos",
+    "Fewest photos": "Menos fotos",
+    "A to Z": "De la A a la Z",
+    "Z to A": "De la Z a la A",
+    "Sort by": "Ordenar por",
+    "Sort albums": "Ordenar los álbumes",
+    "Search albums": "Buscar álbumes",
+    "Search countries and cities": "Buscar países y ciudades",
+    "Nothing matches “{words}”": "Nada coincide con “{words}”",
+    "No album matches “{words}”": "Ningún álbum coincide con “{words}”",
+
+    # -- finding a place ----------------------------------------------------
+    "Pasted place": "Lugar pegado",
+    "Place, or paste a map link": "Lugar, o pega un enlace del mapa",
+    "Nothing found. Try fewer words, click the map, or paste the place's link from Google Maps, or its coordinates, in the Place box.":
+        "No se encontró nada. Prueba con menos palabras, toca el mapa, o pega en la casilla del lugar su enlace de Google Maps, o sus coordenadas.",
+    "Town": "Pueblo", "Village": "Aldea", "Hamlet": "Caserío", "Neighbourhood": "Barrio",
+    "District": "Distrito", "County": "Condado", "State": "Estado", "Island": "Isla",
+    "Attraction": "Atracción", "Viewpoint": "Mirador", "Monument": "Monumento",
+    "Memorial": "Memorial", "Castle": "Castillo", "Ruins": "Ruinas",
+    "Theme park": "Parque temático", "Zoo": "Zoológico", "Park": "Parque",
+    "Garden": "Jardín", "Beach": "Playa", "Mountain": "Montaña", "Volcano": "Volcán",
+    "Lake": "Lago", "Bay": "Bahía", "Restaurant": "Restaurante", "Café": "Café",
+    "Fast food": "Comida rápida", "Bar": "Bar", "Pub": "Pub", "Hotel": "Hotel",
+    "Hostel": "Hostal", "Guest house": "Casa de huéspedes", "Apartments": "Apartamentos",
+    "Supermarket": "Supermercado", "Shopping centre": "Centro comercial",
+    "Market": "Mercado", "School": "Escuela", "University": "Universidad",
+    "College": "Colegio", "Hospital": "Hospital", "Place of worship": "Lugar de culto",
+    "Church": "Iglesia", "Cathedral": "Catedral", "Mosque": "Mezquita", "Temple": "Templo",
+    "Stadium": "Estadio", "Sports centre": "Centro deportivo", "Station": "Estación",
+    "Airport": "Aeropuerto", "Bus station": "Estación de autobuses", "Harbour": "Puerto",
+    "Town hall": "Ayuntamiento", "Theatre": "Teatro", "Cinema": "Cine",
+    "Business": "Negocio", "Office": "Oficina", "Street": "Calle", "House": "Casa",
+
+    # -- how much smaller: what each choice does ------------------------------
+    "Nothing is changed. Takes the most room.": "No se cambia nada. Es lo que más espacio ocupa.",
+    "The very same picture, packed more cleverly. Nothing at all is lost. Saves little on photographs, a lot on screenshots.":
+        "La misma imagen, empaquetada con más ingenio. No se pierde nada. Ahorra poco en fotografías y mucho en capturas de pantalla.",
+    "About half the room, and nobody can see the difference - not even side by side on a big screen.":
+        "Más o menos la mitad del espacio, y nadie nota la diferencia, ni siquiera una al lado de la otra en una pantalla grande.",
+    "About a third of the room. A difference you would only find by zooming right into a photo looking for it.":
+        "Más o menos un tercio del espacio. Una diferencia que solo encontrarías acercando mucho la foto para buscarla.",
+    "About a quarter of the room. Still good to look at and to share; fine detail softens.":
+        "Más o menos la cuarta parte del espacio. Se ve bien y se puede compartir; el detalle fino se suaviza.",
+    "The least room possible. Photos are also made smaller in size, so this is for keeping memories, not for printing them.":
+        "El menor espacio posible. Además las fotos se hacen de menor tamaño, así que es para guardar recuerdos, no para imprimirlos.",
+
 }
 
 

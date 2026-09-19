@@ -71,6 +71,11 @@ class PlaceDialog(Adw.Dialog):
         self.markers = Shumate.MarkerLayer.new(viewport)
         self.map.add_overlay_layer(self.markers)
 
+        def clean_map_ready():
+            viewport.set_max_zoom_level(18)
+        from .. import mapstyle
+        mapstyle.use_clean_map(self.map, clean_map_ready)
+
         click = Gtk.GestureClick()
         click.connect("released", self._on_map_clicked)
         self.map.get_map().add_controller(click)
@@ -176,7 +181,7 @@ class PlaceDialog(Adw.Dialog):
         """Country, city and an optional name, and the answers under them."""
         self.country = Gtk.Entry(placeholder_text=_("Country"), hexpand=True)
         self.city = Gtk.Entry(placeholder_text=_("City"), hexpand=True)
-        self.spot = Gtk.Entry(placeholder_text=_("Place (optional)"), hexpand=True)
+        self.spot = Gtk.Entry(placeholder_text=_("Place, or paste a map link"), hexpand=True)
         for entry in (self.country, self.city, self.spot):
             entry.connect("activate", self._on_search)
         self.find = Gtk.Button(label=_("Search"))
@@ -237,15 +242,18 @@ class PlaceDialog(Adw.Dialog):
             self.results.remove(row)
         self._found = found
         if not found:
-            self.status.set_text(_("Nothing found. Check the spelling, or click the map."))
+            self.status.set_text(_(
+                "Nothing found. Try fewer words, click the map, or paste the place's "
+                "link from Google Maps, or its coordinates, in the Place box."))
             self.results_scroll.set_visible(False)
             return False
         self.status.set_text(
             _("Pick the right one") if online else
             _("No connection - showing towns Piklin knows. Click the map to be exact."))
         for item in found:
+            said = " · ".join(x for x in (item.kind, item.detail) if x)
             row = Adw.ActionRow(title=GLib.markup_escape_text(item.title),
-                                subtitle=GLib.markup_escape_text(item.detail))
+                                subtitle=GLib.markup_escape_text(said))
             row.set_subtitle_lines(1)
             self.results.append(row)
         self.results_scroll.set_visible(True)
@@ -258,7 +266,10 @@ class PlaceDialog(Adw.Dialog):
         if row is None:
             return
         item = self._found[row.get_index()]
-        self._pick(item.lat, item.lon, item.title, 15 if item.online else 12)
+        # A pasted link or pair of coordinates has no name of its own to offer.
+        pasted = item.title == _("Pasted place")
+        self._pick(item.lat, item.lon, None if pasted else item.title,
+                   17 if pasted else (15 if item.online else 12))
 
     def _pick(self, lat: float, lon: float, name: str | None = None,
               zoom: int | None = None) -> None:

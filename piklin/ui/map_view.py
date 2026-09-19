@@ -213,6 +213,15 @@ class MapView(Gtk.Box):
         self.map.connect("notify::width", lambda *_a: self._limit_zoom_out())
         self.map.connect("notify::height", lambda *_a: self._limit_zoom_out())
         self._limit_zoom_out()
+        # The clean map - grey, with places named and none pictured in red -
+        # replaces these ordinary tiles as soon as it is ready; a new map
+        # source forgets the zoom limits, so they are put back.
+        from .. import mapstyle
+
+        def clean_map_ready():
+            self.map.get_viewport().set_max_zoom_level(20)
+            self._limit_zoom_out()
+        mapstyle.use_clean_map(self.map, clean_map_ready)
 
         # Panning and zooming both change which photos fall together.
         vp = self.map.get_viewport()
@@ -284,7 +293,15 @@ class MapView(Gtk.Box):
         top.append(heading)
         top.append(close)
 
+        # Search and order, once there are enough albums at a pin to need them.
+        from .list_tools import ListTools
+        self.panel_tools = ListTools(_("Search albums"), "count_desc")
+        self.panel_tools.set_visible(False)
+        self.panel_tools.connect("changed", self._on_panel_tools)
+
         self.panel_albums = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        self.panel_albums.set_filter_func(self._panel_filter)
+        self.panel_albums.set_sort_func(self._panel_sort)
         self.panel_albums.add_css_class("pika-map-albums")
         self.panel_albums.connect("row-activated", self._on_album_row)
         self.panel_albums.set_valign(Gtk.Align.START)
@@ -301,6 +318,7 @@ class MapView(Gtk.Box):
                       margin_top=12, margin_bottom=12,
                       margin_start=12, margin_end=12)
         box.append(top)
+        box.append(self.panel_tools)
         box.append(scroller)
 
         self.panel = Gtk.Revealer(
@@ -338,8 +356,18 @@ class MapView(Gtk.Box):
             hscrollbar_policy=Gtk.PolicyType.NEVER, min_content_width=320,
             max_content_height=420, propagate_natural_height=True)
         scroller.set_child(self.stats_list)
+        # Find a country or a city among many, and put them in the order
+        # wanted: most photos, A to Z, Z to A.
+        from .list_tools import ListTools
+        self.stats_tools = ListTools(_("Search countries and cities"), "count_desc")
+        self.stats_tools.connect("changed", lambda _t: self._render_stats())
+        self._tally = {}
+        column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
+                         margin_top=8, margin_bottom=8, margin_start=8, margin_end=8)
+        column.append(self.stats_tools)
+        column.append(scroller)
         self.stats_popover = Gtk.Popover()
-        self.stats_popover.set_child(scroller)
+        self.stats_popover.set_child(column)
         self.stats_button.set_popover(self.stats_popover)
         return self.stats_button
 
@@ -689,17 +717,38 @@ class MapView(Gtk.Box):
             self._album_row(
                 gen, album["cover"], album["name"],
                 ngettext("{count} photo here", "{count} photos here", album["here"])
-                .format(count=f"{album['here']:,}"), ("album", album["id"]))
+                .format(count=f"{album['here']:,}"), ("album", album["id"]),
+                album["here"])
         if loose:
             path_of = dict(photos)
             self._album_row(
                 gen, path_of[loose[0]], _("Not in an album"),
                 ngettext("{count} photo", "{count} photos", len(loose))
-                .format(count=f"{len(loose):,}"), ("photos", loose))
+                .format(count=f"{len(loose):,}"), ("photos", loose), len(loose))
+        # A pin with a handful of albums needs no search box; one with a
+        # long list does. A new pin starts from the whole list again.
+        self.panel_tools.clear()
+        self.panel_tools.set_visible(len(albums) + (1 if loose else 0) >= 4)
+        self.panel_albums.invalidate_filter()
+        self.panel_albums.invalidate_sort()
         self.panel.set_reveal_child(True)
 
+    def _on_panel_tools(self, _tools) -> None:
+        self.panel_albums.invalidate_filter()
+        self.panel_albums.invalidate_sort()
+
+    def _panel_filter(self, row) -> bool:
+        from .list_tools import matches
+        return matches(self.panel_tools.query, getattr(row, "_name", ""))
+
+    def _panel_sort(self, a, b) -> int:
+        from .list_tools import order
+        first = order([a, b], self.panel_tools.mode,
+                      lambda r: r._name, lambda r: r._count)[0]
+        return -1 if first is a else 1
+
     def _album_row(self, gen: int, cover_path: str, name: str, detail: str,
-                   target) -> None:
+                   target, count: int = 0) -> None:
         tile = PhotoTile(size=ALBUM_THUMB, radius=8.0)
         title = Gtk.Label(label=name, xalign=0.0, ellipsize=3)
         title.add_css_class("pika-map-album-name")
@@ -717,6 +766,7 @@ class MapView(Gtk.Box):
         row = Gtk.ListBoxRow(activatable=True)
         row.set_child(box)
         row._target = target
+        row._name, row._count = name, count
         self.panel_albums.append(row)
         self._load_thumb(tile, cover_path, gen, size=ALBUM_THUMB, panel=True)
 
@@ -782,13 +832,36 @@ class MapView(Gtk.Box):
             .format(count=places))
         self.stats_button.set_visible(True)
 
+        self._tally = tally
+        self._render_stats()
+        return False
+
+    def _render_stats(self) -> None:
+        """The countries and cities, filtered by what was typed and in the
+        order chosen. Small enough to draw again on every change."""
+        from .list_tools import matches, order
+        tally = self._tally
+        query = self.stats_tools.query
+        mode = self.stats_tools.mode
         while (row := self.stats_list.get_first_child()) is not None:
             self.stats_list.remove(row)
-        ranked = sorted(tally.items(),
-                        key=lambda kv: (-sum(v[0] for v in kv[1].values()), kv[0]))
-        for country, towns in ranked:
-            photos = sum(v[0] for v in towns.values())
+
+        def total(country):
+            return sum(v[0] for v in tally[country].values())
+
+        shown = 0
+        for country in order(list(tally), mode, lambda c: c, total):
+            towns = tally[country]
             named = {k: v for k, v in towns.items() if k}
+            country_hit = matches(query, country)
+            # A country that matches shows all its cities; otherwise only
+            # the cities that do, so the one looked for is the one on screen.
+            cities = {k: v for k, v in named.items()
+                      if country_hit or matches(query, k, country)}
+            if query and not country_hit and not cities:
+                continue
+            shown += 1
+            photos = total(country)
             expander = Adw.ExpanderRow(
                 title=GLib.markup_escape_text(country),
                 subtitle=GLib.markup_escape_text(" · ".join((
@@ -799,8 +872,11 @@ class MapView(Gtk.Box):
                     if named else
                     ngettext("{count} photo", "{count} photos", photos)
                     .format(count=f"{photos:,}")))
-            for city, (n, sum_lat, sum_lon) in sorted(
-                    named.items(), key=lambda kv: (-kv[1][0], kv[0])):
+            if query and cities and not country_hit:
+                expander.set_expanded(True)
+            for city in order(list(cities), mode, lambda c: c,
+                              lambda c: cities[c][0]):
+                n, sum_lat, sum_lon = cities[city]
                 row = Adw.ActionRow(
                     title=GLib.markup_escape_text(city),
                     subtitle=ngettext("{count} photo", "{count} photos", n)
@@ -811,7 +887,11 @@ class MapView(Gtk.Box):
                             self._fly_to(la, lo))
                 expander.add_row(row)
             self.stats_list.append(expander)
-        return False
+        if query and not shown:
+            empty = Gtk.Label(label=_("Nothing matches “{words}”").format(words=query),
+                              margin_top=18, margin_bottom=18)
+            empty.add_css_class("pika-dim")
+            self.stats_list.append(empty)
 
     def _fly_to(self, lat: float, lon: float) -> None:
         """Bring the map to a city, from the list of where the pins are."""

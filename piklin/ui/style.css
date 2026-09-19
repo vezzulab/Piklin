@@ -1317,6 +1317,31 @@ popover modelbutton:disabled, popover modelbutton:disabled label {
   -gtk-icon-size: 13px;
   color: @pika_text_dim;
 }
+/* the magnifier and the sort menu beside ALBUMS look like the +: the same
+ * size and the same quiet grey, dark only on hover or while open. The
+ * window.piklin prefix is what outweighs the black every button icon gets. */
+window.piklin button.toggle.pika-sidebar-add,
+window.piklin button.toggle.pika-sidebar-add:checked {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+}
+window.piklin button.toggle.pika-sidebar-add image,
+window.piklin menubutton.pika-sidebar-add image,
+window.piklin menubutton.pika-sidebar-add > button image {
+  -gtk-icon-size: 14px;
+  color: @pika_text_dim;
+}
+window.piklin button.toggle.pika-sidebar-add:hover,
+window.piklin menubutton.pika-sidebar-add:hover { background: alpha(#000000, 0.07); }
+window.piklin button.toggle.pika-sidebar-add:hover image,
+window.piklin button.toggle.pika-sidebar-add:checked image,
+window.piklin menubutton.pika-sidebar-add:hover image,
+window.piklin menubutton.pika-sidebar-add:hover > button image { color: #000000; }
+.pika-sidebar-add:hover { background: alpha(#000000, 0.07); }
+togglebutton.pika-sidebar-add:hover image,
+togglebutton.pika-sidebar-add:checked image,
+menubutton.pika-sidebar-add:hover image { color: #000000; }
 .pika-sidebar-add:hover { background: alpha(#000000, 0.07); }
 .pika-sidebar-add:hover image,
 .pika-sidebar-add:checked image { color: #000000; }

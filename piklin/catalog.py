@@ -1157,12 +1157,14 @@ class Catalog:
                 "UPDATE albums SET folder_id=?, position=? WHERE id=?",
                 (folder_id, pos, album_id))
 
-    def tree(self) -> list[dict]:
+    def tree(self, sort: str = "az") -> list[dict]:
         """Folders and albums assembled into a nested structure.
 
         Each node is ``{"kind": "folder"|"album", "row": <sqlite3.Row>,
         "children": [...]}``.  Folders and albums share one A to Z order within the same
-        parent, the usual order for a folder's contents.
+        parent, the usual order for a folder's contents. ``sort`` is "az",
+        "za", or "count_desc" / "count_asc" by how many photos each holds
+        (a folder counts everything inside it).
         """
         folders = self.folders()
         albums = self.albums()
@@ -1179,14 +1181,25 @@ class Catalog:
             by_parent.setdefault(sa["folder_id"], []).append(
                 {"kind": "smart", "row": sa, "children": []})
 
+        def photos_in(node) -> int:
+            if node["kind"] == "folder":
+                return sum(photos_in(c) for c in node["children"])
+            row = node["row"]
+            return int(row["n"]) if "n" in row.keys() and row["n"] else 0
+
         def build(parent_id):
             items = by_parent.get(parent_id, [])
-            # One A to Z list, folders and albums together: putting every
-            # folder first read as out of order ("Paternos" above "Maternos").
-            items.sort(key=lambda n: natural_key(n["row"]["name"]))
             for n in items:
                 if n["kind"] == "folder":
                     n["children"] = build(n["row"]["id"])
+            # One list, folders and albums together: putting every folder
+            # first read as out of order ("Paternos" above "Maternos").
+            items.sort(key=lambda n: natural_key(n["row"]["name"]),
+                       reverse=(sort == "za"))
+            if sort == "count_desc":
+                items.sort(key=photos_in, reverse=True)      # stable: A to Z on ties
+            elif sort == "count_asc":
+                items.sort(key=photos_in)
             return items
         return build(None)
 
