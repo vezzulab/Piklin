@@ -155,16 +155,42 @@ def _exif_bytes(path: Path) -> bytes | None:
 
     Losing capture date, camera and orientation during compression would
     quietly damage the library - the catalog is rebuilt from these.
+
+    Always returned with the "Exif" header a JPEG writer needs. WebP, AVIF,
+    HEIC and TIFF hand their EXIF over without it, and a JPEG saved with
+    those bytes silently kept none of it: a photo turned into a JPEG lost
+    where and when it was taken.
     """
     try:
         with Image.open(path) as im:
             data = im.info.get("exif")
+            ex = Image.Exif()
             if data:
-                return data
-            ex = im.getexif()
+                ex.load(data[6:] if data[:6] == b"Exif\x00\x00" else data)
+            else:
+                ex = im.getexif()
             return ex.tobytes() if ex else None
     except Exception:
         return None
+
+
+def _upright(data: bytes | None) -> bytes | None:
+    """The EXIF block saying the photo is the right way up.
+
+    Photos are decoded already turned the right way, so the copy's pixels are
+    upright; leaving the original "turn me a quarter" tag on them made every
+    viewer turn them again, and a portrait photo came out lying on its side.
+    """
+    if not data:
+        return data
+    try:
+        ex = Image.Exif()
+        ex.load(data[6:] if data[:6] == b"Exif\x00\x00" else data)
+        if 0x0112 in ex:
+            ex[0x0112] = 1
+        return ex.tobytes()
+    except Exception:
+        return data
 
 
 def _exif_without_gps(data: bytes | None) -> bytes | None:
@@ -489,6 +515,7 @@ def compress_to(source: Path | str, dest: Path | str,
     # date, the camera, and - the reason people actually ask for it -
     # the GPS coordinates of where the photo was taken.
     exif = None if strip_metadata else (_exif_bytes(src) if src.exists() else None)
+    exif = _upright(exif)
     if strip_location and exif:
         exif = _exif_without_gps(exif)
 

@@ -92,6 +92,11 @@ class MainWindow(Adw.ApplicationWindow):
         self._device_watcher = devicemod.DeviceWatcher(self._on_devices_changed)
 
         self.grid = PhotoGrid(self.catalog, self.thumbs, self.settings)
+        self.grid.library = library
+        # Copies made for dragging out are kept a day, then forgotten.
+        from .. import dragout
+        threading.Thread(target=dragout.clean_cache, daemon=True,
+                         name="pika-drag-clean").start()
         self.grid.connect("activated", self._on_photo_activated)
         self.grid.connect("open-folder", lambda _g, fid: self._open_folder(fid))
         self.grid.connect("background-menu", lambda _g, src, x, y: self._on_background_menu(src, x, y))

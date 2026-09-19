@@ -308,6 +308,7 @@ class PhotoGrid(Gtk.Box):
         self._album_id = None
         self._smart_id = None
         self._photo_ids = None
+        self.library = None           # set by the window: where edits are kept
         self._by_group = False        # an album shown under its named groups
         self._search = None
         self._order = "taken_desc"
@@ -1108,7 +1109,16 @@ class PhotoGrid(Gtk.Box):
             payload = self.DEVICE_DRAG_PREFIX + ",".join(str(i) for i in indexes)
         else:
             payload = self.DRAG_PREFIX + ",".join(str(i) for i in ids)
-        return Gdk.ContentProvider.new_for_value(payload)
+        inside = Gdk.ContentProvider.new_for_value(payload)
+        if self._scope == "device":
+            return inside
+        # Dropped on the desktop, in a folder or in another program, the photos
+        # go as files anything can open: a JPEG where the photo is kept in a
+        # format that not every program reads.
+        from .dragfiles import provider_for
+        paths = [self._by_id[i].path for i in ids if i in self._by_id]
+        self._drag_paths = paths
+        return provider_for(self.library, paths, inside) if paths else inside
 
     def _on_drag_begin(self, source, drag, item):
         """A small photo under the pointer, with a count when several are
@@ -1119,6 +1129,9 @@ class PhotoGrid(Gtk.Box):
         the sidebar, including the album you were trying to drop onto.
         """
         ids = self.selected_ids() if item.id in self._selected else [item.id]
+        if self._scope != "device" and getattr(self, "_drag_paths", None):
+            from .dragfiles import make_copies_on_drop
+            make_copies_on_drop(drag, self, self.library, self._drag_paths)
         overlay = Gtk.Overlay()
         overlay.add_css_class("pika-drag-icon")
         tile = PhotoTile(84, radius=8.0)

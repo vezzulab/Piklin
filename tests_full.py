@@ -241,6 +241,40 @@ ts=[threading.Thread(target=w) for _ in range(8)]
 check("concurrent writes are safe", not errs, str(errs[:1]))
 
 # ===================================================================
+# ===================================================================
+section("Drag out, and the copies compression makes")
+from piklin import dragout, compress as _cz
+from PIL import Image as _Im, ImageOps as _Ops
+_tmpd = Path(TMP) / "dragtest"; _tmpd.mkdir(exist_ok=True)
+os.environ["XDG_CACHE_HOME"] = str(_tmpd / "cache")
+_ex = _Im.Exif(); _ex[0x010f] = "Cam"; _ex.get_ifd(0x8769)[0x9003] = "2024:03:03 10:00:00"
+_g = _ex.get_ifd(0x8825); _g[1], _g[2], _g[3], _g[4] = "N", (42.0, 11.0, 24.0), "W", (71.0, 12.0, 0.0)
+_pic = _Im.effect_noise((900, 600), 60).convert("RGB")
+_jpg, _wp, _png = _tmpd / "a.jpg", _tmpd / "b.webp", _tmpd / "c.png"
+_pic.save(_jpg, exif=_ex, quality=92); _pic.save(_wp, quality=90, exif=_ex); _pic.save(_png)
+check("a JPEG is handed over as it is", dragout.file_for_drag(None, _jpg) == _jpg)
+check("a PNG is handed over as it is", dragout.file_for_drag(None, _png) == _png)
+_out = dragout.file_for_drag(None, _wp)
+check("a WebP is handed over as a JPEG", _out.suffix == ".jpg" and _Im.open(_out).format == "JPEG")
+check("same size in pixels", _Im.open(_out).size == (900, 600))
+_e = _Im.open(_out).getexif()
+check("place, date and camera survive the change of format",
+      _e.get_ifd(0x8825).get(3) == "W" and _e.get_ifd(0x8769).get(0x9003) == "2024:03:03 10:00:00"
+      and _e.get(0x010f) == "Cam", dict(_e.get_ifd(0x8825)))
+check("a drag that cannot be converted still hands over the photo",
+      dragout.file_for_drag(None, _tmpd / "missing.heic").name == "missing.heic")
+_ex6 = _Im.Exif(); _ex6[0x0112] = 6
+_tall = _tmpd / "d.webp"; _Im.effect_noise((600, 300), 50).convert("RGB").save(_tall, quality=90, exif=_ex6)
+_o = dragout.file_for_drag(None, _tall)
+check("a portrait photo is not turned twice",
+      _Ops.exif_transpose(_Im.open(_o)).size == _Ops.exif_transpose(_Im.open(_tall)).size)
+_pj = _tmpd / "p.jpg"; _Im.effect_noise((600, 300), 50).convert("RGB").save(_pj, quality=92, exif=_ex6)
+for _prof in ("visually_lossless", "lossless"):
+    _r = _cz.compress_to(_pj, _tmpd / f"o_{_prof}.jpg", _prof, "keep", allow_larger=True)
+    check(f"an exported portrait photo stays upright ({_prof})",
+          _Ops.exif_transpose(_Im.open(_r.output)).size == (300, 600))
+
+
 section("4b. Folders and album tree")
 trips = cat.create_folder("Trips")
 euro = cat.create_folder("Europe", parent_id=trips)
@@ -399,6 +433,9 @@ check("trashing hides it from the library but keeps the row",
       cat.photo(2) is not None and cat.photo(2)["trashed_at"] is not None)
 cat.untrash([2])
 check("recovering puts it back", cat.photo(2)["trashed_at"] is None)
+
+
+# ===================================================================
 
 section("5. Library layout and index rebuild")
 from piklin.paths import Library
@@ -2707,8 +2744,6 @@ try:
 finally:
     if _saved_cfg is None: os.environ.pop("XDG_CONFIG_HOME", None)
     else: os.environ["XDG_CONFIG_HOME"] = _saved_cfg
-
-# ===================================================================
 section("Create: collages and posters")
 from piklin import create as _cr, creations as _crs
 _cdir = os.path.join(TMP, "create"); os.makedirs(_cdir)

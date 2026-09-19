@@ -38,6 +38,13 @@
 ### Export
 - Any other folder is chosen in the system's folder chooser instead of typed
 
+### Dragging photos out of Piklin
+- Dragging photos to the desktop, a folder or another program now hands over the files. A photo that is kept as HEIC, WebP, AVIF, TIFF or a camera's RAW goes as an ordinary JPEG with its place and date, and one you edited goes as it looks now; a JPEG or PNG nobody changed goes exactly as it is. Dragging onto an album inside Piklin works as before
+
+### Fixed
+- A photo kept as WebP, AVIF, HEIC or TIFF, exported or saved smaller as a JPEG, lost where and when it was taken; the place, date and camera now stay
+- A portrait photo exported or saved smaller could come out lying on its side, because it was turned twice; it now stays upright
+
 ### Smaller things
 - The sidebar no longer counts the library on the interface's thread. On a large library the numbers used to hold everything up for half a second after every import, edit and backup; now the sidebar draws at once and the numbers arrive behind it
 - No number beside All Photos or the albums: the footer already carries the library's count
