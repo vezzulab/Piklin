@@ -191,6 +191,9 @@ fetch "https://github.com/rockdaboot/libpsl/releases/download/0.21.5/libpsl-0.21
 fetch "$G/libsoup/3.6/libsoup-3.6.6.tar.xz" libsoup-3.6.6.tar.xz
 fetch "$G/glib-networking/2.80/glib-networking-2.80.1.tar.xz" glib-networking-2.80.1.tar.xz
 fetch "$G/libshumate/1.5/libshumate-1.5.2.tar.xz" libshumate-1.5.2.tar.xz
+# The map is drawn from vector data, which needs these two.
+fetch "$G/json-glib/1.10/json-glib-1.10.6.tar.xz" json-glib-1.10.6.tar.xz
+fetch "https://github.com/protobuf-c/protobuf-c/releases/download/v1.5.2/protobuf-c-1.5.2.tar.gz" protobuf-c-1.5.2.tar.gz
 
 # --------------------------------------------------- libraries macOS provides
 # zlib, bzip2, expat, libffi, libxml2 and curl are part of macOS itself, but
@@ -305,8 +308,12 @@ meson_pkg libsoup libsoup-3.6.6.tar.xz -Dgssapi=disabled -Dntlm=disabled -Dbrotl
     -Dsysprof=disabled
 meson_pkg glib-networking glib-networking-2.80.1.tar.xz -Dgnutls=disabled -Dopenssl=enabled \
     -Dlibproxy=disabled -Dgnome_proxy=disabled -Dinstalled_tests=false
+meson_pkg json-glib json-glib-1.10.6.tar.xz -Dintrospection=disabled -Dtests=false \
+    -Ddocumentation=disabled -Dman=false
+# protobuf-c ships its generated code; only the library is built, not protoc-c.
+configure_pkg protobuf-c protobuf-c-1.5.2.tar.gz --disable-protoc
 meson_pkg libshumate libshumate-1.5.2.tar.xz -Dgir=true -Dvapi=false -Dgtk_doc=false \
-    -Dvector_renderer=false -Dsysprof=disabled -Ddemos=false
+    -Dvector_renderer=true -Dsysprof=disabled -Ddemos=false
 
 # ------------------------------------------------------------- Python side
 if ! built python-bindings; then
