@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="data/icons/piklin-256.png" width="128" height="128" alt="Piklin icon">
+  <img src="docs/screenshots/hero.png" alt="Piklin 2.0" width="900">
 </p>
-
-<h1 align="center">Piklin</h1>
 
 <p align="center">
   <strong>A free and private photo and video library for Linux and Mac.</strong><br>
@@ -52,7 +50,7 @@ coordinate in their life.
   where it is, so the next pin is one movement away.
 - **Place names without asking anyone.** Piklin carries a list of the
   world's towns and reads it from your own disk. Turning a pin into
-  "Santo Domingo" never sends a coordinate anywhere.
+  "Miami" never sends a coordinate anywhere.
 - **Countries and cities you have visited,** counted, with the cities
   listed inside each country.
 - **It stays yours.** A place you set by hand is kept in your library and

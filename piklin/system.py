@@ -38,6 +38,24 @@ _CAPS_UP_TO_16_GB = {"thumbs": 3, "probe": 4, "images": 3, "video": 2}
 
 
 def total_memory() -> int:
+    if IS_WINDOWS:
+        try:
+            class _MemStatus(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_uint32),
+                            ("dwMemoryLoad", ctypes.c_uint32),
+                            ("ullTotalPhys", ctypes.c_uint64),
+                            ("ullAvailPhys", ctypes.c_uint64),
+                            ("ullTotalPageFile", ctypes.c_uint64),
+                            ("ullAvailPageFile", ctypes.c_uint64),
+                            ("ullTotalVirtual", ctypes.c_uint64),
+                            ("ullAvailVirtual", ctypes.c_uint64),
+                            ("ullAvailExtendedVirtual", ctypes.c_uint64)]
+            status = _MemStatus(dwLength=ctypes.sizeof(_MemStatus))
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                return int(status.ullTotalPhys)
+        except (OSError, AttributeError, ValueError):
+            pass
+        return 8192 * _MB
     try:
         return int(os.sysconf("SC_PAGE_SIZE")) * int(os.sysconf("SC_PHYS_PAGES"))
     except (ValueError, OSError, AttributeError):
@@ -88,6 +106,11 @@ def release_memory() -> None:
             libc = ctypes.CDLL(None)
             libc.malloc_zone_pressure_relief.restype = ctypes.c_size_t
             libc.malloc_zone_pressure_relief(None, ctypes.c_size_t(0))
+        elif IS_WINDOWS:
+            # Hands freed pages back to the system rather than keeping
+            # them reserved for this process, the way malloc_trim does.
+            handle = ctypes.windll.kernel32.GetCurrentProcess()
+            ctypes.windll.psapi.EmptyWorkingSet(handle)
     except (OSError, AttributeError):
         pass
 
@@ -121,6 +144,11 @@ def lower_thread_priority() -> None:
             libsystem = ctypes.CDLL(None)
             libsystem.pthread_set_qos_class_self_np(ctypes.c_uint(_QOS_CLASS_UTILITY),
                                                     ctypes.c_int(0))
+        elif IS_WINDOWS:
+            # THREAD_MODE_BACKGROUND_BEGIN: this thread, and everything it
+            # starts, gives way in scheduling, memory and disk I/O alike.
+            handle = ctypes.windll.kernel32.GetCurrentThread()
+            ctypes.windll.kernel32.SetThreadPriority(handle, 0x00010000)
     except (OSError, AttributeError, ValueError):
         pass
 
@@ -134,6 +162,10 @@ def _nice_child() -> None:
 
 # For subprocess's preexec_fn: a helper program (rclone) at low priority.
 lower_process_priority = None if IS_WINDOWS else _nice_child
+
+# subprocess's preexec_fn is a POSIX-only hook; on Windows a background
+# helper (rclone) is started low-priority through creationflags instead.
+BELOW_NORMAL_PRIORITY = 0x00004000 if IS_WINDOWS else 0
 
 
 # -- extended attributes ------------------------------------------------------
@@ -158,6 +190,13 @@ def _mac_libc():
 
 def set_xattr(path, name: str, value: bytes) -> None:
     """Store ``value`` on the file. Raises OSError when it can't."""
+    if IS_WINDOWS:
+        # NTFS's alternate data stream is the closest equivalent: a
+        # second, named fork of the file, addressed as path:name and
+        # invisible to Explorer and to a plain read of the file.
+        with open(f"{path}:pklxattr.{name}", "wb") as f:
+            f.write(value)
+        return
     if IS_MAC:
         rc = _mac_libc().setxattr(os.fsencode(path), name.encode(), value, len(value), 0, 0)
         if rc != 0:
@@ -171,6 +210,9 @@ def set_xattr(path, name: str, value: bytes) -> None:
 
 def get_xattr(path, name: str) -> bytes:
     """The value stored on the file. Raises OSError when there is none."""
+    if IS_WINDOWS:
+        with open(f"{path}:pklxattr.{name}", "rb") as f:
+            return f.read()
     if IS_MAC:
         libc = _mac_libc()
         raw, key = os.fsencode(path), name.encode()

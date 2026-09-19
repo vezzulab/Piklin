@@ -1919,9 +1919,11 @@ class RcloneBackend(Backend):
     def _run_rclone(self, cmd: list[str], p: SyncProgress, on_progress) -> int | None:
         """Run an rclone transfer, feeding its stats into ``p``.
         The exit code, or None when cancelled."""
+        extra = ({"creationflags": system.BELOW_NORMAL_PRIORITY} if system.IS_WINDOWS
+                else {"preexec_fn": system.lower_process_priority})
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL,
                                 stderr=subprocess.STDOUT, text=True, env=self._env(),
-                                preexec_fn=system.lower_process_priority)
+                                **extra)
         last = ""
         for line in proc.stdout or []:
             if self.cancel.is_set():
