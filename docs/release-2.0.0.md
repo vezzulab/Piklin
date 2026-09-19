@@ -17,6 +17,8 @@
 | 🐧 Fedora | 40 or newer, with the AppImage | 64-bit PC (Intel or AMD, x86-64) and 64-bit ARM (arm64) |
 | 🐧 Based on the above | Pop!_OS, Zorin OS, elementary OS and others built on those versions | The same as the version they are built on |
 
+**64-bit ARM (arm64):** this release is for 64-bit PCs. The ARM build follows in 2.0.1.
+
 **macOS:** Piklin 2.0 is Linux only. The map needs a component that the Mac build does not carry yet; it is being added, and 2.0.1 will bring the map to macOS. Macs stay on 1.0.8 until then, and nothing in your library changes in the meantime.
 
 ## Download
@@ -24,9 +26,7 @@
 | Your computer | Download |
 |---|---|
 | 🐧 **Linux PC** — 64-bit Intel or AMD (x86-64) | [**piklin_2.0.0_amd64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/piklin_2.0.0_amd64.deb) |
-| 🐧 **Linux ARM** — 64-bit ARM (arm64), such as a Raspberry Pi 5 | [**piklin_2.0.0_arm64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/piklin_2.0.0_arm64.deb) |
 | 🐧 **Try it without installing** — Linux PC (x86-64) | [**Piklin-2.0.0-x86_64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0-x86_64.AppImage) |
-| 🐧 **Try it without installing** — Linux ARM (arm64) | [**Piklin-2.0.0-aarch64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0-aarch64.AppImage) |
 
 The `.sha256`, `.sha256.sig` and `.build` files are for Piklin's automatic updates. You don't need to download them.
 
@@ -35,15 +35,14 @@ The `.sha256`, `.sha256.sig` and `.build` files are for Piklin's automatic updat
 If Piklin 1.0.4 or newer is installed, Piklin offers the update itself. Your library, albums, edits and backups stay as they are.
 
 ```bash
-sudo apt install ./piklin_2.0.0_amd64.deb     # Intel or AMD PC
-sudo apt install ./piklin_2.0.0_arm64.deb     # 64-bit ARM computer
+sudo apt install ./piklin_2.0.0_amd64.deb
 ```
 
 Without installing:
 
 ```bash
-chmod +x Piklin-2.0.0-*.AppImage
-./Piklin-2.0.0-x86_64.AppImage     # or ./Piklin-2.0.0-aarch64.AppImage
+chmod +x Piklin-2.0.0-x86_64.AppImage
+./Piklin-2.0.0-x86_64.AppImage
 ```
 
 ## What's new
@@ -54,7 +53,7 @@ Every photo app can show you where a photo was taken. Piklin turns that around: 
 
 - **Pins that mean somewhere you went.** Photos taken close together become one pin, and the pins regroup as you zoom — a country, then a city, then a street corner. Each pin says how many albums are behind it.
 - **Rest on a pin and its albums slide in** beside the map. The map stays where it is, the panel waits until you choose, and an arrow in the bar brings you back to the map exactly as you left it.
-- **Countries and cities you have visited,** counted, with the cities listed inside each country. Click one and the map flies there.
+- **Countries and places you have visited,** counted, with the places listed inside each country. Click one and the map flies there.
 
 ### Telling Piklin where you were
 
@@ -88,6 +87,19 @@ Preferences › Storage now explains, in plain words, what making a photo smalle
 
 The map is drawn with OpenStreetMap's own tile servers while this feature finds its feet. Those servers are donated infrastructure for OpenStreetMap's website rather than for applications, so Piklin will move to a background of its own — which will also let the map work with no connection at all. If the map ever comes up blank, that is why, and an update will fix it.
 
+## Verify your download
+
+SHA-256:
+
+```
+36a3714fef048d468ec050ce46b32aed1b94860001a065e39ccd64205c29fd72  piklin_2.0.0_amd64.deb
+62488cecc4a65afd4837662ad7edc574d53ec5a2b9aa7b6abb82618989e3b529  Piklin-2.0.0-x86_64.AppImage
+```
+
+The `.sha256` and `.sha256.sig` files are what Piklin's updater checks: each checksum, signed with Vezzu Studio's release key.
+
+Official downloads come only from this repository and [vezzu.studio](https://vezzu.studio).
+
 Piklin is free. If it helps you, you can [buy us a coffee on Ko-fi](https://ko-fi.com/vezzustudio) ☕
 
 </details>
@@ -111,6 +123,8 @@ Piklin is free. If it helps you, you can [buy us a coffee on Ko-fi](https://ko-f
 | 🐧 Fedora | 40 o más nuevo, con el AppImage | PC de 64 bits (Intel o AMD, x86-64) y ARM de 64 bits (arm64) |
 | 🐧 Basadas en las anteriores | Pop!_OS, Zorin OS, elementary OS y otras | Las mismas que la versión en la que se basan |
 
+**ARM de 64 bits (arm64):** esta versión es para PC de 64 bits. La de ARM llega en la 2.0.1.
+
 **macOS:** Piklin 2.0 es solo para Linux. El mapa necesita un componente que la versión de Mac todavía no lleva; se está añadiendo, y la 2.0.1 traerá el mapa a macOS. Hasta entonces las Mac se quedan en la 1.0.8, y tu biblioteca no cambia en nada.
 
 ### Descargar
@@ -118,9 +132,7 @@ Piklin is free. If it helps you, you can [buy us a coffee on Ko-fi](https://ko-f
 | Tu computadora | Descarga |
 |---|---|
 | 🐧 **PC con Linux** — Intel o AMD de 64 bits (x86-64) | [**piklin_2.0.0_amd64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/piklin_2.0.0_amd64.deb) |
-| 🐧 **Linux ARM** — ARM de 64 bits (arm64), como una Raspberry Pi 5 | [**piklin_2.0.0_arm64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/piklin_2.0.0_arm64.deb) |
 | 🐧 **Pruébalo sin instalar** — PC con Linux (x86-64) | [**Piklin-2.0.0-x86_64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0-x86_64.AppImage) |
-| 🐧 **Pruébalo sin instalar** — Linux ARM (arm64) | [**Piklin-2.0.0-aarch64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.0/Piklin-2.0.0-aarch64.AppImage) |
 
 Los archivos `.sha256`, `.sha256.sig` y `.build` son para las actualizaciones automáticas. No necesitas descargarlos.
 
@@ -129,15 +141,14 @@ Los archivos `.sha256`, `.sha256.sig` y `.build` son para las actualizaciones au
 Si tienes Piklin 1.0.4 o más nuevo, Piklin te ofrece la actualización. Tu biblioteca, álbumes, cambios y copias se quedan como están.
 
 ```bash
-sudo apt install ./piklin_2.0.0_amd64.deb     # PC con Intel o AMD
-sudo apt install ./piklin_2.0.0_arm64.deb     # computadora ARM de 64 bits
+sudo apt install ./piklin_2.0.0_amd64.deb
 ```
 
 Sin instalar:
 
 ```bash
-chmod +x Piklin-2.0.0-*.AppImage
-./Piklin-2.0.0-x86_64.AppImage     # o ./Piklin-2.0.0-aarch64.AppImage
+chmod +x Piklin-2.0.0-x86_64.AppImage
+./Piklin-2.0.0-x86_64.AppImage
 ```
 
 ### Novedades
@@ -148,7 +159,7 @@ Cualquier app de fotos te enseña dónde se tomó una foto. Piklin le da la vuel
 
 - **Pines que significan un lugar donde estuviste.** Las fotos tomadas cerca se juntan en un pin, y los pines se reagrupan al acercarte: un país, luego una ciudad, luego una esquina. Cada pin dice cuántos álbumes hay detrás.
 - **Apoya el puntero en un pin y sus álbumes entran** al lado del mapa. El mapa no se mueve, el panel espera a que elijas, y una flecha en la barra te devuelve al mapa tal como lo dejaste.
-- **Cuántos países y ciudades has visitado,** con las ciudades dentro de cada país. Pulsa una y el mapa vuela hasta allí.
+- **Cuántos países y lugares has visitado,** con los lugares dentro de cada país. Pulsa uno y el mapa vuela hasta allí.
 
 #### Decirle a Piklin dónde estuviste
 
