@@ -52,7 +52,7 @@ coordinate in their life.
   where it is, so the next pin is one movement away.
 - **Place names without asking anyone.** Piklin carries a list of the
   world's towns and reads it from your own disk. Turning a pin into
-  "Santo Domingo" never sends a coordinate anywhere.
+  "Miami" never sends a coordinate anywhere.
 - **Countries and cities you have visited,** counted, with the cities
   listed inside each country.
 - **It stays yours.** A place you set by hand is kept in your library and
