@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="data/icons/piklin-256.png" width="128" height="128" alt="Piklin icon">
+  <img src="docs/screenshots/hero.png" alt="Piklin 2.0" width="900">
 </p>
-
-<h1 align="center">Piklin</h1>
 
 <p align="center">
   <strong>A free and private photo and video library for Linux and Mac.</strong><br>
