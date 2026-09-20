@@ -229,3 +229,26 @@ def use_clean_map(simple_map, after=None) -> None:
             tiles, maxzoom = cached[0], cached[1]
         GLib.idle_add(apply, tiles, maxzoom)
     threading.Thread(target=work, daemon=True, name="pika-map-style").start()
+
+
+def keep_world_whole(simple_map) -> None:
+    """Do not let the map be pulled back until the world repeats itself: the
+    map library draws no markers on the repeats, so a pin would vanish. The
+    world stays at least as wide as the view, whatever the size of the view."""
+    import math
+    from gi.repository import GLib
+    seen = [(0, 0)]
+
+    def limit(widget, _clock):
+        size = (widget.get_width(), widget.get_height())
+        if size != seen[0] and size[0] > 0:
+            seen[0] = size
+            viewport = widget.get_viewport()
+            floor = max(0, math.ceil(math.log2(size[0] / 256.0)))
+            viewport.set_min_zoom_level(floor)
+            if viewport.get_zoom_level() < floor:
+                viewport.set_zoom_level(floor)
+        return GLib.SOURCE_CONTINUE
+    simple_map.add_tick_callback(limit)
+    # A new map source forgets the limits; the next frame puts them back.
+    simple_map.connect("notify::map-source", lambda *_a: seen.__setitem__(0, (0, 0)))

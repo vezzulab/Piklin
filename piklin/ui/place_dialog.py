@@ -71,10 +71,12 @@ class PlaceDialog(Adw.Dialog):
         self.markers = Shumate.MarkerLayer.new(viewport)
         self.map.add_overlay_layer(self.markers)
 
+        from .. import mapstyle
+
         def clean_map_ready():
             viewport.set_max_zoom_level(18)
-        from .. import mapstyle
         mapstyle.use_clean_map(self.map, clean_map_ready)
+        mapstyle.keep_world_whole(self.map)
 
         click = Gtk.GestureClick()
         click.connect("released", self._on_map_clicked)
