@@ -1354,7 +1354,7 @@ class SettingsDialog(Adw.PreferencesDialog):
                           "anything."))
         dupes = Adw.ActionRow(
             title=_("Find Duplicate Photos"),
-            subtitle=_("Finds photos that are exact copies"))
+            subtitle=_("Reads every photo and video, whole, to find exact copies"))
         dbtn = Gtk.Button(label=_("Find"), valign=Gtk.Align.CENTER)
         dbtn.connect("clicked", self._on_find_dupes, dupes)
         dupes.add_suffix(dbtn)
@@ -1410,22 +1410,58 @@ class SettingsDialog(Adw.PreferencesDialog):
         self._toast(_("Folder removed from the library. No files were deleted."))
 
     def _on_find_dupes(self, btn, row):
-        btn.set_sensitive(False)
-        row.set_subtitle(_("Scanning…"))
+        """Look at every photo and video, read each file that could be a copy
+        from start to end, and report the ones whose content is the same."""
+        from .. import dupescan
+        if getattr(self, "_dupe_cancel", None) is not None:
+            self._dupe_cancel.set()             # the button is "Stop" while working
+            return
+        cancel = self._dupe_cancel = threading.Event()
+        btn.set_label(_("Stop"))
+        row.set_subtitle(_("Looking through every folder…"))
+
+        def shown(p):
+            if p.phase == "reading":
+                text = _("Reading every file — {done} of {total}  ·  {size} of {all}").format(
+                    done=f"{p.read:,}", total=f"{p.to_read:,}",
+                    size=_fmt(p.bytes_read), all=_fmt(p.bytes_total))
+            else:
+                text = _("Checking {count} files…").format(count=f"{p.files:,}")
+            GLib.idle_add(row.set_subtitle, text)
 
         def work():
-            groups = self.catalog.duplicate_groups()
+            try:
+                indexer = self._window.indexer
+                thread = getattr(indexer, "_thread", None)
+                if thread is not None and thread.is_alive():
+                    thread.join()
+                indexer.scan(None)              # anything new in the folders
+            except Exception:
+                pass
+            result = dupescan.scan(self.catalog, shown, cancel)
+            GLib.idle_add(finish, result, cancel.is_set())
+
+        def finish(result, stopped):
+            self._dupe_cancel = None
+            btn.set_label(_("Find"))
+            groups = result.groups
+            n = len(groups)
             extra = sum(len(g) - 1 for g in groups)
             waste = sum(sum(r["bytes"] for r in g[1:]) for g in groups)
-            GLib.idle_add(finish, len(groups), extra, waste)
-
-        def finish(n, extra, waste):
-            btn.set_sensitive(True)
-            row.set_subtitle(
-                (ngettext("{count} group", "{count} groups", n).format(count=n)
-                 + ", " + ngettext("{count} duplicate file", "{count} duplicate files",
-                                   extra).format(count=extra)
-                 + " " + _("using {size}").format(size=_fmt(waste)))
-                if n else _("No duplicates found"))
+            text = (ngettext("{count} group", "{count} groups", n).format(count=n)
+                    + ", " + ngettext("{count} duplicate file", "{count} duplicate files",
+                                      extra).format(count=extra)
+                    + " " + _("using {size}").format(size=_fmt(waste))
+                    ) if n else _("No duplicates found")
+            if stopped:
+                text = _("Stopped.") + " " + text
+            else:
+                text += "  ·  " + ngettext("{count} file checked", "{count} files checked",
+                                           result.files).format(count=f"{result.files:,}")
+            row.set_subtitle(text)
+            try:
+                self._window._refresh()
+            except Exception:
+                pass
             return False
-        threading.Thread(target=work, daemon=True).start()
+        threading.Thread(target=work, daemon=True, name="pika-dupes").start()

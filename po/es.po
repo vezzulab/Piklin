@@ -19,20 +19,20 @@ msgstr "Recomponiendo tu biblioteca"
 msgid "Reading your photos…"
 msgstr "Leyendo tus fotos…"
 
-#: piklin/app.py:426 piklin/ui/window.py:3770
+#: piklin/app.py:426 piklin/ui/window.py:3775
 msgid "Looking for photos"
 msgstr "Buscando fotos"
 
-#: piklin/app.py:427 piklin/ui/window.py:3771
+#: piklin/app.py:427 piklin/ui/window.py:3776
 msgid "Reading photo details"
 msgstr "Leyendo los datos de las fotos"
 
-#: piklin/app.py:428 piklin/ui/window.py:3772
+#: piklin/app.py:428 piklin/ui/window.py:3777
 msgid "Preparing previews"
 msgstr "Preparando vistas previas"
 
-#: piklin/app.py:430 piklin/ui/window.py:1207 piklin/ui/window.py:1231
-#: piklin/ui/window.py:3775
+#: piklin/app.py:430 piklin/ui/window.py:1212 piklin/ui/window.py:1236
+#: piklin/ui/window.py:3780
 #, python-brace-format
 msgid "{step} — {done} of {total}"
 msgstr "{step} — {done} de {total}"
@@ -141,129 +141,129 @@ msgid "Not backed up yet"
 msgstr "Todavía sin copia"
 
 #. key            (column,          label,            kind)
-#: piklin/catalog.py:235
+#: piklin/catalog.py:239
 msgid "Filename"
 msgstr "Nombre del archivo"
 
-#: piklin/catalog.py:236
+#: piklin/catalog.py:240
 msgid "Folder path"
 msgstr "Ruta de la carpeta"
 
-#: piklin/catalog.py:237
+#: piklin/catalog.py:241
 msgid "Camera make"
 msgstr "Marca de la cámara"
 
-#: piklin/catalog.py:238
+#: piklin/catalog.py:242
 msgid "Camera model"
 msgstr "Modelo de la cámara"
 
-#: piklin/catalog.py:239 piklin/ui/viewer.py:209
+#: piklin/catalog.py:243 piklin/ui/viewer.py:209
 msgid "Lens"
 msgstr "Objetivo"
 
-#: piklin/catalog.py:240 piklin/ui/window.py:269
+#: piklin/catalog.py:244 piklin/ui/window.py:274
 msgid "Rating"
 msgstr "Valoración"
 
-#: piklin/catalog.py:242
+#: piklin/catalog.py:246
 msgid "Aperture (f/)"
 msgstr "Apertura (f/)"
 
-#: piklin/catalog.py:243
+#: piklin/catalog.py:247
 msgid "Focal length"
 msgstr "Distancia focal"
 
-#: piklin/catalog.py:244 piklin/engine/tools.py:1816
+#: piklin/catalog.py:248 piklin/engine/tools.py:1816
 msgid "Width"
 msgstr "Ancho"
 
-#: piklin/catalog.py:245
+#: piklin/catalog.py:249
 msgid "Height"
 msgstr "Alto"
 
-#: piklin/catalog.py:246
+#: piklin/catalog.py:250
 msgid "File size"
 msgstr "Tamaño del archivo"
 
-#: piklin/catalog.py:247 piklin/ui/help_dialog.py:58
-#: piklin/ui/help_dialog.py:80 piklin/ui/window.py:521 piklin/ui/window.py:3563
+#: piklin/catalog.py:251 piklin/ui/help_dialog.py:58
+#: piklin/ui/help_dialog.py:80 piklin/ui/window.py:526 piklin/ui/window.py:3568
 msgid "Favourite"
 msgstr "Favorito"
 
-#: piklin/catalog.py:248 piklin/ui/window.py:479
+#: piklin/catalog.py:252 piklin/ui/window.py:484
 msgid "Edited"
 msgstr "Editadas"
 
-#: piklin/catalog.py:249
+#: piklin/catalog.py:253
 msgid "Has location"
 msgstr "Tiene ubicación"
 
-#: piklin/catalog.py:250
+#: piklin/catalog.py:254
 msgid "Date taken"
 msgstr "Fecha de la foto"
 
-#: piklin/catalog.py:251 piklin/ui/export_dialog.py:106
+#: piklin/catalog.py:255 piklin/ui/export_dialog.py:106
 #: piklin/ui/settings_dialog.py:219
 msgid "File type"
 msgstr "Tipo de archivo"
 
-#: piklin/catalog.py:252
+#: piklin/catalog.py:256
 msgid "Media type"
 msgstr "Tipo"
 
-#: piklin/catalog.py:253
+#: piklin/catalog.py:257
 msgid "Video length (seconds)"
 msgstr "Duración del video (segundos)"
 
-#: piklin/catalog.py:257 piklin/catalog.py:258
+#: piklin/catalog.py:261 piklin/catalog.py:262
 msgid "is"
 msgstr "es"
 
-#: piklin/catalog.py:257 piklin/catalog.py:258
+#: piklin/catalog.py:261 piklin/catalog.py:262
 msgid "is not"
 msgstr "no es"
 
-#: piklin/catalog.py:257
+#: piklin/catalog.py:261
 msgid "contains"
 msgstr "contiene"
 
-#: piklin/catalog.py:257
+#: piklin/catalog.py:261
 msgid "does not contain"
 msgstr "no contiene"
 
-#: piklin/catalog.py:258
+#: piklin/catalog.py:262
 msgid "greater than"
 msgstr "mayor que"
 
-#: piklin/catalog.py:258
+#: piklin/catalog.py:262
 msgid "less than"
 msgstr "menor que"
 
-#: piklin/catalog.py:259 piklin/catalog.py:260
+#: piklin/catalog.py:263 piklin/catalog.py:264
 msgid "is true"
 msgstr "sí"
 
-#: piklin/catalog.py:259 piklin/catalog.py:260
+#: piklin/catalog.py:263 piklin/catalog.py:264
 msgid "is false"
 msgstr "no"
 
-#: piklin/catalog.py:261
+#: piklin/catalog.py:265
 msgid "in the last days"
 msgstr "en los últimos días"
 
-#: piklin/catalog.py:261
+#: piklin/catalog.py:265
 msgid "before"
 msgstr "antes de"
 
-#: piklin/catalog.py:261
+#: piklin/catalog.py:265
 msgid "after"
 msgstr "después de"
 
-#: piklin/catalog.py:262
+#: piklin/catalog.py:266
 msgid "is video"
 msgstr "es un video"
 
-#: piklin/catalog.py:262
+#: piklin/catalog.py:266
 msgid "is photo"
 msgstr "es una foto"
 
@@ -316,42 +316,42 @@ msgstr "Archivos mínimos"
 msgid "The least room possible. Photos are also made smaller in size, so this is for keeping memories, not for printing them."
 msgstr "El menor espacio posible. Además las fotos se hacen de menor tamaño, así que es para guardar recuerdos, no para imprimirlos."
 
-#: piklin/compress.py:380
+#: piklin/compress.py:406
 msgid "kept as-is"
 msgstr "se deja tal cual"
 
-#: piklin/compress.py:386
+#: piklin/compress.py:412
 #, python-brace-format
 msgid "can't read the file ({error})"
 msgstr "no se puede leer el archivo ({error})"
 
-#: piklin/compress.py:404
+#: piklin/compress.py:430
 msgid "lossless would be larger; original kept"
 msgstr "sin pérdida ocuparía más; se deja el original"
 
-#: piklin/compress.py:425
+#: piklin/compress.py:451
 msgid "no ladder step met the target; used highest quality"
 msgstr "no se alcanzó el objetivo; se usó la máxima calidad"
 
-#: piklin/compress.py:429 piklin/compress.py:436
+#: piklin/compress.py:455 piklin/compress.py:462
 #, python-brace-format
 msgid "couldn't save the file ({error})"
 msgstr "no se pudo guardar el archivo ({error})"
 
-#: piklin/compress.py:443
+#: piklin/compress.py:469
 msgid "already well compressed; original kept"
 msgstr "ya estaba bien comprimido; se deja el original"
 
-#: piklin/compress.py:446
+#: piklin/compress.py:472
 #, python-brace-format
 msgid "made smaller, up to {size} px on the long side"
 msgstr "reducido a {size} px como máximo en el lado largo"
 
-#: piklin/compress.py:478
+#: piklin/compress.py:504
 msgid "copied unchanged"
 msgstr "copiado sin cambios"
 
-#: piklin/compress.py:521
+#: piklin/compress.py:548
 msgid "original was already smaller; copied unchanged"
 msgstr "el original ya era más pequeño; copiado sin cambios"
 
@@ -986,7 +986,7 @@ msgid "Sides"
 msgstr "Lados"
 
 #: piklin/engine/tools.py:1216 piklin/engine/tools.py:1217
-#: piklin/ui/grid.py:369
+#: piklin/ui/grid.py:370
 msgid "All"
 msgstr "Todos"
 
@@ -1386,7 +1386,7 @@ msgstr "Colegio"
 #. Library is where everything starts; it stays open.
 #: piklin/geocode.py:86 piklin/ui/onboarding.py:400
 #: piklin/ui/settings_dialog.py:305 piklin/ui/settings_dialog.py:1321
-#: piklin/ui/window.py:551 piklin/ui/window.py:881 piklin/ui/window.py:1442
+#: piklin/ui/window.py:556 piklin/ui/window.py:886 piklin/ui/window.py:1447
 msgid "Library"
 msgstr "Biblioteca"
 
@@ -1426,7 +1426,8 @@ msgstr "Centro deportivo"
 msgid "Station"
 msgstr "Estación"
 
-#: piklin/geocode.py:90 piklin/ui/window.py:1142
+#: piklin/geocode.py:90 piklin/ui/settings_dialog.py:1420
+#: piklin/ui/window.py:1147
 msgid "Stop"
 msgstr "Detener"
 
@@ -1905,7 +1906,7 @@ msgid "This recovery key doesn't open the encrypted backup there."
 msgstr "Esta clave de recuperación no abre la copia cifrada que hay ahí."
 
 #: piklin/remote.py:2432 piklin/ui/onboarding.py:361
-#: piklin/ui/onboarding.py:394 piklin/ui/window.py:4043
+#: piklin/ui/onboarding.py:394 piklin/ui/window.py:4048
 msgid "Folder or Drive"
 msgstr "Carpeta o unidad"
 
@@ -1923,7 +1924,7 @@ msgstr "Para QNAP, Synology, Nextcloud y similares. Necesitas la dirección del 
 
 #: piklin/remote.py:2438 piklin/ui/onboarding.py:365
 #: piklin/ui/onboarding.py:395 piklin/ui/settings_dialog.py:782
-#: piklin/ui/window.py:4041
+#: piklin/ui/window.py:4046
 msgid "Cloud Service"
 msgstr "Servicio en la nube"
 
@@ -1957,8 +1958,8 @@ msgstr "Póster"
 msgid "One picture to print and frame, with room for a few words."
 msgstr "Una imagen para imprimir y enmarcar, con lugar para unas palabras."
 
-#: piklin/ui/create_panel.py:78 piklin/ui/window.py:3259
-#: piklin/ui/window.py:3447
+#: piklin/ui/create_panel.py:78 piklin/ui/window.py:3264
+#: piklin/ui/window.py:3452
 msgid "Create"
 msgstr "Crear"
 
@@ -2119,8 +2120,8 @@ msgid "Save to Library"
 msgstr "Guardar en la biblioteca"
 
 #: piklin/ui/creation_view.py:115 piklin/ui/editor.py:150
-#: piklin/ui/video_editor.py:348 piklin/ui/window.py:525
-#: piklin/ui/window.py:3556
+#: piklin/ui/video_editor.py:348 piklin/ui/window.py:530
+#: piklin/ui/window.py:3561
 msgid "Export…"
 msgstr "Exportar…"
 
@@ -2351,10 +2352,10 @@ msgstr "Tu foto original no se toca en ningún caso: esto solo borra los ajustes
 #: piklin/ui/settings_dialog.py:1194 piklin/ui/smart_album_dialog.py:163
 #: piklin/ui/update_dialog.py:87 piklin/ui/video_editor.py:738
 #: piklin/ui/videospace_dialog.py:128 piklin/ui/viewer.py:417
-#: piklin/ui/window.py:2691 piklin/ui/window.py:2963 piklin/ui/window.py:3105
-#: piklin/ui/window.py:3132 piklin/ui/window.py:3161 piklin/ui/window.py:3229
-#: piklin/ui/window.py:3258 piklin/ui/window.py:3366 piklin/ui/window.py:3418
-#: piklin/ui/window.py:3446 piklin/ui/window.py:3679
+#: piklin/ui/window.py:2696 piklin/ui/window.py:2968 piklin/ui/window.py:3110
+#: piklin/ui/window.py:3137 piklin/ui/window.py:3166 piklin/ui/window.py:3234
+#: piklin/ui/window.py:3263 piklin/ui/window.py:3371 piklin/ui/window.py:3423
+#: piklin/ui/window.py:3451 piklin/ui/window.py:3684
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -2371,7 +2372,7 @@ msgstr "Exportar"
 #: piklin/ui/map_view.py:726 piklin/ui/map_view.py:870
 #: piklin/ui/map_view.py:873 piklin/ui/map_view.py:882
 #: piklin/ui/settings_dialog.py:383 piklin/ui/settings_dialog.py:1341
-#: piklin/ui/summary.py:123 piklin/ui/window.py:2958
+#: piklin/ui/summary.py:123 piklin/ui/window.py:2963
 #, python-brace-format
 msgid "{count} photo"
 msgid_plural "{count} photos"
@@ -2403,7 +2404,7 @@ msgstr "Guardar en"
 msgid "Change…"
 msgstr "Cambiar…"
 
-#: piklin/ui/export_dialog.py:80 piklin/ui/window.py:268
+#: piklin/ui/export_dialog.py:80 piklin/ui/window.py:273
 msgid "File Size"
 msgstr "Tamaño del archivo"
 
@@ -2615,13 +2616,13 @@ msgstr "Esta carpeta está vacía"
 msgid "Drag albums onto this folder in the sidebar to group them."
 msgstr "Arrastra álbumes a esta carpeta en la barra lateral para agruparlos."
 
-#: piklin/ui/folder_view.py:132 piklin/ui/grid.py:429 piklin/ui/grid.py:631
+#: piklin/ui/folder_view.py:132 piklin/ui/grid.py:430 piklin/ui/grid.py:632
 #, python-brace-format
 msgid "Back to {folder}"
 msgstr "Volver a {folder}"
 
 #: piklin/ui/folder_view.py:137 piklin/ui/folder_view.py:195
-#: piklin/ui/map_view.py:614 piklin/ui/window.py:3657
+#: piklin/ui/map_view.py:614 piklin/ui/window.py:3662
 #, python-brace-format
 msgid "{count} album"
 msgid_plural "{count} albums"
@@ -2663,145 +2664,145 @@ msgstr "Todavía no hay fotos aquí"
 msgid "Add a folder and Piklin will build your library."
 msgstr "Añade una carpeta y Piklin creará tu biblioteca."
 
-#: piklin/ui/grid.py:370 piklin/ui/onboarding.py:401 piklin/ui/window.py:480
+#: piklin/ui/grid.py:371 piklin/ui/onboarding.py:401 piklin/ui/window.py:485
 msgid "Photos"
 msgstr "Fotos"
 
-#: piklin/ui/grid.py:371 piklin/ui/settings_dialog.py:321
-#: piklin/ui/window.py:480 piklin/ui/window.py:894
+#: piklin/ui/grid.py:372 piklin/ui/settings_dialog.py:321
+#: piklin/ui/window.py:485 piklin/ui/window.py:899
 msgid "Videos"
 msgstr "Videos"
 
-#: piklin/ui/grid.py:685 piklin/ui/grid.py:780 piklin/ui/viewer.py:203
+#: piklin/ui/grid.py:686 piklin/ui/grid.py:781 piklin/ui/viewer.py:203
 #: piklin/ui/viewer.py:358
 msgid "Photo"
 msgstr "Foto"
 
-#: piklin/ui/grid.py:1314
+#: piklin/ui/grid.py:1327
 msgid "Already Imported"
 msgstr "Ya importadas"
 
-#: piklin/ui/grid.py:1315
+#: piklin/ui/grid.py:1328
 #, python-brace-format
 msgid "{count} item already in your library"
 msgid_plural "{count} items already in your library"
 msgstr[0] "{count} elemento ya está en tu biblioteca"
 msgstr[1] "{count} elementos ya están en tu biblioteca"
 
-#: piklin/ui/grid.py:1340
+#: piklin/ui/grid.py:1353
 msgid "New Items"
 msgstr "Elementos nuevos"
 
-#: piklin/ui/grid.py:1366 piklin/ui/summary.py:54
+#: piklin/ui/grid.py:1379 piklin/ui/summary.py:54
 msgid "No Photos"
 msgstr "No hay fotos"
 
-#: piklin/ui/grid.py:1366
+#: piklin/ui/grid.py:1379
 msgid "Add a folder of photos, or connect a camera, and they will appear here."
 msgstr "Añade una carpeta de fotos o conecta una cámara, y aparecerán aquí."
 
-#: piklin/ui/grid.py:1368
+#: piklin/ui/grid.py:1381
 msgid "No Favourites"
 msgstr "No hay favoritos"
 
-#: piklin/ui/grid.py:1368
+#: piklin/ui/grid.py:1381
 msgid "Select photos and press the period key (.) to add them to your favourites."
 msgstr "Selecciona fotos y pulsa la tecla del punto (.) para añadirlas a tus favoritos."
 
-#: piklin/ui/grid.py:1370
+#: piklin/ui/grid.py:1383
 msgid "No Edited Photos"
 msgstr "No hay fotos editadas"
 
-#: piklin/ui/grid.py:1370
+#: piklin/ui/grid.py:1383
 msgid "Photos you edit appear here. Your originals are never changed."
 msgstr "Las fotos que edites aparecen aquí. Tus originales nunca se modifican."
 
-#: piklin/ui/grid.py:1372
+#: piklin/ui/grid.py:1385
 msgid "No Hidden Photos"
 msgstr "No hay fotos ocultas"
 
-#: piklin/ui/grid.py:1372
+#: piklin/ui/grid.py:1385
 msgid "Select photos and press Ctrl+L to hide them from the library."
 msgstr "Selecciona fotos y pulsa Ctrl+L para ocultarlas de la biblioteca."
 
-#: piklin/ui/grid.py:1374
+#: piklin/ui/grid.py:1387
 msgid "No Recently Deleted Items"
 msgstr "No hay elementos eliminados recientemente"
 
-#: piklin/ui/grid.py:1374
+#: piklin/ui/grid.py:1387
 msgid "Deleted photos stay here for 30 days before they leave the library."
 msgstr "Las fotos eliminadas se quedan aquí 30 días antes de salir de la biblioteca."
 
-#: piklin/ui/grid.py:1377
+#: piklin/ui/grid.py:1390
 msgid "This Album Is Empty"
 msgstr "Este álbum está vacío"
 
-#: piklin/ui/grid.py:1377
+#: piklin/ui/grid.py:1390
 msgid "Drag photos onto the album in the sidebar to add them."
 msgstr "Arrastra fotos al álbum en la barra lateral para añadirlas."
 
-#: piklin/ui/grid.py:1379
+#: piklin/ui/grid.py:1392
 msgid "No Screenshots"
 msgstr "No hay capturas de pantalla"
 
-#: piklin/ui/grid.py:1379
+#: piklin/ui/grid.py:1392
 msgid "Screenshots in your folders appear here."
 msgstr "Las capturas de pantalla de tus carpetas aparecen aquí."
 
-#: piklin/ui/grid.py:1381
+#: piklin/ui/grid.py:1394
 msgid "No Videos"
 msgstr "No hay videos"
 
-#: piklin/ui/grid.py:1381
+#: piklin/ui/grid.py:1394
 msgid "Videos in your folders and from your camera appear here."
 msgstr "Los videos de tus carpetas y de tu cámara aparecen aquí."
 
-#: piklin/ui/grid.py:1383
+#: piklin/ui/grid.py:1396
 msgid "No Duplicates"
 msgstr "No hay duplicados"
 
-#: piklin/ui/grid.py:1383
+#: piklin/ui/grid.py:1396
 msgid "Photos that are exact copies of each other are gathered here."
 msgstr "Aquí se reúnen las fotos que son copias exactas."
 
-#: piklin/ui/grid.py:1385
+#: piklin/ui/grid.py:1398
 msgid "No Imports"
 msgstr "No hay importaciones"
 
-#: piklin/ui/grid.py:1385
+#: piklin/ui/grid.py:1398
 msgid "Photos you import from a camera appear here, newest import first."
 msgstr "Las fotos que importes de una cámara aparecen aquí, primero la importación más reciente."
 
-#: piklin/ui/grid.py:1452
+#: piklin/ui/grid.py:1465
 msgid "No Matching Photos"
 msgstr "No hay fotos que coincidan"
 
-#: piklin/ui/grid.py:1453
+#: piklin/ui/grid.py:1466
 msgid "Nothing here matches the filter. Choose Show All in the Filter menu."
 msgstr "Nada coincide con el filtro. Elige Mostrar todo en el menú Filtro."
 
-#: piklin/ui/grid.py:1458
+#: piklin/ui/grid.py:1471
 msgid "No Results"
 msgstr "Sin resultados"
 
-#: piklin/ui/grid.py:1459
+#: piklin/ui/grid.py:1472
 #, python-brace-format
 msgid "Nothing matches “{search}”."
 msgstr "Nada coincide con “{search}”."
 
-#: piklin/ui/grid.py:1549 piklin/ui/help_dialog.py:106 piklin/ui/window.py:902
+#: piklin/ui/grid.py:1562 piklin/ui/help_dialog.py:106 piklin/ui/window.py:907
 msgid "Duplicates"
 msgstr "Duplicados"
 
-#: piklin/ui/grid.py:1550
+#: piklin/ui/grid.py:1563
 msgid "Each group below is the same photo more than once. Keep One of Each keeps the best copy of every group - the favourite, edited or in albums - and moves the extra copies to Recently Deleted, where they stay for 30 days. Select some groups to do it for just those."
 msgstr "Cada grupo de abajo es la misma foto repetida. Dejar una de cada se queda con la mejor copia de cada grupo (la favorita, la editada o la que está en álbumes) y manda las copias de más a Eliminados recientemente, donde se quedan 30 días. Selecciona algunos grupos para hacerlo solo con esos."
 
-#: piklin/ui/grid.py:1657
+#: piklin/ui/grid.py:1670
 msgid "Other photos"
 msgstr "Otras fotos"
 
-#: piklin/ui/grid.py:1698
+#: piklin/ui/grid.py:1711
 #, python-brace-format
 msgid "{count} identical copy"
 msgid_plural "{count} identical copies"
@@ -2848,7 +2849,7 @@ msgstr "Años, Meses, Días, Todas las fotos"
 msgid "The buttons at the top change how your photos are grouped."
 msgstr "Los botones de arriba cambian cómo se agrupan tus fotos."
 
-#: piklin/ui/help_dialog.py:33 piklin/ui/window.py:447
+#: piklin/ui/help_dialog.py:33 piklin/ui/window.py:452
 msgid "Photo size"
 msgstr "Tamaño de las fotos"
 
@@ -2874,8 +2875,8 @@ msgstr "Escribe en la caja de búsqueda para encontrar fotos por nombre, fecha, 
 
 #. Filter: a pop-up of what to show, several
 #. at once, inside whichever view is open.
-#: piklin/ui/help_dialog.py:41 piklin/ui/window.py:470 piklin/ui/window.py:2882
-#: piklin/ui/window.py:2891
+#: piklin/ui/help_dialog.py:41 piklin/ui/window.py:475 piklin/ui/window.py:2887
+#: piklin/ui/window.py:2896
 msgid "Filter"
 msgstr "Filtro"
 
@@ -2927,7 +2928,7 @@ msgstr "La barra de las fotos elegidas"
 msgid "Marks the chosen photos as favourites, so they appear in Favourites. Key: F"
 msgstr "Marca las fotos elegidas como favoritas, para que aparezcan en Favoritos. Tecla: F"
 
-#: piklin/ui/help_dialog.py:61 piklin/ui/window.py:523 piklin/ui/window.py:2630
+#: piklin/ui/help_dialog.py:61 piklin/ui/window.py:528 piklin/ui/window.py:2635
 msgid "Move to Recently Deleted"
 msgstr "Mover a Eliminados recientemente"
 
@@ -2939,7 +2940,7 @@ msgstr "Las fotos esperan ahí 30 días, así que todavía puedes recuperarlas. 
 msgid "Saves copies of the chosen photos in a folder you pick, to share or print them. Ctrl+E"
 msgstr "Guarda copias de las fotos elegidas en la carpeta que elijas, para compartirlas o imprimirlas. Ctrl+E"
 
-#: piklin/ui/help_dialog.py:67 piklin/ui/window.py:2957
+#: piklin/ui/help_dialog.py:67 piklin/ui/window.py:2962
 msgid "Add to Album"
 msgstr "Añadir a un álbum"
 
@@ -3049,7 +3050,7 @@ msgstr "Abrir una carpeta"
 msgid "Click a folder to see its albums as cards, then click one to open it."
 msgstr "Haz clic en una carpeta para ver sus álbumes como tarjetas, y luego haz clic en uno para abrirlo."
 
-#: piklin/ui/help_dialog.py:104 piklin/ui/window.py:900
+#: piklin/ui/help_dialog.py:104 piklin/ui/window.py:905
 msgid "Hidden"
 msgstr "Ocultas"
 
@@ -3061,7 +3062,7 @@ msgstr "Las fotos que ocultas con Ctrl+L salen de tu biblioteca y esperan aquí.
 msgid "Finds photos that are exact copies, so you can keep just one."
 msgstr "Encuentra las fotos que son copias exactas, para que te quedes solo con una."
 
-#: piklin/ui/help_dialog.py:108 piklin/ui/window.py:890
+#: piklin/ui/help_dialog.py:108 piklin/ui/window.py:895
 msgid "Recently Deleted"
 msgstr "Eliminados recientemente"
 
@@ -3082,7 +3083,7 @@ msgid "Open the menu ⋮ and choose Backups… to keep a copy on a drive, a NAS 
 msgstr "Abre el menú ⋮ y elige Copias de seguridad… para guardar una copia en una unidad, un NAS o un servicio en la nube. Las fotos nuevas se copian allí automáticamente."
 
 #: piklin/ui/help_dialog.py:115 piklin/ui/settings_dialog.py:31
-#: piklin/ui/window.py:283
+#: piklin/ui/window.py:288
 msgid "Preferences"
 msgstr "Preferencias"
 
@@ -3090,7 +3091,7 @@ msgstr "Preferencias"
 msgid "Change the language, the look, and how photos are brought in. Ctrl+,"
 msgstr "Cambia el idioma, el aspecto y cómo entran las fotos. Ctrl+,"
 
-#: piklin/ui/help_dialog.py:125 piklin/ui/window.py:285
+#: piklin/ui/help_dialog.py:125 piklin/ui/window.py:290
 msgid "How to Use Piklin"
 msgstr "Cómo usar Piklin"
 
@@ -3098,19 +3099,19 @@ msgstr "Cómo usar Piklin"
 msgid "What each button does, in a few words. Open this guide at any time from Help in the menu, or press F1."
 msgstr "Lo que hace cada botón, en pocas palabras. Abre esta guía cuando quieras desde Ayuda en el menú, o pulsa F1."
 
-#: piklin/ui/list_tools.py:26 piklin/ui/window.py:844
+#: piklin/ui/list_tools.py:26 piklin/ui/window.py:849
 msgid "Most photos"
 msgstr "Más fotos"
 
-#: piklin/ui/list_tools.py:27 piklin/ui/window.py:845
+#: piklin/ui/list_tools.py:27 piklin/ui/window.py:850
 msgid "Fewest photos"
 msgstr "Menos fotos"
 
-#: piklin/ui/list_tools.py:28 piklin/ui/window.py:843
+#: piklin/ui/list_tools.py:28 piklin/ui/window.py:848
 msgid "A to Z"
 msgstr "De la A a la Z"
 
-#: piklin/ui/list_tools.py:29 piklin/ui/window.py:843
+#: piklin/ui/list_tools.py:29 piklin/ui/window.py:848
 msgid "Z to A"
 msgstr "De la Z a la A"
 
@@ -3118,7 +3119,7 @@ msgstr "De la Z a la A"
 msgid "Sort by"
 msgstr "Ordenar por"
 
-#: piklin/ui/log_dialog.py:20 piklin/ui/window.py:287
+#: piklin/ui/log_dialog.py:20 piklin/ui/window.py:292
 msgid "Activity Log"
 msgstr "Registro de actividad"
 
@@ -3175,7 +3176,7 @@ msgstr "Alejar"
 msgid "Close"
 msgstr "Cerrar"
 
-#: piklin/ui/map_view.py:298 piklin/ui/window.py:316 piklin/ui/window.py:836
+#: piklin/ui/map_view.py:298 piklin/ui/window.py:321 piklin/ui/window.py:841
 msgid "Search albums"
 msgstr "Buscar álbumes"
 
@@ -3234,7 +3235,7 @@ msgstr "Continuar"
 msgid "Piklin follows this computer's language"
 msgstr "Piklin usa el idioma de este ordenador"
 
-#: piklin/ui/onboarding.py:316 piklin/ui/window.py:4059
+#: piklin/ui/onboarding.py:316 piklin/ui/window.py:4064
 msgid "Welcome to Piklin"
 msgstr "Te damos la bienvenida a Piklin"
 
@@ -3286,7 +3287,7 @@ msgstr "Recupera una biblioteca desde un disco, un NAS o un servicio en la nube 
 #. up last, under the three choices.
 #: piklin/ui/onboarding.py:349 piklin/ui/onboarding.py:377
 #: piklin/ui/onboarding.py:393 piklin/ui/onboarding.py:395
-#: piklin/ui/window.py:4040
+#: piklin/ui/window.py:4045
 msgid "Not Now"
 msgstr "Ahora no"
 
@@ -3307,7 +3308,7 @@ msgid "An external drive or a folder on this computer"
 msgstr "Un disco externo o una carpeta de este ordenador"
 
 #: piklin/ui/onboarding.py:363 piklin/ui/onboarding.py:394
-#: piklin/ui/window.py:4042
+#: piklin/ui/window.py:4047
 msgid "NAS or WebDAV Server"
 msgstr "NAS o servidor WebDAV"
 
@@ -3332,7 +3333,7 @@ msgid "Set it up any time in Preferences"
 msgstr "Configúrala cuando quieras en Preferencias"
 
 #: piklin/ui/onboarding.py:379 piklin/ui/settings_dialog.py:403
-#: piklin/ui/window.py:4033
+#: piklin/ui/window.py:4038
 msgid "Keep a Copy of Your Photos"
 msgstr "Guarda una copia de tus fotos"
 
@@ -3341,7 +3342,7 @@ msgid "New photos, videos and edits are copied there automatically. Nothing leav
 msgstr "Las fotos, videos y ediciones nuevas se copian allí automáticamente. Nada sale de tu ordenador a menos que elijas adónde."
 
 #: piklin/ui/onboarding.py:399 piklin/ui/settings_dialog.py:58
-#: piklin/ui/settings_dialog.py:61 piklin/ui/window.py:4076
+#: piklin/ui/settings_dialog.py:61 piklin/ui/window.py:4081
 msgid "Language"
 msgstr "Idioma"
 
@@ -3366,7 +3367,7 @@ msgid "Choose Where to Keep the Library"
 msgstr "Elige dónde guardar la biblioteca"
 
 #: piklin/ui/onboarding.py:449 piklin/ui/onboarding.py:452
-#: piklin/ui/window.py:3748
+#: piklin/ui/window.py:3753
 msgid "Choose a Folder with Photos"
 msgstr "Elige una carpeta con fotos"
 
@@ -3496,8 +3497,8 @@ msgstr "El archivo también cambia de nombre en tu ordenador, así verás el nom
 msgid "New name"
 msgstr "Nombre nuevo"
 
-#: piklin/ui/rename_dialog.py:44 piklin/ui/window.py:3106
-#: piklin/ui/window.py:3133
+#: piklin/ui/rename_dialog.py:44 piklin/ui/window.py:3111
+#: piklin/ui/window.py:3138
 msgid "Rename"
 msgstr "Cambiar nombre"
 
@@ -3511,8 +3512,8 @@ msgid "Couldn’t Rename"
 msgstr "No se pudo cambiar el nombre"
 
 #: piklin/ui/rename_dialog.py:74 piklin/ui/settings_dialog.py:1260
-#: piklin/ui/smart_album_dialog.py:165 piklin/ui/window.py:3738
-#: piklin/ui/window.py:4023
+#: piklin/ui/smart_album_dialog.py:165 piklin/ui/window.py:3743
+#: piklin/ui/window.py:4028
 msgid "OK"
 msgstr "Aceptar"
 
@@ -3614,7 +3615,7 @@ msgid "Piklin needs to reopen to show everything in the new language."
 msgstr "Piklin necesita reabrirse para mostrar todo en el idioma nuevo."
 
 #: piklin/ui/settings_dialog.py:155 piklin/ui/settings_dialog.py:1289
-#: piklin/ui/window.py:4063
+#: piklin/ui/window.py:4068
 msgid "Later"
 msgstr "Más tarde"
 
@@ -3876,14 +3877,14 @@ msgid_plural "{count} damaged photos repaired from your backup"
 msgstr[0] "{count} foto dañada recuperada de tu copia de seguridad"
 msgstr[1] "{count} fotos dañadas recuperadas de tu copia de seguridad"
 
-#: piklin/ui/settings_dialog.py:487 piklin/ui/window.py:3991
+#: piklin/ui/settings_dialog.py:487 piklin/ui/window.py:3996
 #, python-brace-format
 msgid "{count} photo is damaged, with no good copy in your backup"
 msgid_plural "{count} photos are damaged, with no good copy in your backup"
 msgstr[0] "{count} foto está dañada y no hay una copia buena en tu copia de seguridad"
 msgstr[1] "{count} fotos están dañadas y no hay una copia buena en tu copia de seguridad"
 
-#: piklin/ui/settings_dialog.py:490 piklin/ui/window.py:3993
+#: piklin/ui/settings_dialog.py:490 piklin/ui/window.py:3998
 msgid "Show"
 msgstr "Ver"
 
@@ -4081,7 +4082,7 @@ msgid "Finish signing in to {service} in your browser…"
 msgstr "Termina de iniciar sesión en {service} en tu navegador…"
 
 #: piklin/ui/settings_dialog.py:836 piklin/ui/settings_dialog.py:842
-#: piklin/ui/window.py:267
+#: piklin/ui/window.py:272
 msgid "Name"
 msgstr "Nombre"
 
@@ -4117,7 +4118,7 @@ msgstr "Carpeta en la nube"
 msgid "Save"
 msgstr "Guardar"
 
-#: piklin/ui/settings_dialog.py:867 piklin/ui/window.py:2964
+#: piklin/ui/settings_dialog.py:867 piklin/ui/window.py:2969
 msgid "Add"
 msgstr "Añadir"
 
@@ -4135,7 +4136,7 @@ msgstr "Elegir carpeta"
 msgid "Use This Folder"
 msgstr "Usar esta carpeta"
 
-#: piklin/ui/settings_dialog.py:958 piklin/ui/window.py:3348
+#: piklin/ui/settings_dialog.py:958 piklin/ui/window.py:3353
 msgid "Top Level"
 msgstr "Nivel principal"
 
@@ -4316,10 +4317,10 @@ msgid "Find Duplicate Photos"
 msgstr "Buscar fotos duplicadas"
 
 #: piklin/ui/settings_dialog.py:1357
-msgid "Finds photos that are exact copies"
-msgstr "Encuentra las fotos que son copias exactas"
+msgid "Reads every photo and video, whole, to find exact copies"
+msgstr "Lee cada foto y video completo para encontrar copias exactas"
 
-#: piklin/ui/settings_dialog.py:1358
+#: piklin/ui/settings_dialog.py:1358 piklin/ui/settings_dialog.py:1446
 msgid "Find"
 msgstr "Buscar"
 
@@ -4365,32 +4366,53 @@ msgstr[1] "{count} fotos volverán en un momento."
 msgid "Folder removed from the library. No files were deleted."
 msgstr "Carpeta quitada de la biblioteca. No se borró ningún archivo."
 
-#: piklin/ui/settings_dialog.py:1414
-msgid "Scanning…"
-msgstr "Buscando…"
+#: piklin/ui/settings_dialog.py:1421
+msgid "Looking through every folder…"
+msgstr "Revisando todas las carpetas…"
 
 #: piklin/ui/settings_dialog.py:1425
+#, python-brace-format
+msgid "Reading every file — {done} of {total}  ·  {size} of {all}"
+msgstr "Leyendo cada archivo — {done} de {total}  ·  {size} de {all}"
+
+#: piklin/ui/settings_dialog.py:1429
+#, python-brace-format
+msgid "Checking {count} files…"
+msgstr "Revisando {count} archivos…"
+
+#: piklin/ui/settings_dialog.py:1451
 #, python-brace-format
 msgid "{count} group"
 msgid_plural "{count} groups"
 msgstr[0] "{count} grupo"
 msgstr[1] "{count} grupos"
 
-#: piklin/ui/settings_dialog.py:1426
+#: piklin/ui/settings_dialog.py:1452
 #, python-brace-format
 msgid "{count} duplicate file"
 msgid_plural "{count} duplicate files"
 msgstr[0] "{count} archivo duplicado"
 msgstr[1] "{count} archivos duplicados"
 
-#: piklin/ui/settings_dialog.py:1428
+#: piklin/ui/settings_dialog.py:1454
 #, python-brace-format
 msgid "using {size}"
 msgstr "que ocupan {size}"
 
-#: piklin/ui/settings_dialog.py:1429
+#: piklin/ui/settings_dialog.py:1455
 msgid "No duplicates found"
 msgstr "No se encontraron duplicados"
+
+#: piklin/ui/settings_dialog.py:1457
+msgid "Stopped."
+msgstr "Detenido."
+
+#: piklin/ui/settings_dialog.py:1459
+#, python-brace-format
+msgid "{count} file checked"
+msgid_plural "{count} files checked"
+msgstr[0] "{count} archivo revisado"
+msgstr[1] "{count} archivos revisados"
 
 #: piklin/ui/smart_album_dialog.py:47
 msgid "value"
@@ -4612,11 +4634,11 @@ msgstr "Imagen"
 msgid "Rotate and Flip"
 msgstr "Girar y voltear"
 
-#: piklin/ui/video_editor.py:438 piklin/ui/window.py:3567
+#: piklin/ui/video_editor.py:438 piklin/ui/window.py:3572
 msgid "Rotate Left"
 msgstr "Girar a la izquierda"
 
-#: piklin/ui/video_editor.py:439 piklin/ui/window.py:3569
+#: piklin/ui/video_editor.py:439 piklin/ui/window.py:3574
 msgid "Rotate Right"
 msgstr "Girar a la derecha"
 
@@ -4713,16 +4735,16 @@ msgstr[1] "unos {count} días"
 
 #: piklin/ui/videospace_dialog.py:48
 #, python-brace-format
-msgid "Your backup on {name} keeps each original for five days, then lets it go once the smaller video is checked there and here. This computer gets the room back at once."
-msgstr ""
+msgid "Your backup on {name} keeps each original for seven days, then lets it go once the smaller video is checked there and here. This computer gets the room back at once."
+msgstr "Tu copia en {name} guarda cada original siete días y luego lo borra, cuando el video pequeño está comprobado allí y aquí. Esta computadora recupera el espacio en el momento."
 
 #: piklin/ui/videospace_dialog.py:52
-msgid "Your cloud backup keeps only the smaller videos, so you don't pay for both. Each original stays on this computer for five days, then goes once the smaller video is checked."
-msgstr ""
+msgid "Your cloud backup keeps only the smaller videos, so you don't pay for both. Each original stays on this computer for seven days, then goes once the smaller video is checked."
+msgstr "Tu copia en la nube guarda solo los videos pequeños, para que no pagues por los dos. Cada original se queda siete días en esta computadora y luego se borra, cuando el video pequeño está comprobado."
 
 #: piklin/ui/videospace_dialog.py:55
-msgid "You have no backup. Each original stays on this computer for five days, then goes for good once the smaller video is checked. Setting up a backup first, even on a USB drive, is safer."
-msgstr ""
+msgid "You have no backup. Each original stays on this computer for seven days, then goes for good once the smaller video is checked. Setting up a backup first, even on a USB drive, is safer."
+msgstr "No tienes copia de seguridad. Cada original se queda siete días en esta computadora y luego se borra para siempre, cuando el video pequeño está comprobado. Es más seguro configurar antes una copia, aunque sea en una memoria USB."
 
 #: piklin/ui/videospace_dialog.py:76
 #, python-brace-format
@@ -4777,11 +4799,11 @@ msgstr "Anterior"
 msgid "Next"
 msgstr "Siguiente"
 
-#: piklin/ui/viewer.py:128 piklin/ui/window.py:531
+#: piklin/ui/viewer.py:128 piklin/ui/window.py:536
 msgid "Rotate Left (Ctrl+Shift+R)"
 msgstr "Girar a la izquierda (Ctrl+Mayús+R)"
 
-#: piklin/ui/viewer.py:129 piklin/ui/window.py:533
+#: piklin/ui/viewer.py:129 piklin/ui/window.py:538
 msgid "Rotate Right (Ctrl+R)"
 msgstr "Girar a la derecha (Ctrl+R)"
 
@@ -4825,7 +4847,7 @@ msgstr "Duración"
 msgid "Taken"
 msgstr "Tomada"
 
-#: piklin/ui/viewer.py:211 piklin/ui/window.py:925
+#: piklin/ui/viewer.py:211 piklin/ui/window.py:930
 msgid "Albums"
 msgstr "Álbumes"
 
@@ -4893,454 +4915,454 @@ msgstr "latitud, longitud"
 msgid "Remove Location"
 msgstr "Quitar ubicación"
 
-#: piklin/ui/window.py:264
+#: piklin/ui/window.py:269
 msgid "Newest First"
 msgstr "Más recientes primero"
 
-#: piklin/ui/window.py:265
+#: piklin/ui/window.py:270
 msgid "Oldest First"
 msgstr "Más antiguas primero"
 
-#: piklin/ui/window.py:266
+#: piklin/ui/window.py:271
 msgid "Recently Added"
 msgstr "Añadidas recientemente"
 
-#: piklin/ui/window.py:274
+#: piklin/ui/window.py:279
 msgid "Sort By"
 msgstr "Ordenar por"
 
-#: piklin/ui/window.py:275
+#: piklin/ui/window.py:280
 msgid "Open Library…"
 msgstr "Abrir biblioteca…"
 
-#: piklin/ui/window.py:276
+#: piklin/ui/window.py:281
 msgid "Add Folder…"
 msgstr "Añadir carpeta…"
 
-#: piklin/ui/window.py:277
+#: piklin/ui/window.py:282
 msgid "Look for New Photos"
 msgstr "Buscar fotos nuevas"
 
-#: piklin/ui/window.py:279
+#: piklin/ui/window.py:284
 msgid "Backups…"
 msgstr "Copias de seguridad…"
 
-#: piklin/ui/window.py:280
+#: piklin/ui/window.py:285
 msgid "Storage…"
 msgstr "Almacenamiento…"
 
-#: piklin/ui/window.py:286
+#: piklin/ui/window.py:291
 msgid "Check for Updates…"
 msgstr "Buscar actualizaciones…"
 
-#: piklin/ui/window.py:288
+#: piklin/ui/window.py:293
 msgid "About Piklin"
 msgstr "Acerca de Piklin"
 
-#: piklin/ui/window.py:289
+#: piklin/ui/window.py:294
 msgid "Help"
 msgstr "Ayuda"
 
-#: piklin/ui/window.py:295
+#: piklin/ui/window.py:300
 msgid "Main Menu"
 msgstr "Menú principal"
 
-#: piklin/ui/window.py:372
+#: piklin/ui/window.py:377
 msgid "Update Available"
 msgstr "Actualización disponible"
 
-#: piklin/ui/window.py:375
+#: piklin/ui/window.py:380
 msgid "A new version of Piklin is available"
 msgstr "Hay una versión nueva de Piklin"
 
-#: piklin/ui/window.py:384
+#: piklin/ui/window.py:389
 msgid "Support Piklin"
 msgstr "Apoyar a Piklin"
 
-#: piklin/ui/window.py:389
+#: piklin/ui/window.py:394
 msgid "Support on Ko-fi"
 msgstr "Apoyar en Ko-fi"
 
-#: piklin/ui/window.py:413
+#: piklin/ui/window.py:418
 msgid "Search photos"
 msgstr "Buscar fotos"
 
-#: piklin/ui/window.py:428
+#: piklin/ui/window.py:433
 msgid "Years"
 msgstr "Años"
 
-#: piklin/ui/window.py:428
+#: piklin/ui/window.py:433
 msgid "Months"
 msgstr "Meses"
 
-#: piklin/ui/window.py:429
+#: piklin/ui/window.py:434
 msgid "Days"
 msgstr "Días"
 
 #. No number beside All Photos: the footer already carries the
 #. library's full count, and saying it twice only crowds the row.
-#: piklin/ui/window.py:429 piklin/ui/window.py:884
+#: piklin/ui/window.py:434 piklin/ui/window.py:889
 msgid "All Photos"
 msgstr "Todas las fotos"
 
-#: piklin/ui/window.py:455 piklin/ui/window.py:888
+#: piklin/ui/window.py:460 piklin/ui/window.py:893
 msgid "Map"
 msgstr "Mapa"
 
-#: piklin/ui/window.py:456
+#: piklin/ui/window.py:461
 msgid "Back to the map"
 msgstr "Volver al mapa"
 
-#: piklin/ui/window.py:471
+#: piklin/ui/window.py:476
 msgid "Filter photos"
 msgstr "Filtrar fotos"
 
-#: piklin/ui/window.py:479 piklin/ui/window.py:885
+#: piklin/ui/window.py:484 piklin/ui/window.py:890
 msgid "Favourites"
 msgstr "Favoritos"
 
-#: piklin/ui/window.py:481 piklin/ui/window.py:896
+#: piklin/ui/window.py:486 piklin/ui/window.py:901
 msgid "Screenshots"
 msgstr "Capturas de pantalla"
 
-#: piklin/ui/window.py:482
+#: piklin/ui/window.py:487
 msgid "Not in an Album"
 msgstr "Sin álbum"
 
-#: piklin/ui/window.py:483
+#: piklin/ui/window.py:488
 msgid "Has Location"
 msgstr "Con ubicación"
 
-#: piklin/ui/window.py:489
+#: piklin/ui/window.py:494
 msgid "Show All"
 msgstr "Mostrar todo"
 
-#: piklin/ui/window.py:500
+#: piklin/ui/window.py:505
 msgid "Show whole photos instead of squares"
 msgstr "Mostrar las fotos completas en vez de cuadradas"
 
-#: piklin/ui/window.py:509
+#: piklin/ui/window.py:514
 msgid "Create (Ctrl+Shift+C)"
 msgstr "Crear (Ctrl+Mayús+C)"
 
-#: piklin/ui/window.py:527
+#: piklin/ui/window.py:532
 msgid "Add to Album…"
 msgstr "Añadir a un álbum…"
 
 #. Only meaningful inside Recently Deleted, so it is hidden until
 #. you are actually standing there.
-#: piklin/ui/window.py:540
+#: piklin/ui/window.py:545
 msgid "Import"
 msgstr "Importar"
 
 #. The import screen: where the photos go, and whether the
 #. camera keeps them afterwards.
-#: piklin/ui/window.py:548
+#: piklin/ui/window.py:553
 msgid "Delete from the camera after importing"
 msgstr "Borrar de la cámara después de importar"
 
-#: piklin/ui/window.py:552
+#: piklin/ui/window.py:557
 msgid "Import to"
 msgstr "Importar a"
 
-#: piklin/ui/window.py:555
+#: piklin/ui/window.py:560
 msgid "Import to:"
 msgstr "Importar a:"
 
 #. Duplicates view only: keep one copy of each selected group.
-#: piklin/ui/window.py:562
+#: piklin/ui/window.py:567
 msgid "Keep One"
 msgstr "Dejar una"
 
-#: piklin/ui/window.py:568 piklin/ui/window.py:2609 piklin/ui/window.py:3542
+#: piklin/ui/window.py:573 piklin/ui/window.py:2614 piklin/ui/window.py:3547
 msgid "Delete Permanently…"
 msgstr "Eliminar definitivamente…"
 
-#: piklin/ui/window.py:573
+#: piklin/ui/window.py:578
 msgid "Unselect"
 msgstr "Quitar selección"
 
-#: piklin/ui/window.py:638
+#: piklin/ui/window.py:643
 #, python-brace-format
 msgid "{count} Photo"
 msgid_plural "{count} Photos"
 msgstr[0] "{count} foto"
 msgstr[1] "{count} fotos"
 
-#: piklin/ui/window.py:640
+#: piklin/ui/window.py:645
 #, python-brace-format
 msgid "{count} Video"
 msgid_plural "{count} Videos"
 msgstr[0] "{count} video"
 msgstr[1] "{count} videos"
 
-#: piklin/ui/window.py:648
+#: piklin/ui/window.py:653
 #, python-brace-format
 msgid "{used} of {total}"
 msgstr "{used} de {total}"
 
-#: piklin/ui/window.py:852
+#: piklin/ui/window.py:857
 msgid "Sort albums"
 msgstr "Ordenar los álbumes"
 
-#: piklin/ui/window.py:861
+#: piklin/ui/window.py:866
 msgid "New Album or Folder"
 msgstr "Nuevo álbum o carpeta"
 
-#: piklin/ui/window.py:871
+#: piklin/ui/window.py:876
 msgid "Devices"
 msgstr "Dispositivos"
 
-#: piklin/ui/window.py:893
+#: piklin/ui/window.py:898
 msgid "Types"
 msgstr "Tipos"
 
-#: piklin/ui/window.py:899
+#: piklin/ui/window.py:904
 msgid "Utilities"
 msgstr "Utilidades"
 
-#: piklin/ui/window.py:904
+#: piklin/ui/window.py:909
 msgid "Recently Edited"
 msgstr "Editadas recientemente"
 
-#: piklin/ui/window.py:906
+#: piklin/ui/window.py:911
 msgid "Imports"
 msgstr "Importaciones"
 
 #. Only once there is something to find here: an empty row
 #. would be one more thing to explain on a new library.
-#: piklin/ui/window.py:911
+#: piklin/ui/window.py:916
 msgid "Creations"
 msgstr "Creaciones"
 
-#: piklin/ui/window.py:922 piklin/ui/window.py:2961 piklin/ui/window.py:3630
+#: piklin/ui/window.py:927 piklin/ui/window.py:2966 piklin/ui/window.py:3635
 msgid "New Album…"
 msgstr "Nuevo álbum…"
 
-#: piklin/ui/window.py:923
+#: piklin/ui/window.py:928
 msgid "New Smart Album…"
 msgstr "Nuevo álbum inteligente…"
 
-#: piklin/ui/window.py:924 piklin/ui/window.py:3632
+#: piklin/ui/window.py:929 piklin/ui/window.py:3637
 msgid "New Folder…"
 msgstr "Nueva carpeta…"
 
-#: piklin/ui/window.py:930
+#: piklin/ui/window.py:935
 #, python-brace-format
 msgid "No album matches “{words}”"
 msgstr "Ningún álbum coincide con “{words}”"
 
-#: piklin/ui/window.py:1080
+#: piklin/ui/window.py:1085
 #, python-brace-format
 msgid "Reading {device}…"
 msgstr "Leyendo {device}…"
 
-#: piklin/ui/window.py:1106
+#: piklin/ui/window.py:1111
 #, python-brace-format
 msgid "Reading {device}… {count} found"
 msgstr "Leyendo {device}… {count} encontradas"
 
-#: piklin/ui/window.py:1143
+#: piklin/ui/window.py:1148
 msgid "Stop copying (what is already copied stays)"
 msgstr "Detener la copia (lo ya copiado se queda)"
 
-#: piklin/ui/window.py:1179
+#: piklin/ui/window.py:1184
 msgid "Stopping…"
 msgstr "Deteniendo…"
 
-#: piklin/ui/window.py:1184
+#: piklin/ui/window.py:1189
 msgid "Photos are already being copied. Wait until they finish, or stop that copy first."
 msgstr "Ya se están copiando fotos. Espera a que terminen o detén esa copia primero."
 
-#: piklin/ui/window.py:1209
+#: piklin/ui/window.py:1214
 #, python-brace-format
 msgid "Copying {count} item. You can keep using Piklin while it copies."
 msgid_plural "Copying {count} items. You can keep using Piklin while they copy."
 msgstr[0] "Copiando {count} elemento. Puedes seguir usando Piklin mientras se copia."
 msgstr[1] "Copiando {count} elementos. Puedes seguir usando Piklin mientras se copian."
 
-#: piklin/ui/window.py:1271
+#: piklin/ui/window.py:1276
 #, python-brace-format
 msgid "Imported {count} item into “{album}”"
 msgid_plural "Imported {count} items into “{album}”"
 msgstr[0] "Se importó {count} elemento a “{album}”"
 msgstr[1] "Se importaron {count} elementos a “{album}”"
 
-#: piklin/ui/window.py:1274
+#: piklin/ui/window.py:1279
 #, python-brace-format
 msgid "Imported {count} item"
 msgid_plural "Imported {count} items"
 msgstr[0] "Se importó {count} elemento"
 msgstr[1] "Se importaron {count} elementos"
 
-#: piklin/ui/window.py:1276
+#: piklin/ui/window.py:1281
 #, python-brace-format
 msgid "{count} could not be copied"
 msgid_plural "{count} could not be copied"
 msgstr[0] "{count} no se pudo copiar"
 msgstr[1] "{count} no se pudieron copiar"
 
-#: piklin/ui/window.py:1279
+#: piklin/ui/window.py:1284
 #, python-brace-format
 msgid "Stopped. {summary}"
 msgstr "Detenido. {summary}"
 
-#: piklin/ui/window.py:1317 piklin/ui/window.py:1366
+#: piklin/ui/window.py:1322 piklin/ui/window.py:1371
 #, python-brace-format
 msgid "Importing from {device}"
 msgstr "Importando de {device}"
 
-#: piklin/ui/window.py:1365
+#: piklin/ui/window.py:1370
 #, python-brace-format
 msgid "Importing into “{album}”"
 msgstr "Importando a “{album}”"
 
 #. Shown straight away: finding the photos in a big folder takes a moment.
-#: piklin/ui/window.py:1406
+#: piklin/ui/window.py:1411
 msgid "Getting the photos ready…"
 msgstr "Preparando las fotos…"
 
-#: piklin/ui/window.py:1414
+#: piklin/ui/window.py:1419
 msgid "Stopped. Nothing was copied."
 msgstr "Detenido. No se copió nada."
 
-#: piklin/ui/window.py:1418
+#: piklin/ui/window.py:1423
 msgid "There are no photos or videos in what you dropped."
 msgstr "No hay fotos ni videos en lo que soltaste."
 
-#: piklin/ui/window.py:1424
+#: piklin/ui/window.py:1429
 #, python-brace-format
 msgid "Copying into “{album}”"
 msgstr "Copiando a “{album}”"
 
-#: piklin/ui/window.py:1425
+#: piklin/ui/window.py:1430
 msgid "Copying"
 msgstr "Copiando"
 
-#: piklin/ui/window.py:1449
+#: piklin/ui/window.py:1454
 #, python-brace-format
 msgid "Delete {count} item from “{device}”?"
 msgid_plural "Delete {count} items from “{device}”?"
 msgstr[0] "¿Borrar {count} elemento de “{device}”?"
 msgstr[1] "¿Borrar {count} elementos de “{device}”?"
 
-#: piklin/ui/window.py:1452
+#: piklin/ui/window.py:1457
 msgid "They are safely in your library now. Deleting them frees up space on the camera and can't be undone."
 msgstr "Ya están a salvo en tu biblioteca. Borrarlos libera espacio en la cámara y no se puede deshacer."
 
-#: piklin/ui/window.py:1454
+#: piklin/ui/window.py:1459
 msgid "Keep Items"
 msgstr "Conservar"
 
-#: piklin/ui/window.py:1455
+#: piklin/ui/window.py:1460
 msgid "Delete Items"
 msgstr "Borrar"
 
-#: piklin/ui/window.py:1466
+#: piklin/ui/window.py:1471
 #, python-brace-format
 msgid "Deleted {count} item from {device}"
 msgid_plural "Deleted {count} items from {device}"
 msgstr[0] "Se borró {count} elemento de {device}"
 msgstr[1] "Se borraron {count} elementos de {device}"
 
-#: piklin/ui/window.py:1470
+#: piklin/ui/window.py:1475
 #, python-brace-format
 msgid "({count} could not be deleted)"
 msgid_plural "({count} could not be deleted)"
 msgstr[0] "({count} no se pudo borrar)"
 msgstr[1] "({count} no se pudieron borrar)"
 
-#: piklin/ui/window.py:2276
+#: piklin/ui/window.py:2281
 msgid "Choose some photos first"
 msgstr "Elige primero algunas fotos"
 
-#: piklin/ui/window.py:2329
+#: piklin/ui/window.py:2334
 #, python-brace-format
 msgid "Couldn't read this photo from {device}."
 msgstr "No se pudo leer esta foto de {device}."
 
-#: piklin/ui/window.py:2370
+#: piklin/ui/window.py:2375
 msgid "Frame saved to your library"
 msgstr "Fotograma guardado en tu biblioteca"
 
-#: piklin/ui/window.py:2404
+#: piklin/ui/window.py:2409
 msgid "Couldn't check for updates. Check your internet connection and try again."
 msgstr "No se pudo buscar actualizaciones. Revisa tu conexión a internet e inténtalo de nuevo."
 
-#: piklin/ui/window.py:2407
+#: piklin/ui/window.py:2412
 #, python-brace-format
 msgid "Piklin is up to date ({version})."
 msgstr "Piklin está al día ({version})."
 
-#: piklin/ui/window.py:2515
+#: piklin/ui/window.py:2520
 msgid "Select the photos to rotate."
 msgstr "Selecciona las fotos que quieres girar."
 
-#: piklin/ui/window.py:2580
+#: piklin/ui/window.py:2585
 #, python-brace-format
 msgid "{count} selected"
 msgstr "{count} seleccionadas"
 
-#: piklin/ui/window.py:2596
+#: piklin/ui/window.py:2601
 #, python-brace-format
 msgid "Import {count} Selected"
 msgstr "Importar {count} seleccionadas"
 
-#: piklin/ui/window.py:2597
+#: piklin/ui/window.py:2602
 #, python-brace-format
 msgid "Import All New Items ({count})"
 msgstr "Importar todo lo nuevo ({count})"
 
-#: piklin/ui/window.py:2598
+#: piklin/ui/window.py:2603
 msgid "All Items Imported"
 msgstr "Todo importado"
 
-#: piklin/ui/window.py:2609
+#: piklin/ui/window.py:2614
 msgid "Delete All…"
 msgstr "Eliminar todo…"
 
-#: piklin/ui/window.py:2616
+#: piklin/ui/window.py:2621
 msgid "Keep One of Each"
 msgstr "Dejar una de cada"
 
-#: piklin/ui/window.py:2620
+#: piklin/ui/window.py:2625
 #, python-brace-format
 msgid "Remove {count} Extra Copy"
 msgid_plural "Remove {count} Extra Copies"
 msgstr[0] "Quitar {count} copia de más"
 msgstr[1] "Quitar {count} copias de más"
 
-#: piklin/ui/window.py:2628
+#: piklin/ui/window.py:2633
 msgid "Recover All"
 msgstr "Recuperar todo"
 
-#: piklin/ui/window.py:2628 piklin/ui/window.py:3541
+#: piklin/ui/window.py:2633 piklin/ui/window.py:3546
 msgid "Recover"
 msgstr "Recuperar"
 
-#: piklin/ui/window.py:2629
+#: piklin/ui/window.py:2634
 msgid "Remove from this album"
 msgstr "Quitar de este álbum"
 
-#: piklin/ui/window.py:2660
+#: piklin/ui/window.py:2665
 #, python-brace-format
 msgid "Kept one. {count} extra copy moved to Recently Deleted."
 msgid_plural "Kept one. {count} extra copies moved to Recently Deleted."
 msgstr[0] "Se dejó una. {count} copia de más se movió a Eliminados recientemente."
 msgstr[1] "Se dejó una. {count} copias de más se movieron a Eliminados recientemente."
 
-#: piklin/ui/window.py:2664
+#: piklin/ui/window.py:2669
 msgid "Select at least two copies of the same photo."
 msgstr "Selecciona al menos dos copias de la misma foto."
 
-#: piklin/ui/window.py:2684
+#: piklin/ui/window.py:2689
 #, python-brace-format
 msgid "Delete {count} photo permanently?"
 msgid_plural "Delete {count} photos permanently?"
 msgstr[0] "¿Eliminar {count} foto definitivamente?"
 msgstr[1] "¿Eliminar {count} fotos definitivamente?"
 
-#: piklin/ui/window.py:2687
+#: piklin/ui/window.py:2692
 msgid ""
 "These photos are in a folder on your computer.\n"
 "\n"
@@ -5354,330 +5376,330 @@ msgstr ""
 "\n"
 "“Borrar archivos” borra los archivos de tu ordenador. No se puede deshacer."
 
-#: piklin/ui/window.py:2692
+#: piklin/ui/window.py:2697
 msgid "Remove from Library"
 msgstr "Quitar de la biblioteca"
 
-#: piklin/ui/window.py:2693
+#: piklin/ui/window.py:2698
 msgid "Delete Files"
 msgstr "Borrar archivos"
 
-#: piklin/ui/window.py:2764
+#: piklin/ui/window.py:2769
 #, python-brace-format
 msgid "“{album}” has no photos to place."
 msgstr "“{album}” no tiene fotos que ubicar."
 
-#: piklin/ui/window.py:2785 piklin/ui/window.py:2821
+#: piklin/ui/window.py:2790 piklin/ui/window.py:2826
 #, python-brace-format
 msgid "Placed {count} photo on the map"
 msgid_plural "Placed {count} photos on the map"
 msgstr[0] "Se puso {count} foto en el mapa"
 msgstr[1] "Se pusieron {count} fotos en el mapa"
 
-#: piklin/ui/window.py:2793
+#: piklin/ui/window.py:2798
 #, python-brace-format
 msgid "Where was “{album}” taken?"
 msgstr "¿Dónde se tomó “{album}”?"
 
-#: piklin/ui/window.py:2820
+#: piklin/ui/window.py:2825
 #, python-brace-format
 msgid "Placed in “{name}”"
 msgstr "Puestas en “{name}”"
 
-#: piklin/ui/window.py:2829
+#: piklin/ui/window.py:2834
 #, python-brace-format
 msgid "Grouped as “{name}”"
 msgstr "Agrupadas como “{name}”"
 
-#: piklin/ui/window.py:2833
+#: piklin/ui/window.py:2838
 #, python-brace-format
 msgid "Where was this photo taken?"
 msgid_plural "Where were these {count} photos taken?"
 msgstr[0] "¿Dónde se tomó esta foto?"
 msgstr[1] "¿Dónde se tomaron estas {count} fotos?"
 
-#: piklin/ui/window.py:2881
+#: piklin/ui/window.py:2886
 #, python-brace-format
 msgid "Filter ({count})"
 msgstr "Filtro ({count})"
 
-#: piklin/ui/window.py:2988 piklin/ui/window.py:3008 piklin/ui/window.py:3561
+#: piklin/ui/window.py:2993 piklin/ui/window.py:3013 piklin/ui/window.py:3566
 msgid "Rename…"
 msgstr "Cambiar nombre…"
 
-#: piklin/ui/window.py:2990
+#: piklin/ui/window.py:2995
 msgid "New Album Here…"
 msgstr "Nuevo álbum aquí…"
 
-#: piklin/ui/window.py:2992
+#: piklin/ui/window.py:2997
 msgid "New Folder Here…"
 msgstr "Nueva carpeta aquí…"
 
-#: piklin/ui/window.py:2994 piklin/ui/window.py:3013 piklin/ui/window.py:3408
-#: piklin/ui/window.py:3662
+#: piklin/ui/window.py:2999 piklin/ui/window.py:3018 piklin/ui/window.py:3413
+#: piklin/ui/window.py:3667
 msgid "Move To…"
 msgstr "Mover a…"
 
-#: piklin/ui/window.py:2996 piklin/ui/window.py:3015
+#: piklin/ui/window.py:3001 piklin/ui/window.py:3020
 #, python-brace-format
 msgid "Move Out of “{folder}”"
 msgstr "Sacar de “{folder}”"
 
-#: piklin/ui/window.py:3000
+#: piklin/ui/window.py:3005
 msgid "Delete Folder…"
 msgstr "Eliminar carpeta…"
 
-#: piklin/ui/window.py:3010 piklin/ui/window.py:3571 piklin/ui/window.py:3659
+#: piklin/ui/window.py:3015 piklin/ui/window.py:3576 piklin/ui/window.py:3664
 msgid "Place on Map…"
 msgstr "Poner en el mapa…"
 
-#: piklin/ui/window.py:3019 piklin/ui/window.py:3665
+#: piklin/ui/window.py:3024 piklin/ui/window.py:3670
 msgid "Delete Album…"
 msgstr "Eliminar álbum…"
 
-#: piklin/ui/window.py:3102
+#: piklin/ui/window.py:3107
 msgid "Rename Folder"
 msgstr "Cambiar nombre de la carpeta"
 
-#: piklin/ui/window.py:3129
+#: piklin/ui/window.py:3134
 msgid "Rename Album"
 msgstr "Cambiar nombre del álbum"
 
-#: piklin/ui/window.py:3158 piklin/ui/window.py:3227 piklin/ui/window.py:3416
+#: piklin/ui/window.py:3163 piklin/ui/window.py:3232 piklin/ui/window.py:3421
 #, python-brace-format
 msgid "Delete “{name}”?"
 msgstr "¿Eliminar “{name}”?"
 
-#: piklin/ui/window.py:3159
+#: piklin/ui/window.py:3164
 msgid "This deletes the folder and the albums and folders inside it. Your photos are not deleted."
 msgstr "Esto elimina la carpeta y los álbumes y carpetas que tiene dentro. Tus fotos no se borran."
 
-#: piklin/ui/window.py:3162 piklin/ui/window.py:3230 piklin/ui/window.py:3419
-#: piklin/ui/window.py:3557 piklin/ui/window.py:3680
+#: piklin/ui/window.py:3167 piklin/ui/window.py:3235 piklin/ui/window.py:3424
+#: piklin/ui/window.py:3562 piklin/ui/window.py:3685
 msgid "Delete"
 msgstr "Eliminar"
 
-#: piklin/ui/window.py:3228
+#: piklin/ui/window.py:3233
 msgid "This deletes the album. Your photos are not deleted."
 msgstr "Esto elimina el álbum. Tus fotos no se borran."
 
-#: piklin/ui/window.py:3253
+#: piklin/ui/window.py:3258
 msgid "New Folder"
 msgstr "Nueva carpeta"
 
-#: piklin/ui/window.py:3254
+#: piklin/ui/window.py:3259
 msgid "Give the folder a name."
 msgstr "Ponle un nombre a la carpeta."
 
-#: piklin/ui/window.py:3255
+#: piklin/ui/window.py:3260
 msgid "Folder name"
 msgstr "Nombre de la carpeta"
 
-#: piklin/ui/window.py:3273
+#: piklin/ui/window.py:3278
 msgid "Untitled Folder"
 msgstr "Carpeta sin nombre"
 
-#: piklin/ui/window.py:3340
+#: piklin/ui/window.py:3345
 msgid "Here now"
 msgstr "Está aquí"
 
-#: piklin/ui/window.py:3358
+#: piklin/ui/window.py:3363
 #, python-brace-format
 msgid "Move “{name}” To"
 msgstr "Mover “{name}” a"
 
-#: piklin/ui/window.py:3360
+#: piklin/ui/window.py:3365
 #, python-brace-format
 msgid "Move {count} Item To"
 msgid_plural "Move {count} Items To"
 msgstr[0] "Mover {count} elemento a"
 msgstr[1] "Mover {count} elementos a"
 
-#: piklin/ui/window.py:3362
+#: piklin/ui/window.py:3367
 msgid "Choose a folder."
 msgstr "Elige una carpeta."
 
-#: piklin/ui/window.py:3367
+#: piklin/ui/window.py:3372
 msgid "Move"
 msgstr "Mover"
 
-#: piklin/ui/window.py:3377
+#: piklin/ui/window.py:3382
 msgid "Moved to Top Level"
 msgstr "Movido al nivel principal"
 
-#: piklin/ui/window.py:3378
+#: piklin/ui/window.py:3383
 #, python-brace-format
 msgid "Moved to “{folder}”"
 msgstr "Movido a “{folder}”"
 
-#: piklin/ui/window.py:3406
+#: piklin/ui/window.py:3411
 msgid "Edit Smart Album…"
 msgstr "Editar álbum inteligente…"
 
-#: piklin/ui/window.py:3410
+#: piklin/ui/window.py:3415
 msgid "Delete Smart Album…"
 msgstr "Eliminar álbum inteligente…"
 
-#: piklin/ui/window.py:3417
+#: piklin/ui/window.py:3422
 msgid "This deletes the smart album. Your photos are not deleted."
 msgstr "Esto elimina el álbum inteligente. Tus fotos no se borran."
 
-#: piklin/ui/window.py:3441
+#: piklin/ui/window.py:3446
 msgid "New Album"
 msgstr "Nuevo álbum"
 
-#: piklin/ui/window.py:3442
+#: piklin/ui/window.py:3447
 msgid "Give the album a name."
 msgstr "Ponle un nombre al álbum."
 
-#: piklin/ui/window.py:3443
+#: piklin/ui/window.py:3448
 msgid "Album name"
 msgstr "Nombre del álbum"
 
-#: piklin/ui/window.py:3478
+#: piklin/ui/window.py:3483
 msgid "Untitled Album"
 msgstr "Álbum sin nombre"
 
-#: piklin/ui/window.py:3553
+#: piklin/ui/window.py:3558
 msgid "Unhide"
 msgstr "Mostrar"
 
-#: piklin/ui/window.py:3553
+#: piklin/ui/window.py:3558
 #, python-brace-format
 msgid "Unhide {count} Photos"
 msgstr "Mostrar {count} fotos"
 
-#: piklin/ui/window.py:3555
+#: piklin/ui/window.py:3560
 msgid "Hide"
 msgstr "Ocultar"
 
-#: piklin/ui/window.py:3555
+#: piklin/ui/window.py:3560
 #, python-brace-format
 msgid "Hide {count} Photos"
 msgstr "Ocultar {count} fotos"
 
-#: piklin/ui/window.py:3556
+#: piklin/ui/window.py:3561
 #, python-brace-format
 msgid "Export {count} Photos…"
 msgstr "Exportar {count} fotos…"
 
-#: piklin/ui/window.py:3557
+#: piklin/ui/window.py:3562
 #, python-brace-format
 msgid "Delete {count} Photos"
 msgstr "Eliminar {count} fotos"
 
-#: piklin/ui/window.py:3559 piklin/ui/window.py:3647
+#: piklin/ui/window.py:3564 piklin/ui/window.py:3652
 msgid "Open"
 msgstr "Abrir"
 
-#: piklin/ui/window.py:3563
+#: piklin/ui/window.py:3568
 msgid "Remove from Favourites"
 msgstr "Quitar de favoritos"
 
-#: piklin/ui/window.py:3572
+#: piklin/ui/window.py:3577
 #, python-brace-format
 msgid "Place {count} Photos on Map…"
 msgstr "Poner {count} fotos en el mapa…"
 
-#: piklin/ui/window.py:3575
+#: piklin/ui/window.py:3580
 msgid "Remove from Group"
 msgstr "Quitar del grupo"
 
-#: piklin/ui/window.py:3579
+#: piklin/ui/window.py:3584
 msgid "Make Album Cover"
 msgstr "Usar como portada del álbum"
 
-#: piklin/ui/window.py:3668
+#: piklin/ui/window.py:3673
 #, python-brace-format
 msgid "Delete {count} Album…"
 msgid_plural "Delete {count} Albums…"
 msgstr[0] "Eliminar {count} álbum…"
 msgstr[1] "Eliminar {count} álbumes…"
 
-#: piklin/ui/window.py:3677
+#: piklin/ui/window.py:3682
 #, python-brace-format
 msgid "Delete {count} album?"
 msgid_plural "Delete {count} albums?"
 msgstr[0] "¿Eliminar {count} álbum?"
 msgstr[1] "¿Eliminar {count} álbumes?"
 
-#: piklin/ui/window.py:3678
+#: piklin/ui/window.py:3683
 msgid "This deletes the albums. Your photos are not deleted."
 msgstr "Esto elimina los álbumes. Tus fotos no se borran."
 
-#: piklin/ui/window.py:3713
+#: piklin/ui/window.py:3718
 msgid "Album cover changed"
 msgstr "Portada del álbum cambiada"
 
-#: piklin/ui/window.py:3717
+#: piklin/ui/window.py:3722
 msgid "Open a Piklin Library"
 msgstr "Abrir una biblioteca de Piklin"
 
-#: piklin/ui/window.py:3735
+#: piklin/ui/window.py:3740
 msgid "Not a Piklin Library"
 msgstr "No es una biblioteca de Piklin"
 
-#: piklin/ui/window.py:3736
+#: piklin/ui/window.py:3741
 #, python-brace-format
 msgid "“{name}” is not a Piklin library. Choose a library, such as “Piklin Library.piklin”."
 msgstr "“{name}” no es una biblioteca de Piklin. Elige una biblioteca, como “Piklin Library.piklin”."
 
-#: piklin/ui/window.py:3761
+#: piklin/ui/window.py:3766
 msgid "Looking for photos…"
 msgstr "Buscando fotos…"
 
-#: piklin/ui/window.py:3773
+#: piklin/ui/window.py:3778
 #, python-brace-format
 msgid "{count} new"
 msgstr "{count} nuevas"
 
-#: piklin/ui/window.py:3833
+#: piklin/ui/window.py:3838
 #, python-brace-format
 msgid "Making videos smaller — {done} of {total} ({percent}%)"
 msgstr "Reduciendo videos — {done} de {total} ({percent}%)"
 
-#: piklin/ui/window.py:3856
+#: piklin/ui/window.py:3861
 #, python-brace-format
 msgid "Optimizing videos — {done} of {total} ({percent}%)"
 msgstr "Optimizando videos — {done} de {total} ({percent}%)"
 
-#: piklin/ui/window.py:3861
+#: piklin/ui/window.py:3866
 msgid "Optimizing videos waits until the computer is plugged in"
 msgstr "La optimización de videos espera a que enchufes la computadora"
 
-#: piklin/ui/window.py:3862
+#: piklin/ui/window.py:3867
 msgid "Optimizing videos waits until battery saver is off"
 msgstr "La optimización de videos espera a que se apague el ahorro de batería"
 
-#: piklin/ui/window.py:3863
+#: piklin/ui/window.py:3868
 msgid "Optimizing videos is paused"
 msgstr "La optimización de videos está en pausa"
 
-#: piklin/ui/window.py:3871
+#: piklin/ui/window.py:3876
 #, python-brace-format
 msgid "Videos optimized: {size} saved"
 msgstr "Videos optimizados: {size} ahorrados"
 
-#: piklin/ui/window.py:3985
+#: piklin/ui/window.py:3990
 #, python-brace-format
 msgid "Repaired {count} damaged photo from your backup"
 msgid_plural "Repaired {count} damaged photos from your backup"
 msgstr[0] "Se recuperó {count} foto dañada de tu copia de seguridad"
 msgstr[1] "Se recuperaron {count} fotos dañadas de tu copia de seguridad"
 
-#: piklin/ui/window.py:4001
+#: piklin/ui/window.py:4006
 msgid "Damaged Photos"
 msgstr "Fotos dañadas"
 
-#: piklin/ui/window.py:4002
+#: piklin/ui/window.py:4007
 msgid "These photos changed on their own, the way a disk wears out, and there is no good copy of them in your backup yet. Piklin has not touched them. If you have another copy of one, put it back in its place."
 msgstr "Estas fotos cambiaron solas, como pasa cuando un disco se desgasta, y todavía no hay una copia buena de ellas en tu copia de seguridad. Piklin no las ha tocado. Si tienes otra copia de alguna, ponla en su lugar."
 
-#: piklin/ui/window.py:4018
+#: piklin/ui/window.py:4023
 msgid "No damaged photos."
 msgstr "No hay fotos dañadas."
 
-#: piklin/ui/window.py:4034
+#: piklin/ui/window.py:4039
 msgid ""
 "Piklin can back up your photos and videos to a drive, a NAS or a cloud service. Once one is connected, new photos, videos and edits are copied there automatically.\n"
 "\n"
@@ -5687,7 +5709,7 @@ msgstr ""
 "\n"
 "Nada sale de tu ordenador a menos que elijas dónde."
 
-#: piklin/ui/window.py:4060
+#: piklin/ui/window.py:4065
 msgid ""
 "Choose a folder with your photos and Piklin will organize them.\n"
 "\n"
@@ -5697,20 +5719,20 @@ msgstr ""
 "\n"
 "Tus fotos nunca se mueven ni se modifican. Los cambios se guardan aparte, así que tus originales se quedan tal cual."
 
-#: piklin/ui/window.py:4065
+#: piklin/ui/window.py:4070
 #, python-brace-format
 msgid "Use {folder}"
 msgstr "Usar {folder}"
 
-#: piklin/ui/window.py:4068
+#: piklin/ui/window.py:4073
 msgid "Choose Folder…"
 msgstr "Elegir carpeta…"
 
-#: piklin/ui/window.py:4133
+#: piklin/ui/window.py:4138
 msgid "© 2026 Vezzu Studio. All rights reserved."
 msgstr "© 2026 Vezzu Studio. Todos los derechos reservados."
 
-#: piklin/ui/window.py:4135
+#: piklin/ui/window.py:4140
 #, python-brace-format
 msgid ""
 "Piklin was created by Vezzu Studio.\n"
@@ -5721,7 +5743,7 @@ msgstr ""
 "\n"
 "Una biblioteca y editor de fotos y videos para Linux. {tools} herramientas de edición · {formats} formatos de archivo · todo funciona en este ordenador."
 
-#: piklin/ui/window.py:4142
+#: piklin/ui/window.py:4147
 msgid ""
 "Piklin is free to use under the Piklin License 1.0. © 2026 Vezzu Studio.\n"
 "\n"
@@ -5735,23 +5757,23 @@ msgstr ""
 "\n"
 "Tus fotos, tus cambios y todo lo que hagas con Piklin son tuyos."
 
-#: piklin/ui/window.py:4157
+#: piklin/ui/window.py:4162
 msgid "Inter typeface"
 msgstr "Tipografía Inter"
 
-#: piklin/ui/window.py:4167
+#: piklin/ui/window.py:4172
 msgid "Photos Are Still Being Copied"
 msgstr "Todavía se están copiando fotos"
 
-#: piklin/ui/window.py:4168
+#: piklin/ui/window.py:4173
 msgid "If you close Piklin now, the copy stops. The photos already copied stay in your library."
 msgstr "Si cierras Piklin ahora, la copia se detiene. Las fotos ya copiadas se quedan en tu biblioteca."
 
-#: piklin/ui/window.py:4170
+#: piklin/ui/window.py:4175
 msgid "Keep Copying"
 msgstr "Seguir copiando"
 
-#: piklin/ui/window.py:4171
+#: piklin/ui/window.py:4176
 msgid "Stop and Close"
 msgstr "Detener y cerrar"
 
@@ -5759,28 +5781,35 @@ msgstr "Detener y cerrar"
 msgid "MP4 (H.264)"
 msgstr "MP4 (H.264)"
 
-#: piklin/video_edit.py:303
+#. The smallest files for the same picture, made with SVT-AV1. Plays in
+#. Piklin and in current browsers and phones; an older Mac's own player
+#. may not open it, which is why Piklin shares videos in H.264.
+#: piklin/video_edit.py:306
+msgid "MP4 (AV1, smallest)"
+msgstr "MP4 (AV1, el más pequeño)"
+
+#: piklin/video_edit.py:308
 msgid "WebM (VP9)"
 msgstr "WebM (VP9)"
 
-#: piklin/video_edit.py:305
+#: piklin/video_edit.py:310
 msgid "Animated GIF"
 msgstr "GIF animado"
 
-#: piklin/video_edit.py:341
+#: piklin/video_edit.py:347
 msgid "Nothing is left to export: the whole video is cut out."
 msgstr "No queda nada que exportar: se cortó todo el video."
 
-#: piklin/video_edit.py:366
+#: piklin/video_edit.py:372
 #, python-brace-format
 msgid "{format} can't be created on this computer."
 msgstr "No se puede crear {format} en este ordenador."
 
-#: piklin/video_edit.py:546
+#: piklin/video_edit.py:560
 #, python-brace-format
 msgid "A GIF can be at most {limit} seconds long; this one would be {length}."
 msgstr "Un GIF puede durar como máximo {limit} segundos; este duraría {length}."
 
-#: piklin/video_edit.py:583
+#: piklin/video_edit.py:597
 msgid "No frames to put in the GIF."
 msgstr "No hay fotogramas para el GIF."

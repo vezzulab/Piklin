@@ -757,7 +757,12 @@ ES = {
     "Piklin keeps a list of your photos to find them quickly. If something looks wrong, the list can be rebuilt without losing anything.":
         "Piklin guarda una lista de tus fotos para encontrarlas rápido. Si algo se ve mal, la lista se puede reconstruir sin perder nada.",
     "Find Duplicate Photos": "Buscar fotos duplicadas",
-    "Finds photos that are exact copies": "Encuentra las fotos que son copias exactas",
+    "Reads every photo and video, whole, to find exact copies": "Lee cada foto y video completo para encontrar copias exactas",
+    "MP4 (AV1, smallest)": "MP4 (AV1, el más pequeño)",
+    "Looking through every folder…": "Revisando todas las carpetas…",
+    "Reading every file — {done} of {total}  ·  {size} of {all}": "Leyendo cada archivo — {done} de {total}  ·  {size} de {all}",
+    "Checking {count} files…": "Revisando {count} archivos…",
+    "Stopped.": "Detenido.",
     "Find": "Buscar",
     "Photos Removed from Piklin": "Fotos quitadas de Piklin",
     "{count} photo you removed doesn't come back, even though its file is still in your folders":
@@ -774,6 +779,7 @@ ES = {
     "Scanning…": "Buscando…",
     "{count} group": ("{count} grupo", "{count} grupos"),
     "{count} duplicate file": ("{count} archivo duplicado", "{count} archivos duplicados"),
+    "{count} file checked": ("{count} archivo revisado", "{count} archivos revisados"),
     "using {size}": "que ocupan {size}",
     "No duplicates found": "No se encontraron duplicados",
     "Language": "Idioma",

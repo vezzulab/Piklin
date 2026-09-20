@@ -57,6 +57,10 @@ CREATE TABLE IF NOT EXISTS photos (
     -- cheap content fingerprint: size + first/last 64KiB, used to spot
     -- duplicates and moved files without hashing whole RAW files
     fingerprint  TEXT,
+    -- hash of the whole file, read by the duplicate scan; valid only while
+    -- hashed_key still equals bytes:mtime
+    content_hash TEXT,
+    hashed_key   TEXT,
     width        INTEGER NOT NULL DEFAULT 0,
     height       INTEGER NOT NULL DEFAULT 0,
     orientation  INTEGER NOT NULL DEFAULT 1,
@@ -348,9 +352,18 @@ SCREENSHOT_SQL = ("(lower(p.filename) LIKE 'screenshot%' "
                   "OR lower(p.filename) LIKE 'screen shot%' "
                   "OR lower(p.filename) LIKE 'captura de pantalla%' "
                   "OR lower(p.filename) LIKE 'screencapture%')")
-DUPLICATE_SQL = ("p.fingerprint IN (SELECT fingerprint FROM photos "
-                 "WHERE trashed_at IS NULL AND fingerprint IS NOT NULL "
-                 "GROUP BY fingerprint HAVING COUNT(*) > 1)")
+def dup_key(alias: str) -> str:
+    """What two photos must share to be duplicates: the hash of the whole
+    file when it has been read and is unchanged, else the quick fingerprint."""
+    a = alias
+    return (f"CASE WHEN {a}.content_hash IS NOT NULL "
+            f"AND {a}.hashed_key = {a}.bytes || ':' || {a}.mtime "
+            f"THEN {a}.content_hash ELSE {a}.fingerprint END")
+
+
+DUPLICATE_SQL = (f"{dup_key('p')} IN (SELECT {dup_key('q')} FROM photos q "
+                 f"WHERE q.trashed_at IS NULL AND {dup_key('q')} IS NOT NULL "
+                 f"GROUP BY {dup_key('q')} HAVING COUNT(*) > 1)")
 IMPORT_SQL = ("p.root_id IN (SELECT id FROM roots WHERE in_library=1)")
 # A video is known by its file type, the same test the scanner uses.
 VIDEO_SQL = ("lower(p.ext) IN ("
@@ -461,6 +474,12 @@ class Catalog:
         # ("Norwood Center"); an album shows the photos under that name.
         if "place_name" not in pcols:
             cur.execute("ALTER TABLE photos ADD COLUMN place_name TEXT")
+        # Whole-file hash from the duplicate scan, and what the file looked
+        # like when it was read, so a changed file is never trusted.
+        if "content_hash" not in pcols:
+            cur.execute("ALTER TABLE photos ADD COLUMN content_hash TEXT")
+        if "hashed_key" not in pcols:
+            cur.execute("ALTER TABLE photos ADD COLUMN hashed_key TEXT")
 
         cols = {row[1] for row in cur.execute("PRAGMA table_info(albums)")}
         if "folder_id" not in cols:
@@ -967,7 +986,10 @@ class Catalog:
             "rating_desc": "p.rating DESC, p.taken_at DESC",
             "manual": "ai.position ASC" if scope == "album" else "p.taken_at DESC",
         }
-        select = ", ".join(f"p.{c}" for c in GRID_FIELDS)
+        select = ", ".join(f"p.{c}" for c in GRID_FIELDS if not (
+            scope == "duplicates" and c == "fingerprint"))
+        if scope == "duplicates":
+            select += f", {dup_key('p')} AS fingerprint"
         ordering = self._scope_order(scope, order, orders)
         if scope == "album" and album_id is not None and by_group:
             # Named groups side by side, in the order they were visited
@@ -1032,7 +1054,7 @@ class Catalog:
         # Some views have one natural order, whatever the sort menu says:
         # copies side by side, the latest edit or import first.
         if scope == "duplicates":
-            return "p.fingerprint, p.added_at ASC, p.id ASC"
+            return f"{dup_key('p')}, p.added_at ASC, p.id ASC"
         if scope == "edited" and order == "taken_desc":
             return "p.edited_at DESC, p.id DESC"
         if scope == "imports" and order == "taken_desc":
@@ -1329,6 +1351,25 @@ class Catalog:
         return len(self.browse(scope="smart", smart_id=smart_id))
 
     # -- duplicates ------------------------------------------------------
+    def confirm_identical(self, photo_ids: Sequence[int]) -> None:
+        """Read, whole, the files among these that only the quick fingerprint
+        says are copies, so nothing is merged on a resemblance."""
+        from . import dupescan
+        marks = ",".join("?" * len(photo_ids))
+        rows = self.q(
+            f"SELECT id, path, bytes FROM photos WHERE id IN ({marks}) "
+            f"AND NOT (content_hash IS NOT NULL "
+            f"AND hashed_key = bytes || ':' || mtime)", list(photo_ids))
+        for r in rows:
+            try:
+                digest = dupescan.hash_file(r["path"])
+            except OSError:
+                continue
+            with self.write() as cur:
+                cur.execute("UPDATE photos SET content_hash=?, "
+                            "hashed_key=bytes || ':' || mtime WHERE id=?",
+                            (digest, r["id"]))
+
     def merge_duplicates(self, photo_ids: Sequence[int]) -> dict:
         """"Merge N Items": keep one copy of each selected group.
 
@@ -1342,13 +1383,14 @@ class Catalog:
         ids = list(photo_ids)
         if not ids:
             return {"kept": [], "trashed": []}
+        self.confirm_identical(ids)
         marks = ",".join("?" * len(ids))
         rows = self.q(
-            f"SELECT p.id, p.fingerprint, p.favorite, p.rating, p.bytes, "
+            f"SELECT p.id, {dup_key('p')} AS fingerprint, p.favorite, p.rating, p.bytes, "
             f"p.added_at, p.edit_version, "
             f"(SELECT COUNT(*) FROM album_items ai WHERE ai.photo_id=p.id) AS n_albums "
             f"FROM photos p WHERE p.id IN ({marks}) AND p.trashed_at IS NULL "
-            f"AND p.fingerprint IS NOT NULL", ids)
+            f"AND {dup_key('p')} IS NOT NULL", ids)
         groups: dict[str, list] = {}
         for r in rows:
             groups.setdefault(r["fingerprint"], []).append(r)
@@ -1382,16 +1424,13 @@ class Catalog:
         return {"kept": kept, "trashed": trashed}
 
     def duplicate_groups(self) -> list[list[sqlite3.Row]]:
-        rows = self.q("""
-            SELECT id, path, filename, bytes, fingerprint, taken_at
-            FROM photos
-            WHERE fingerprint IS NOT NULL AND trashed_at IS NULL
-              AND fingerprint IN (
-                SELECT fingerprint FROM photos
-                WHERE fingerprint IS NOT NULL AND trashed_at IS NULL
-                GROUP BY fingerprint HAVING COUNT(*)>1)
-            ORDER BY fingerprint, added_at""")
+        rows = self.q(f"""
+            SELECT p.id, p.path, p.filename, p.bytes, p.taken_at,
+                   {dup_key('p')} AS dupkey
+            FROM photos p
+            WHERE p.trashed_at IS NULL AND {DUPLICATE_SQL}
+            ORDER BY dupkey, p.added_at""")
         groups: dict[str, list] = {}
         for r in rows:
-            groups.setdefault(r["fingerprint"], []).append(r)
+            groups.setdefault(r["dupkey"], []).append(r)
         return list(groups.values())
