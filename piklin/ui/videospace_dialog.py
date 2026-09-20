@@ -45,14 +45,14 @@ def backup_note(remotes) -> tuple[str, bool]:
     is True when it is a warning (no backup keeps them)."""
     nas = [r for r in remotes if videospace.hold_days_for(r) > 0]
     if nas:
-        return (_("Your backup on {name} keeps each original for five days, then lets it go "
+        return (_("Your backup on {name} keeps each original for seven days, then lets it go "
                   "once the smaller video is checked there and here. This computer gets the "
                   "room back at once.").format(name=nas[0].name), False)
     if remotes:
         return (_("Your cloud backup keeps only the smaller videos, so you don't pay for both. "
-                  "Each original stays on this computer for five days, then goes once the "
+                  "Each original stays on this computer for seven days, then goes once the "
                   "smaller video is checked."), False)
-    return (_("You have no backup. Each original stays on this computer for five days, then "
+    return (_("You have no backup. Each original stays on this computer for seven days, then "
               "goes for good once the smaller video is checked. Setting up a backup first, "
               "even on a USB drive, is safer."), True)
 

@@ -300,6 +300,11 @@ def save_frame_as_photo(library, path, t: float, edit: VideoEdit | None,
 EXPORT_FORMATS = {
     "mp4": {"label": N_("MP4 (H.264)"), "suffix": ".mp4", "container": "mp4",
             "video": ("libopenh264", "h264", "mpeg4"), "audio": ("aac",)},
+    # The smallest files for the same picture, made with SVT-AV1. Plays in
+    # Piklin and in current browsers and phones; an older Mac's own player
+    # may not open it, which is why Piklin shares videos in H.264.
+    "av1": {"label": N_("MP4 (AV1, smallest)"), "suffix": ".mp4", "container": "mp4",
+            "video": ("libsvtav1",), "audio": ("aac",)},
     "webm": {"label": N_("WebM (VP9)"), "suffix": ".webm", "container": "webm",
              "video": ("libvpx-vp9", "libvpx"), "audio": ("libopus",)},
     "gif": {"label": N_("Animated GIF"), "suffix": ".gif"},
@@ -327,13 +332,14 @@ def export(path, dst, edit: VideoEdit, fmt: str = "mp4",
            strip_metadata: bool = False, meta: dict | None = None,
            on_progress: Callable[[float], None] | None = None,
            cancel: threading.Event | None = None,
-           bit_rate: int | None = None) -> Path:
+           bit_rate: int | None = None, crf: int | None = None) -> Path:
     """Render ``path`` with ``edit`` into ``dst``. Returns the file written.
 
     The output is written under a temporary name and only renamed into
     place once complete, so a cancelled or failed export leaves nothing
     half-written behind. ``bit_rate`` caps the video's bits per second (see
     videospace.py); the usual rate for its size is used when it is lower.
+    ``crf`` is the quality asked of the AV1 encoder: lower is better and larger.
     """
     import av
     segs = edit.segments()
@@ -347,7 +353,7 @@ def export(path, dst, edit: VideoEdit, fmt: str = "mp4",
             _export_gif(av, path, tmp, edit, segs, max_side or 480, on_progress, cancel)
         else:
             _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
-                          strip_metadata, meta or {}, on_progress, cancel, bit_rate)
+                          strip_metadata, meta or {}, on_progress, cancel, bit_rate, crf)
         tmp.replace(dst)
     finally:
         tmp.unlink(missing_ok=True)
@@ -359,7 +365,7 @@ class Cancelled(Exception):
 
 
 def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
-                  strip_metadata, meta, on_progress, cancel, bit_rate=None):
+                  strip_metadata, meta, on_progress, cancel, bit_rate=None, crf=None):
     spec = EXPORT_FORMATS[fmt]
     vcodec = encoder_for("video", fmt)
     if vcodec is None:
@@ -377,16 +383,24 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
         fps = min(float(vin.average_rate or 30), 60.0)
         rate = fractions.Fraction(fps).limit_denominator(1001)
 
-        container_options = {"movflags": "+faststart"} if fmt == "mp4" else {}
+        mp4_like = fmt in ("mp4", "av1")
+        container_options = {"movflags": "+faststart"} if mp4_like else {}
         out = av.open(str(tmp), "w", format=spec["container"],
                       container_options=container_options)
         vout = out.add_stream(vcodec, rate=rate)
         vout.width, vout.height, vout.pix_fmt = ow, oh, "yuv420p"
         vout.codec_context.thread_count = _threads()
-        # about 0.12 bit per pixel per frame: 1080p30 near 7.5 Mbit/s
-        vout.bit_rate = int(ow * oh * fps * 0.12)
-        if bit_rate:
-            vout.bit_rate = min(vout.bit_rate, int(bit_rate))
+        if vcodec == "libsvtav1":
+            # Asked for by quality, not by bits per second: the encoder spends
+            # what each scene needs, which is how it gets smaller than a cap.
+            # tune=0 favours what the eye sees over a number.
+            vout.options = {"crf": str(int(crf or 32)), "preset": "6",
+                            "svtav1-params": "tune=0"}
+        else:
+            # about 0.12 bit per pixel per frame: 1080p30 near 7.5 Mbit/s
+            vout.bit_rate = int(ow * oh * fps * 0.12)
+            if bit_rate:
+                vout.bit_rate = min(vout.bit_rate, int(bit_rate))
         if vcodec.startswith("libvpx"):
             vout.options = {"crf": "31", "b:v": "0", "row-mt": "1",
                             "deadline": "good", "cpu-used": "4"}
@@ -398,7 +412,7 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
             if acodec:
                 aout = out.add_stream(acodec, rate=48000)
                 aout.layout = "stereo"
-                aout.bit_rate = 160_000 if fmt == "mp4" else 128_000
+                aout.bit_rate = 160_000 if mp4_like else 128_000
                 fifo = av.AudioFifo()
 
         if not strip_metadata:

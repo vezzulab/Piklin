@@ -1322,12 +1322,12 @@ ES = {
     "about {count} minute": ("{count} minuto aproximadamente", "unos {count} minutos"),
     "about {count} hour": ("{count} hora aproximadamente", "unas {count} horas"),
     "about {count} day": ("{count} día aproximadamente", "unos {count} días"),
-    "Your backup on {name} keeps each original for five days, then lets it go once the smaller video is checked there and here. This computer gets the room back at once.":
-        "Tu copia en {name} guarda cada original cinco días y luego lo borra, cuando el video pequeño está comprobado allí y aquí. Esta computadora recupera el espacio en el momento.",
-    "Your cloud backup keeps only the smaller videos, so you don't pay for both. Each original stays on this computer for five days, then goes once the smaller video is checked.":
-        "Tu copia en la nube guarda solo los videos pequeños, para que no pagues por los dos. Cada original se queda cinco días en esta computadora y luego se borra, cuando el video pequeño está comprobado.",
-    "You have no backup. Each original stays on this computer for five days, then goes for good once the smaller video is checked. Setting up a backup first, even on a USB drive, is safer.":
-        "No tienes copia de seguridad. Cada original se queda cinco días en esta computadora y luego se borra para siempre, cuando el video pequeño está comprobado. Es más seguro configurar antes una copia, aunque sea en una memoria USB.",
+    "Your backup on {name} keeps each original for seven days, then lets it go once the smaller video is checked there and here. This computer gets the room back at once.":
+        "Tu copia en {name} guarda cada original siete días y luego lo borra, cuando el video pequeño está comprobado allí y aquí. Esta computadora recupera el espacio en el momento.",
+    "Your cloud backup keeps only the smaller videos, so you don't pay for both. Each original stays on this computer for seven days, then goes once the smaller video is checked.":
+        "Tu copia en la nube guarda solo los videos pequeños, para que no pagues por los dos. Cada original se queda siete días en esta computadora y luego se borra, cuando el video pequeño está comprobado.",
+    "You have no backup. Each original stays on this computer for seven days, then goes for good once the smaller video is checked. Setting up a backup first, even on a USB drive, is safer.":
+        "No tienes copia de seguridad. Cada original se queda siete días en esta computadora y luego se borra para siempre, cuando el video pequeño está comprobado. Es más seguro configurar antes una copia, aunque sea en una memoria USB.",
     "{count} video can take {size} less": ("{count} video puede ocupar {size} menos",
                                            "{count} videos pueden ocupar {size} menos"),
     "Each video is made smaller at a quality where the difference doesn't show at a normal viewing distance, and is kept only once the smaller copy is checked to be the same video: its length, its sound and its picture. Albums, favourites and edits stay with it.":

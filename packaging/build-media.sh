@@ -9,7 +9,8 @@
 #   decoding  every format FFmpeg reads natively (H.264, HEVC, ProRes,
 #             MPEG-2/4, VP8/9 via libvpx, AV1 via dav1d, AAC, MP3, Opus...)
 #   encoding  H.264 through OpenH264 (BSD), VP9 through libvpx (BSD),
-#             Opus (BSD), FFmpeg's own AAC and GIF encoders
+#             AV1 through SVT-AV1 (BSD), Opus (BSD), FFmpeg's own AAC and GIF
+#             encoders
 #
 # The codec libraries are linked statically into FFmpeg, so the only
 # shared libraries that travel are FFmpeg's own, renamed by auditwheel so
@@ -41,6 +42,7 @@ OPENH264=2.6.0
 LIBVPX=1.15.2
 OPUS=1.5.2
 DAV1D=1.5.1
+SVTAV1=3.0.2
 PYAV=18.1.0
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
@@ -57,6 +59,7 @@ fetch "https://github.com/cisco/openh264/archive/refs/tags/v$OPENH264.tar.gz" "o
 fetch "https://github.com/webmproject/libvpx/archive/refs/tags/v$LIBVPX.tar.gz" "libvpx-$LIBVPX.tar.gz"
 fetch "https://downloads.xiph.org/releases/opus/opus-$OPUS.tar.gz" "opus-$OPUS.tar.gz"
 fetch "https://code.videolan.org/videolan/dav1d/-/archive/$DAV1D/dav1d-$DAV1D.tar.gz" "dav1d-$DAV1D.tar.gz"
+fetch "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$SVTAV1/SVT-AV1-v$SVTAV1.tar.gz" "svtav1-$SVTAV1.tar.gz"
 
 build_dir() { rm -rf "$SRC/$1"; mkdir -p "$SRC/$1"; tar -xf "$SRC/$2" -C "$SRC/$1" --strip-components=1; }
 
@@ -92,7 +95,19 @@ if ! ls "$PREFIX"/lib/libdav1d.a "$PREFIX"/lib/*/libdav1d.a >/dev/null 2>&1; the
    && ninja -C build install >/dev/null)
 fi
 
-if [ ! -f "$PREFIX/lib/libavcodec.so" ]; then
+if [ ! -f "$PREFIX/lib/libSvtAv1Enc.a" ]; then
+  say "SVT-AV1 $SVTAV1 (BSD)"
+  build_dir svtav1 "svtav1-$SVTAV1.tar.gz"
+  cmake -S "$SRC/svtav1" -B "$SRC/svtav1/_build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib \
+      -DBUILD_SHARED_LIBS=OFF -DBUILD_APPS=OFF -DBUILD_DEC=OFF -DBUILD_TESTING=OFF \
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON >/dev/null \
+   && cmake --build "$SRC/svtav1/_build" -j"$JOBS" >/dev/null \
+   && cmake --install "$SRC/svtav1/_build" >/dev/null
+fi
+
+# (rebuilt when a build made before AV1 was added is found)
+if [ ! -f "$PREFIX/lib/libavcodec.so" ] || ! grep -q "libsvtav1" "$CACHE/ffmpeg-configure.log" 2>/dev/null; then
   say "FFmpeg $FFMPEG (LGPL)"
   build_dir ffmpeg "ffmpeg-$FFMPEG.tar.xz"
   # --disable-autodetect: nothing from the build machine sneaks in as a
@@ -102,6 +117,7 @@ if [ ! -f "$PREFIX/lib/libavcodec.so" ]; then
       --disable-programs --disable-doc --disable-debug \
       --disable-autodetect --enable-zlib \
       --enable-libopenh264 --enable-libvpx --enable-libopus --enable-libdav1d \
+      --enable-libsvtav1 \
       --extra-cflags="-I$PREFIX/include" --extra-ldflags="-L$PREFIX/lib" \
       --pkg-config-flags="--static" | tee "$CACHE/ffmpeg-configure.log" | grep -E "^License:")
   grep -q "^License: LGPL version 2.1 or later" "$CACHE/ffmpeg-configure.log" \
@@ -120,4 +136,6 @@ rm -f "$OUT"/av-*.whl
 LD_LIBRARY_PATH="$PREFIX/lib" "$PY" -m auditwheel repair \
   --plat "manylinux_2_39_$MACHINE" -w "$OUT" "$CACHE"/pyav-build/av-*.whl >/dev/null
 cp "$SRC/ffmpeg/COPYING.LGPLv2.1" "$CACHE/FFMPEG-LICENSE.txt"
+# SVT-AV1 asks for its licence and its patent licence to travel with it.
+for f in LICENSE.md PATENTS.md; do cp "$SRC/svtav1/$f" "$CACHE/SVT-AV1-$f" 2>/dev/null || true; done
 say "Done: $(ls "$OUT"/av-*.whl)"

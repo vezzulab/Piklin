@@ -42,7 +42,7 @@ PY="$CACHE/buildpy/bin/python3"
 # One set of versions for every system.
 ver() { sed -n "s/^$1=//p" "$PACKAGING/build-media.sh"; }
 FFMPEG="$(ver FFMPEG)"; OPENH264="$(ver OPENH264)"; LIBVPX="$(ver LIBVPX)"
-OPUS="$(ver OPUS)"; DAV1D="$(ver DAV1D)"; PYAV="$(ver PYAV)"
+OPUS="$(ver OPUS)"; DAV1D="$(ver DAV1D)"; SVTAV1="$(ver SVTAV1)"; PYAV="$(ver PYAV)"
 
 export PATH="$BREW/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
 export MACOSX_DEPLOYMENT_TARGET="$MIN_MACOS"
@@ -76,6 +76,7 @@ fetch "https://github.com/cisco/openh264/archive/refs/tags/v$OPENH264.tar.gz" "o
 fetch "https://github.com/webmproject/libvpx/archive/refs/tags/v$LIBVPX.tar.gz" "libvpx-$LIBVPX.tar.gz"
 fetch "https://downloads.xiph.org/releases/opus/opus-$OPUS.tar.gz" "opus-$OPUS.tar.gz"
 fetch "https://code.videolan.org/videolan/dav1d/-/archive/$DAV1D/dav1d-$DAV1D.tar.gz" "dav1d-$DAV1D.tar.gz"
+fetch "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$SVTAV1/SVT-AV1-v$SVTAV1.tar.gz" "svtav1-$SVTAV1.tar.gz"
 
 if [ ! -f "$PREFIX/lib/libopenh264.a" ]; then
   say "OpenH264 $OPENH264 (BSD)"
@@ -111,7 +112,20 @@ if [ ! -f "$PREFIX/lib/libdav1d.a" ]; then
    && ninja -C build install >/dev/null)
 fi
 
-if [ ! -f "$PREFIX/lib/libavcodec.dylib" ]; then
+if [ ! -f "$PREFIX/lib/libSvtAv1Enc.a" ]; then
+  say "SVT-AV1 $SVTAV1 (BSD)"
+  build_dir svtav1 "svtav1-$SVTAV1.tar.gz"
+  cmake -S "$WORK/svtav1" -B "$WORK/svtav1/_build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib \
+      -DBUILD_SHARED_LIBS=OFF -DBUILD_APPS=OFF -DBUILD_DEC=OFF -DBUILD_TESTING=OFF \
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_OSX_ARCHITECTURES="$ARCH" \
+      -DCMAKE_OSX_DEPLOYMENT_TARGET="$MIN_MACOS" >/dev/null \
+   && cmake --build "$WORK/svtav1/_build" -j"$JOBS" >/dev/null \
+   && cmake --install "$WORK/svtav1/_build" >/dev/null
+fi
+
+# (rebuilt when a build made before AV1 was added is found)
+if [ ! -f "$PREFIX/lib/libavcodec.dylib" ] || ! grep -q "libsvtav1" "$CACHE/ffmpeg-configure.log" 2>/dev/null; then
   say "FFmpeg $FFMPEG (LGPL)"
   build_dir ffmpeg "ffmpeg-$FFMPEG.tar.xz"
   # The same configuration as on Linux. --disable-autodetect also keeps
@@ -122,6 +136,7 @@ if [ ! -f "$PREFIX/lib/libavcodec.dylib" ]; then
       --disable-programs --disable-doc --disable-debug \
       --disable-autodetect --enable-zlib \
       --enable-libopenh264 --enable-libvpx --enable-libopus --enable-libdav1d \
+      --enable-libsvtav1 \
       --arch="$ARCH" --cc=clang \
       --extra-cflags="-I$PREFIX/include $CFLAGS" --extra-ldflags="-L$PREFIX/lib $LDFLAGS" \
       --pkg-config-flags="--static" | tee "$CACHE/ffmpeg-configure.log" | grep -E "^License:")
@@ -153,4 +168,6 @@ if unzip -l "$OUT"/av-*.whl | grep -qiE "x264|x265|postproc|fdk"; then
   exit 1
 fi
 cp "$WORK/ffmpeg/COPYING.LGPLv2.1" "$CACHE/FFMPEG-LICENSE.txt"
+# SVT-AV1 asks for its licence and its patent licence to travel with it.
+for f in LICENSE.md PATENTS.md; do cp "$WORK/svtav1/$f" "$CACHE/SVT-AV1-$f" 2>/dev/null || true; done
 say "Done: $(ls "$OUT"/av-*.whl)"

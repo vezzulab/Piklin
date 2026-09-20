@@ -272,6 +272,7 @@ for a in $ARCHS; do
   done
   mkdir -p "$DOC/ffmpeg"
   cp "$CACHE/$a/FFMPEG-LICENSE.txt" "$DOC/ffmpeg/COPYING.LGPLv2.1"
+  mkdir -p "$DOC/svt-av1"; cp "$CACHE/$a"/SVT-AV1-*.md "$DOC/svt-av1/" 2>/dev/null || true
   cp "$CACHE/$a/ffmpeg-configure.log" "$DOC/ffmpeg/configure-$a.log" 2>/dev/null || true
 done
 # Every typeface Piklin carries brings its licence with it.

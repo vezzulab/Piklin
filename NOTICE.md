@@ -11,6 +11,7 @@ The Piklin packages include the software below. Each part keeps its own licence,
 | [libvpx](https://chromium.googlesource.com/webm/libvpx) | VP8 and VP9 video | BSD-3-Clause |
 | [Opus](https://opus-codec.org) | Opus audio | BSD-3-Clause |
 | [dav1d](https://code.videolan.org/videolan/dav1d) | AV1 video decoding | BSD-2-Clause |
+| [SVT-AV1](https://gitlab.com/AOMediaCodec/SVT-AV1) | AV1 video encoding, the smallest videos | BSD-3-Clause-Clear, with the AOMedia patent licence |
 | [PyAV](https://github.com/PyAV-Org/PyAV) | Python access to FFmpeg | BSD-3-Clause |
 | [miniaudio](https://miniaud.io) / [pyminiaudio](https://github.com/irmen/pyminiaudio) | Sound output | Public domain or MIT-0 / MIT |
 | [OpenCV](https://opencv.org) | Image processing and face detection | Apache-2.0 |

@@ -207,11 +207,13 @@ for d in "$ROOT"/data/fonts/*/; do
 done
 mkdir -p "$DOC/third-party/ffmpeg"
 cp "$MEDIA/FFMPEG-LICENSE.txt" "$DOC/third-party/ffmpeg/COPYING.LGPLv2.1"
+mkdir -p "$DOC/third-party/svt-av1"
+cp "$MEDIA"/SVT-AV1-*.md "$DOC/third-party/svt-av1/" 2>/dev/null || true
 cp "$MEDIA/ffmpeg-configure.log" "$DOC/third-party/ffmpeg/configure.log" 2>/dev/null || true
 cat > "$DOC/third-party/ffmpeg/SOURCE.txt" <<SRC
 Piklin plays and exports video with FFmpeg $(sed -n 's/^FFMPEG=//p' "$HERE/build-media.sh"),
 licensed under the GNU Lesser General Public License version 2.1 or later,
-built with OpenH264, libvpx, Opus and dav1d (all BSD licensed) and without
+built with OpenH264, libvpx, SVT-AV1, Opus and dav1d (all BSD licensed) and without
 any GPL or non-free component. The exact configuration is in configure.log.
 
 The FFmpeg libraries are separate shared libraries in /usr/lib/piklin and

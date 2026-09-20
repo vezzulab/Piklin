@@ -537,8 +537,11 @@ def import_photos(library, records: list[dict], on_progress=None,
 
 def shrink_video(library, catalog, photo_id: int, on_progress=None,
                  cancel: threading.Event | None = None, bit_rate: int | None = None,
-                 verify=None, set_apart: Path | None = None) -> str:
-    """Make a video already in the library smaller (H.264), in place.
+                 verify=None, set_apart: Path | None = None,
+                 fmt: str = "mp4", crfs: tuple = ()) -> str:
+    """Make a video already in the library smaller, in place: H.264 at a capped
+    rate, or AV1 by quality (``fmt="av1"``), trying each quality in ``crfs``
+    from the smallest file until one passes ``verify``.
 
     Returns "smaller", "kept" (it would not save a tenth, so the file is
     left as it is), "cancelled", "failed" or "gone". The original is only
@@ -562,30 +565,39 @@ def shrink_video(library, catalog, photo_id: int, on_progress=None,
         keys = row.keys()
         location = ((row["gps_lat"], row["gps_lon"])
                     if "gps_lat" in keys and row["gps_lat"] is not None else None)
-        out = ve.export(src, work, ve.VideoEdit(duration=duration), fmt="mp4",
-                        keep_location=True,
-                        meta={"taken_at": row["taken_at"], "location": location},
-                        on_progress=on_progress, cancel=cancel, bit_rate=bit_rate)
+        st = src.stat()
+        out = None
+        # Each quality is tried in turn, the smallest file first: the first
+        # smaller copy that is the same video is the one that is kept.
+        for crf in (list(crfs) if fmt == "av1" and crfs else [None]):
+            out = ve.export(src, work, ve.VideoEdit(duration=duration), fmt=fmt,
+                            keep_location=True,
+                            meta={"taken_at": row["taken_at"], "location": location},
+                            on_progress=on_progress, cancel=cancel,
+                            bit_rate=None if fmt == "av1" else bit_rate, crf=crf)
+            if out.stat().st_size >= st.st_size * 0.9:
+                out.unlink(missing_ok=True)
+                return "kept"
+            if verify is None:
+                break
+            # The smaller copy has to be the same video - its length, its sound,
+            # its picture - before it may take the original's place.
+            try:
+                ok = bool(verify(src, out))
+            except Exception:
+                ok = False
+            if ok:
+                break
+            out.unlink(missing_ok=True)
+            out = None
+        if out is None:
+            return "failed"
     except ve.Cancelled:
         work.unlink(missing_ok=True)
         return "cancelled"
     except Exception:
         work.unlink(missing_ok=True)
         return "failed"
-    st = src.stat()
-    if out.stat().st_size >= st.st_size * 0.9:
-        out.unlink(missing_ok=True)
-        return "kept"
-    if verify is not None:
-        # The smaller copy has to be the same video - its length, its sound,
-        # its picture - before it may take the original's place.
-        try:
-            ok = bool(verify(src, out))
-        except Exception:
-            ok = False
-        if not ok:
-            out.unlink(missing_ok=True)
-            return "failed"
     os.utime(out, (st.st_atime, st.st_mtime))
     try:
         # the size of the camera file, so importing it again is recognised

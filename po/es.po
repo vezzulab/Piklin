@@ -4714,15 +4714,15 @@ msgstr[1] "unos {count} días"
 #: piklin/ui/videospace_dialog.py:48
 #, python-brace-format
 msgid "Your backup on {name} keeps each original for five days, then lets it go once the smaller video is checked there and here. This computer gets the room back at once."
-msgstr "Tu copia en {name} guarda cada original cinco días y luego lo borra, cuando el video pequeño está comprobado allí y aquí. Esta computadora recupera el espacio en el momento."
+msgstr ""
 
 #: piklin/ui/videospace_dialog.py:52
 msgid "Your cloud backup keeps only the smaller videos, so you don't pay for both. Each original stays on this computer for five days, then goes once the smaller video is checked."
-msgstr "Tu copia en la nube guarda solo los videos pequeños, para que no pagues por los dos. Cada original se queda cinco días en esta computadora y luego se borra, cuando el video pequeño está comprobado."
+msgstr ""
 
 #: piklin/ui/videospace_dialog.py:55
 msgid "You have no backup. Each original stays on this computer for five days, then goes for good once the smaller video is checked. Setting up a backup first, even on a USB drive, is safer."
-msgstr "No tienes copia de seguridad. Cada original se queda cinco días en esta computadora y luego se borra para siempre, cuando el video pequeño está comprobado. Es más seguro configurar antes una copia, aunque sea en una memoria USB."
+msgstr ""
 
 #: piklin/ui/videospace_dialog.py:76
 #, python-brace-format

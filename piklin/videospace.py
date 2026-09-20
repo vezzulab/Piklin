@@ -23,6 +23,24 @@ AUDIO_BPS = 160_000
 # not worth the work or the small loss of detail below this
 MIN_SAVING_BYTES = 20 * 1024 * 1024
 MIN_SAVING_SHARE = 0.25
+# AV1 is asked for by quality, the best first: the smallest file is tried, and
+# if it is not the same video the next is (see devices.shrink_video). Measured
+# on phone and camera videos, these leave about a quarter to a half of the size.
+AV1_CRFS = (32, 28, 24)
+AV1_EXPECTED_SHARE = 0.40
+# a video already this thin has little left to take out
+AV1_MIN_BPS = 1_200_000
+# frames compared on the way back: a little stricter than for H.264
+AV1_MIN_SIMILARITY = 0.92
+
+
+def av1_available() -> bool:
+    """Whether this computer can make AV1, the codec that saves the most."""
+    try:
+        from . import video_edit as ve
+        return ve.encoder_for("video", "av1") is not None
+    except Exception:
+        return False
 
 
 def cap_for(width: int, height: int) -> int:
@@ -59,6 +77,7 @@ def plan(catalog, originals: Path | str, min_saving: int = MIN_SAVING_BYTES,
     """The library's videos worth making smaller, the most space for the
     least work first."""
     root = Path(originals).resolve()
+    av1 = av1_available()
     out = []
     for r in catalog.q(
             "SELECT id, path, bytes, duration, width, height FROM photos "
@@ -72,8 +91,14 @@ def plan(catalog, originals: Path | str, min_saving: int = MIN_SAVING_BYTES,
         if dur <= 0 or size <= 0:
             continue
         current = size * 8 / dur
-        target = min(cap_for(r["width"], r["height"]), int(current * 0.8))
-        expected = int((target + AUDIO_BPS) * dur / 8)
+        if av1:
+            if current < AV1_MIN_BPS:
+                continue
+            target = 0                     # by quality, not by a rate
+            expected = int(size * AV1_EXPECTED_SHARE)
+        else:
+            target = min(cap_for(r["width"], r["height"]), int(current * 0.8))
+            expected = int((target + AUDIO_BPS) * dur / 8)
         saving = size - expected
         if saving < min_saving or saving < size * min_share:
             continue
@@ -126,7 +151,7 @@ def verify(src, out, min_similarity: float = 0.80) -> bool:
         return False
     if _has_audio(src) and not _has_audio(out):
         return False
-    times = [da * 0.1, da * 0.5, max(0.0, da * 0.9 - 0.1)]
+    times = [da * 0.1, da * 0.3, da * 0.5, da * 0.7, max(0.0, da * 0.9 - 0.1)]
     fa, fb = _frames(src, times), _frames(out, times)
     if not fa or not fb or len(fa) != len(fb):
         return False
@@ -151,7 +176,7 @@ def verify(src, out, min_similarity: float = 0.80) -> bool:
 # In the backup, a converted video's original waits in a folder of its own
 # for this long, then goes once the smaller one is checked again.
 CONVERTED_DIR = "Converted Originals"
-HOLD_DAYS = 5
+HOLD_DAYS = 7
 VIDEO_EXTS = {".mov", ".mp4", ".m4v", ".avi", ".mpg", ".mpeg", ".mts", ".m2ts",
               ".3gp", ".mkv", ".wmv", ".webm", ".dv"}
 
@@ -508,9 +533,12 @@ def convert_one(library, catalog, candidate: Candidate, remotes, now: float | No
     rel = _rel(root, old)
     size = old.stat().st_size
     hold = set_apart_locally(root, rel, now) if local_hold_needed(remotes) else None
-    result = devices.shrink_video(library, catalog, candidate.photo_id, on_progress=on_progress,
-                                  cancel=cancel, bit_rate=candidate.bit_rate, verify=verify,
-                                  set_apart=hold)
+    av1 = av1_available()
+    result = devices.shrink_video(
+        library, catalog, candidate.photo_id, on_progress=on_progress,
+        cancel=cancel, bit_rate=candidate.bit_rate,
+        verify=((lambda a, b: verify(a, b, AV1_MIN_SIMILARITY)) if av1 else verify),
+        set_apart=hold, fmt="av1" if av1 else "mp4", crfs=AV1_CRFS if av1 else ())
     if result == "smaller":
         row = catalog.photo(candidate.photo_id)
         new = Path(row["path"]) if row is not None else old
@@ -530,9 +558,11 @@ def measure_speed(candidate: Candidate, seconds: float = 5.0) -> float:
     end = min(candidate.duration, start + seconds)
     with tempfile.TemporaryDirectory() as tmp:
         t0 = time.monotonic()
+        av1 = av1_available()
         ve.export(candidate.path, Path(tmp) / "sample.mp4",
                   ve.VideoEdit(duration=candidate.duration, start=start, end=end),
-                  fmt="mp4", bit_rate=candidate.bit_rate)
+                  fmt="av1" if av1 else "mp4", bit_rate=candidate.bit_rate,
+                  crf=AV1_CRFS[0] if av1 else None)
         spent = max(time.monotonic() - t0, 0.05)
     return max(1, candidate.width * candidate.height) * (end - start) / spent
 
