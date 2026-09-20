@@ -38,6 +38,9 @@
 ### Export
 - Any other folder is chosen in the system's folder chooser instead of typed
 
+### Videos, much smaller
+- Preferences › Storage can make the videos already in the library smaller with AV1 (SVT-AV1, free), trying gentler settings if a result would lose too much. Each new video is checked against the original before it replaces it, and the originals are kept for seven days
+
 ### Dragging photos out of Piklin
 - Dragging photos to the desktop, a folder or another program now hands over the files. A photo that is kept as HEIC, WebP, AVIF, TIFF or a camera's RAW goes as an ordinary JPEG with its place and date, and one you edited goes as it looks now; a JPEG or PNG nobody changed goes exactly as it is. Dragging onto an album inside Piklin works as before
 

@@ -115,7 +115,16 @@ The albums in the sidebar, the albums at a pin, and the countries and cities on 
 
 Any other folder is now chosen in the system's own folder chooser; nobody has to type a path.
 
+### Drag photos out of Piklin
+
+Drag photos to the desktop, a folder or another program and they arrive as files anything can open. A photo kept as HEIC, WebP, AVIF or RAW becomes an ordinary JPEG, with its place and date; an edited photo arrives as it looks now; a JPEG nobody changed arrives untouched.
+
+### Videos, much smaller
+
+Preferences › Storage can now make the videos already in your library smaller with **AV1**, the codec that keeps the most quality for the least room: typically a third to a half of the original size. Each new video is checked against the original before it replaces it, and **the originals are kept for seven days** before they go, in case you change your mind.
+
 ### Smaller things
+
 
 - The sidebar no longer counts the library on the interface's thread. On a large library the numbers used to hold everything up for half a second after every import, edit and backup.
 - No number beside All Photos or the albums: the footer already carries the library's count.
@@ -260,7 +269,16 @@ Los álbumes de la barra lateral, los álbumes de un pin y los países y ciudade
 
 Cualquier otra carpeta se elige ahora en el selector de carpetas del sistema; nadie tiene que escribir una ruta.
 
+#### Arrastra fotos fuera de Piklin
+
+Arrastra fotos al escritorio, a una carpeta o a otro programa y llegan como archivos que cualquiera abre. Una foto guardada como HEIC, WebP, AVIF o RAW se convierte en un JPEG normal, con su lugar y su fecha; una foto editada llega como se ve ahora; un JPEG que nadie cambió llega intacto.
+
+#### Videos mucho más pequeños
+
+En Preferencias › Almacenamiento ahora puedes hacer más pequeños los videos que ya están en tu biblioteca con **AV1**, el códec que conserva más calidad con menos espacio: normalmente entre un tercio y la mitad del tamaño original. Cada video nuevo se compara con el original antes de reemplazarlo, y **los originales se guardan siete días** antes de borrarse, por si cambias de opinión.
+
 #### Cosas pequeñas
+
 
 - El sidebar ya no cuenta la biblioteca en el hilo de la interfaz. En una biblioteca grande, los números frenaban todo medio segundo después de cada importación, cambio y copia de seguridad.
 - Sin número al lado de Todas las Fotos ni de los álbumes: el pie ya lleva la cuenta de la biblioteca.
