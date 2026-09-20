@@ -38,6 +38,9 @@
 ### Export
 - Any other folder is chosen in the system's folder chooser instead of typed
 
+### Duplicates
+- Find Duplicate Photos looks through every folder and reads every photo and video whole, so copies are found by their real content, in any folder, and files that only look alike are never merged. Progress is shown and it can be stopped
+
 ### Videos, much smaller
 - Preferences › Storage can make the videos already in the library smaller with AV1 (SVT-AV1, free), trying gentler settings if a result would lose too much. Each new video is checked against the original before it replaces it, and the originals are kept for seven days
 

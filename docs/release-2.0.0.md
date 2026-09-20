@@ -123,7 +123,12 @@ Drag photos to the desktop, a folder or another program and they arrive as files
 
 Preferences › Storage can now make the videos already in your library smaller with **AV1**, the codec that keeps the most quality for the least room: typically a third to a half of the original size. Each new video is checked against the original before it replaces it, and **the originals are kept for seven days** before they go, in case you change your mind.
 
+### Duplicates: everything is read
+
+Finding duplicates now looks through every folder and reads each photo and video from start to end, so only files with identical content are called copies, wherever they are. It shows its progress, can be stopped, and merging double-checks the files before moving anything to Recently Deleted.
+
 ### Smaller things
+
 
 
 - The sidebar no longer counts the library on the interface's thread. On a large library the numbers used to hold everything up for half a second after every import, edit and backup.
@@ -277,7 +282,12 @@ Arrastra fotos al escritorio, a una carpeta o a otro programa y llegan como arch
 
 En Preferencias › Almacenamiento ahora puedes hacer más pequeños los videos que ya están en tu biblioteca con **AV1**, el códec que conserva más calidad con menos espacio: normalmente entre un tercio y la mitad del tamaño original. Cada video nuevo se compara con el original antes de reemplazarlo, y **los originales se guardan siete días** antes de borrarse, por si cambias de opinión.
 
+#### Duplicados: se lee todo
+
+Buscar duplicados ahora revisa todas las carpetas y lee cada foto y video de principio a fin, así que solo se consideran copias los archivos con contenido idéntico, estén donde estén. Muestra su avance, se puede detener, y al combinar se vuelven a comprobar los archivos antes de mover algo a Eliminados recientemente.
+
 #### Cosas pequeñas
+
 
 
 - El sidebar ya no cuenta la biblioteca en el hilo de la interfaz. En una biblioteca grande, los números frenaban todo medio segundo después de cada importación, cambio y copia de seguridad.
