@@ -123,6 +123,10 @@ Drag photos to the desktop, a folder or another program and they arrive as files
 
 Preferences › Storage can now make the videos already in your library smaller with **AV1**, the codec that keeps the most quality for the least room: typically a third to a half of the original size. Each new video is checked against the original before it replaces it, and **the originals are kept for seven days** before they go, in case you change your mind.
 
+### Map zoom that behaves
+
+Pins no longer disappear or flicker while zooming, the wheel zooms on the place under the pointer and stops at the limits instead of sliding the map away, and the + and − buttons go exactly one step.
+
 ### Duplicates: everything is read
 
 Finding duplicates now looks through every folder and reads each photo and video from start to end, so only files with identical content are called copies, wherever they are. It shows its progress, can be stopped, and merging double-checks the files before moving anything to Recently Deleted.
@@ -281,6 +285,10 @@ Arrastra fotos al escritorio, a una carpeta o a otro programa y llegan como arch
 #### Videos mucho más pequeños
 
 En Preferencias › Almacenamiento ahora puedes hacer más pequeños los videos que ya están en tu biblioteca con **AV1**, el códec que conserva más calidad con menos espacio: normalmente entre un tercio y la mitad del tamaño original. Cada video nuevo se compara con el original antes de reemplazarlo, y **los originales se guardan siete días** antes de borrarse, por si cambias de opinión.
+
+#### Un zoom del mapa que se porta bien
+
+Los pines ya no desaparecen ni parpadean al hacer zoom, la rueda hace zoom sobre el lugar bajo el puntero y se detiene en los límites en vez de deslizar el mapa, y los botones + y − avanzan exactamente un paso.
 
 #### Duplicados: se lee todo
 

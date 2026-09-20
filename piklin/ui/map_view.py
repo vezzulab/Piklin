@@ -168,6 +168,8 @@ class MapView(Gtk.Box):
         self._spots: list[tuple[float, float, list[tuple[int, str]]]] = []
         self._generation = 0
         self._recluster_id = 0
+        self._grouped: dict = {}
+        self._shown: dict = {}
         # The panel's photos outlive a recluster, so they count their own
         # generation rather than the pins'.
         self._panel_members = None
@@ -210,9 +212,31 @@ class MapView(Gtk.Box):
         # square adrift in grey, with the same countries repeated either
         # side of it, so the world filling the view is as far out as the
         # map goes.
-        self.map.connect("notify::width", lambda *_a: self._limit_zoom_out())
-        self.map.connect("notify::height", lambda *_a: self._limit_zoom_out())
+        # A widget has no width to be notified about, so the size is looked
+        # at once a frame, which costs a comparison.
+        self._seen_size = (0, 0)
+
+        def watch_size(widget, _clock):
+            size = (widget.get_width(), widget.get_height())
+            if size != self._seen_size:
+                self._seen_size = size
+                self._limit_zoom_out()
+            return GLib.SOURCE_CONTINUE
+        self.map.add_tick_callback(watch_size)
         self._limit_zoom_out()
+
+        # The wheel zooms on the point under the pointer, worked out here.
+        # The library's own wheel keeps recentring on the pointer once the
+        # zoom cannot go further, and the map slides away across the world.
+        self._pointer = (0.0, 0.0)
+        motion = Gtk.EventControllerMotion()
+        motion.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        motion.connect("motion", lambda _c, x, y: setattr(self, "_pointer", (x, y)))
+        self.map.add_controller(motion)
+        wheel = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.VERTICAL)
+        wheel.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        wheel.connect("scroll", self._on_wheel)
+        self.map.add_controller(wheel)
         # The clean map - grey, with places named and none pictured in red -
         # replaces these ordinary tiles as soon as it is ready; a new map
         # source forgets the zoom limits, so they are put back.
@@ -257,13 +281,12 @@ class MapView(Gtk.Box):
     # ------------------------------------------------------------------
     def _build_zoom(self) -> Gtk.Widget:
         """Closer and further, at the corner furthest from the photos."""
-        inner = self.map.get_map()
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
                       halign=Gtk.Align.END, valign=Gtk.Align.END,
                       margin_end=16, margin_bottom=16)
         for icon, tip, act in (
-                ("list-add-symbolic", _("Zoom in"), inner.zoom_in),
-                ("list-remove-symbolic", _("Zoom out"), inner.zoom_out)):
+                ("list-add-symbolic", _("Zoom in"), lambda: self._zoom_by(1)),
+                ("list-remove-symbolic", _("Zoom out"), lambda: self._zoom_by(-1))):
             button = Gtk.Button(icon_name=icon, tooltip_text=tip)
             button.add_css_class("pika-map-zoom")
             button.connect("clicked", lambda _b, a=act: a())
@@ -396,6 +419,10 @@ class MapView(Gtk.Box):
             "AND NOT (p.gps_lat = 0 AND p.gps_lon = 0) "
             "AND p.trashed_at IS NULL AND p.hidden=0 AND p.paired_to IS NULL")
         self._spots = self._to_spots(rows)
+        # Pins made from the old photos would keep their old contents.
+        self.markers.remove_all()
+        self._shown.clear()
+        self._grouped.clear()
         if not self._spots:
             self._framed = False
             self.stats_button.set_visible(False)
@@ -460,6 +487,54 @@ class MapView(Gtk.Box):
             return False
         self._recluster_id = GLib.timeout_add(150, run)
 
+    WHEEL_STEP = 0.25           # zoom levels for one click of a wheel
+
+    def _zoom_by(self, delta: float) -> None:
+        """One step in or out on the middle of the map, eased, and never past
+        the limits. Pressing again while it moves carries on from where it
+        is going."""
+        vp = self.map.get_viewport()
+        start = vp.get_zoom_level()
+        goal = getattr(self, "_zoom_goal", None)
+        if getattr(self, "_zoom_anim", None) is not None and goal is not None:
+            start_goal = goal
+        else:
+            start_goal = start
+        goal = max(vp.get_min_zoom_level(), min(vp.get_max_zoom_level(), start_goal + delta))
+        self._zoom_goal = goal
+        if abs(goal - start) < 1e-6:
+            return
+        if getattr(self, "_zoom_anim", None) is not None:
+            self._zoom_anim.skip()
+        target = Adw.CallbackAnimationTarget.new(lambda v: vp.set_zoom_level(v))
+        anim = Adw.TimedAnimation.new(self.map, start, goal, 220, target)
+        anim.set_easing(Adw.Easing.EASE_OUT_CUBIC)
+
+        def done(*_a):
+            self._zoom_anim = None
+        anim.connect("done", done)
+        self._zoom_anim = anim
+        anim.play()
+
+    def _on_wheel(self, _ctl, _dx, dy) -> bool:
+        """Zoom by the wheel, keeping the place under the pointer where it is."""
+        vp = self.map.get_viewport()
+        old = vp.get_zoom_level()
+        new = max(vp.get_min_zoom_level(),
+                  min(vp.get_max_zoom_level(), old - dy * self.WHEEL_STEP))
+        if abs(new - old) < 1e-6:
+            return True
+        x, y = self._pointer
+        lat0, lon0 = vp.widget_coords_to_location(self.map, x, y)
+        vp.set_zoom_level(new)
+        # Latitude is not linear on the screen, so a first correction leaves
+        # a little over; a couple more settle it.
+        for _ in range(3):
+            lat1, lon1 = vp.widget_coords_to_location(self.map, x, y)
+            vp.set_location(max(-85.0, min(85.0, vp.get_latitude() + lat0 - lat1)),
+                            vp.get_longitude() + lon0 - lon1)
+        return True
+
     def _limit_zoom_out(self) -> None:
         """Stop zooming out once the whole world is on screen.
 
@@ -484,7 +559,10 @@ class MapView(Gtk.Box):
         # the repetition. The cost is that the poles fall outside; nobody
         # keeps photographs there.
         floor = max(0, math.ceil(math.log2(width / 256.0)))
-        self.map.get_viewport().set_min_zoom_level(floor)
+        vp = self.map.get_viewport()
+        vp.set_min_zoom_level(floor)
+        if vp.get_zoom_level() < floor:
+            vp.set_zoom_level(floor)
 
     def _visible(self, viewport) -> list[tuple[float, float, list[tuple[int, str]]]]:
         """The photos on screen, plus a margin either side.
@@ -515,37 +593,37 @@ class MapView(Gtk.Box):
                 if south <= s[0] <= north
                 and (whole_world or west <= s[1] <= east)]
 
-    def _recluster(self) -> None:
-        """Draw one pin per place, for the places this zoom can tell apart.
+    # Above this many spots the whole library is not grouped at once: only
+    # what is on screen is.
+    GROUP_ALL_UP_TO = 20000
 
-        Photos are gathered by how close together they actually are, not
-        by which square of a grid they fall in: a grid would cut a single
-        visit in two whenever it happened to straddle a line, and the
-        point of a pin is that it lands on the place someone went.
+    def _cluster(self, spots, zoom: float):
+        """Gather ``spots`` by how close together they are at this zoom.
+
+        The biggest places seed the groups, so the same places anchor the
+        same pins however the map was reached, and a pin does not change
+        who it holds because the map was panned a little.
         """
-        if not self._spots:
-            return
-        vp = self.map.get_viewport()
         # The map is square in Mercator: at zoom z the world is
         # 256 * 2^z pixels across, so this is degrees of longitude per
         # pixel, which is what the gathering radius is expressed in.
-        per_px = 360.0 / (256.0 * (2.0 ** vp.get_zoom_level()))
-        radius = CLUSTER_PX * per_px
-
-        spots = self._visible(vp)
+        radius = CLUSTER_PX * 360.0 / (256.0 * (2.0 ** zoom))
+        order = sorted(range(len(spots)),
+                       key=lambda i: (-len(spots[i][2]), spots[i][0], spots[i][1]))
         # Only spots in the neighbouring squares can be within the
         # radius, so each spot is compared with a handful rather than
         # with all of them.
         buckets: dict[tuple[int, int], list[int]] = {}
-        for i, s in enumerate(spots):
-            buckets.setdefault((int(s[0] / radius), int(s[1] / radius)), []).append(i)
+        for i, sp in enumerate(spots):
+            buckets.setdefault((int(sp[0] / radius), int(sp[1] / radius)), []).append(i)
 
         taken = [False] * len(spots)
         groups = []
-        for i, seed in enumerate(spots):
+        for i in order:
             if taken[i]:
                 continue
             taken[i] = True
+            seed = spots[i]
             group = [seed]
             # A degree of longitude is shorter the further from the
             # equator; without this a "100 m" radius would be far wider
@@ -564,11 +642,77 @@ class MapView(Gtk.Box):
                             taken[j] = True
                             group.append(other)
             groups.append(group)
+        return groups
 
-        self.markers.remove_all()
-        self._generation += 1
+    @staticmethod
+    def _centre(group) -> tuple[float, float]:
+        total = sum(len(s[2]) for s in group)
+        return (sum(s[0] * len(s[2]) for s in group) / total,
+                sum(s[1] * len(s[2]) for s in group) / total)
+
+    def _recluster(self) -> None:
+        """Draw one pin per place, for the places this zoom can tell apart.
+
+        Photos are gathered by how close together they actually are, not
+        by which square of a grid they fall in: a grid would cut a single
+        visit in two whenever it happened to straddle a line, and the
+        point of a pin is that it lands on the place someone went.
+
+        The grouping is worked out for the whole library at a zoom rounded
+        to a quarter, and remembered, so panning and the small steps of a
+        smooth zoom never regroup anything; and a pin that is the same
+        before and after stays where it is instead of being drawn again.
+        """
+        if not self._spots:
+            return
+        vp = self.map.get_viewport()
+        zoom = round(vp.get_zoom_level() * 4) / 4.0
+        if len(self._spots) <= self.GROUP_ALL_UP_TO:
+            key = (zoom, id(self._spots))
+            groups = self._grouped.get(key)
+            if groups is None:
+                if len(self._grouped) > 12:
+                    self._grouped.clear()
+                groups = self._grouped[key] = self._cluster(self._spots, zoom)
+            groups = self._on_screen(vp, groups)
+        else:
+            groups = self._cluster(self._visible(vp), zoom)
+
+        wanted = {}
         for group in groups:
-            self.markers.add_marker(self._pin(group, self._generation))
+            lat, lon = self._centre(group)
+            ident = (round(lat, 6), round(lon, 6),
+                     sum(len(s[2]) for s in group), len(group))
+            wanted[ident] = group
+        for ident in [k for k in self._shown if k not in wanted]:
+            self.markers.remove_marker(self._shown.pop(ident))
+        added = [k for k in wanted if k not in self._shown]
+        if added or len(self._shown) != len(wanted):
+            self._generation += 1
+        for ident in added:
+            marker = self._pin(wanted[ident], self._generation)
+            self._shown[ident] = marker
+            self.markers.add_marker(marker)
+
+    def _on_screen(self, viewport, groups):
+        """The groups whose pin falls on screen, plus half a screen round it."""
+        width, height = self.map.get_width(), self.map.get_height()
+        if width <= 0 or height <= 0:
+            return groups
+        north, west = viewport.widget_coords_to_location(self.map, 0, 0)
+        south, east = viewport.widget_coords_to_location(self.map, width, height)
+        if north < south:
+            north, south = south, north
+        pad_lat, pad_lon = (north - south) * 0.5, (east - west) * 0.5
+        north, south = north + pad_lat, south - pad_lat
+        west, east = west - pad_lon, east + pad_lon
+        whole_world = east - west >= 360.0 or east < west
+        out = []
+        for g in groups:
+            lat, lon = self._centre(g)
+            if south <= lat <= north and (whole_world or west <= lon <= east):
+                out.append(g)
+        return out
 
     def _pin(self, group, gen: int) -> Shumate.Marker:
         """One pin for one place: where it sits, and how much is there.

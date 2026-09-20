@@ -38,6 +38,10 @@
 ### Export
 - Any other folder is chosen in the system's folder chooser instead of typed
 
+### Map zoom
+- Pins no longer vanish or flicker when zooming: the map cannot be pulled back past the point where it repeats itself (that limit was never applied, so the world repeated and pins stayed only on the first copy), pins that stay the same are kept instead of redrawn, and the grouping is worked out once per quarter of a zoom step so panning never regroups them
+- The wheel zooms on the place under the pointer and stops at the limits instead of sliding the map away; the zoom buttons go exactly one step
+
 ### Duplicates
 - Find Duplicate Photos looks through every folder and reads every photo and video whole, so copies are found by their real content, in any folder, and files that only look alike are never merged. Progress is shown and it can be stopped
 
