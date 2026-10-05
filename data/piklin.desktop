@@ -16,5 +16,5 @@ Keywords=photo;photos;picture;pictures;image;images;gallery;library;album;editor
 # "you just connected a camera, what should open it?" prompt.
 MimeType=x-content/image-dcf;x-content/image-picturecd;image/jpeg;image/png;image/webp;image/tiff;image/bmp;image/gif;image/heif;image/heic;image/avif;image/x-canon-cr2;image/x-canon-cr3;image/x-nikon-nef;image/x-sony-arw;image/x-fuji-raf;image/x-panasonic-rw2;image/x-olympus-orf;image/x-adobe-dng;inode/directory;
 StartupNotify=true
-StartupWMClass=piklin
+StartupWMClass=com.envy.Piklin
 SingleMainWindow=true

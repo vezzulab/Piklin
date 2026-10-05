@@ -15,6 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .paths import APP_ID
+
 DATA = Path(__file__).resolve().parent.parent / "data"
 # In the file Piklin writes, so it never touches a launcher it did not make.
 MARKER = "# Written by Piklin so this AppImage is in the applications menu."
@@ -76,6 +78,10 @@ def entry_text(image: Path, icon: Path) -> str:
             line = f"Exec={_quoted(image)} %F"
         elif line.startswith("Icon="):
             line = f"Icon={icon}"
+        elif line.startswith("StartupWMClass="):
+            # the name the window announces itself by, which is how the desktop
+            # finds this launcher and its icon for it
+            line = f"StartupWMClass={APP_ID}"
         lines.append(line)
     return MARKER + "\n" + "\n".join(lines) + "\n"
 
