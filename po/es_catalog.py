@@ -13,6 +13,10 @@ ES = {
     "preferences tab\x04Backup": "Copias",
     "preferences tab\x04Library": "Carpetas",
 
+    # -- one backup at a time to a destination (2.0.2) ---------------------------
+    "{name} is backing up to the same place, waiting": "{name} está haciendo una copia en el mismo sitio; esperando",
+    "{name} is backing up to the same place. Try again in a few minutes.": "{name} está haciendo una copia en el mismo sitio. Inténtalo de nuevo en unos minutos.",
+
     # -- applications menu entry for the AppImage (2.0.1) ------------------------
     "Add Piklin to Your Applications Menu?": "¿Añadir Piklin al menú de aplicaciones?",
     "Piklin is running from an AppImage, which does not appear in the applications menu by itself. Piklin can add it, with its icon, and take it away again in Preferences.": "Piklin se está ejecutando desde un AppImage, que no aparece solo en el menú de aplicaciones. Piklin puede añadirlo, con su icono, y quitarlo otra vez en Preferencias.",

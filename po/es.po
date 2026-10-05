@@ -5884,3 +5884,13 @@ msgstr "Mostrar Piklin en el menú de aplicaciones"
 #: piklin/ui/settings_dialog.py:156
 msgid "Adds a launcher and the icon for this AppImage. Turning it off removes them."
 msgstr "Añade un lanzador y el icono de este AppImage. Al apagarlo se quitan."
+
+#: piklin/autobackup.py:420
+#, python-brace-format
+msgid "{name} is backing up to the same place, waiting"
+msgstr "{name} está haciendo una copia en el mismo sitio; esperando"
+
+#: piklin/ui/settings_dialog.py:1172
+#, python-brace-format
+msgid "{name} is backing up to the same place. Try again in a few minutes."
+msgstr "{name} está haciendo una copia en el mismo sitio. Inténtalo de nuevo en unos minutos."

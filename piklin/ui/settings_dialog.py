@@ -1166,15 +1166,27 @@ class SettingsDialog(Adw.PreferencesDialog):
             if not test.ok:
                 GLib.idle_add(finish, self._result_text(test), test)
                 return
+            from .. import backuplock
+            try:
+                turn = backuplock.take(backend)
+            except backuplock.Busy as other:
+                GLib.idle_add(finish, _("{name} is backing up to the same place. "
+                                        "Try again in a few minutes.").format(name=other.who),
+                              None)
+                return
             files = remote_mod.library_files(library.root)
-            progress = backend.push(
-                library.root, files,
-                keep_versions_days=int(
-                    self.settings.get("backup_keep_versions_days", 30) or 0),
-                on_progress=lambda p: GLib.idle_add(
-                    row.set_subtitle,
-                    f"{labels.get(p.phase, p.phase.title())} — "
-                    f"{p.done_files:,} of {p.total_files:,} ({_fmt(p.done_bytes)})"))
+            try:
+                progress = backend.push(
+                    library.root, files,
+                    keep_versions_days=int(
+                        self.settings.get("backup_keep_versions_days", 30) or 0),
+                    on_progress=lambda p: GLib.idle_add(
+                        row.set_subtitle,
+                        f"{labels.get(p.phase, p.phase.title())} — "
+                        f"{p.done_files:,} of {p.total_files:,} ({_fmt(p.done_bytes)})"))
+            finally:
+                if turn is not None:
+                    turn.release()
             if (progress.phase == "done" and not progress.errors
                     and len(self.settings.get("remotes") or []) == 1
                     and self._autobackup() is not None):

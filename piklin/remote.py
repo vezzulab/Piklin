@@ -468,6 +468,10 @@ class Backend:
         self._prepared = False
         # set by push while a file uploads: bytes of it sent so far
         self._on_bytes: Callable[[int], None] | None = None
+        # path -> the time the destination gives the file, set before a restore
+        # or a sync fetches: a file that comes back is given that time, so the
+        # next backup sees it is the very file that is there
+        self.remote_times: dict[str, float] = {}
 
     def prepare(self) -> None:
         """Make sure the Piklin folder is there before using it. A backup
@@ -596,6 +600,25 @@ class Backend:
         for stamp in self._version_days():
             if re.fullmatch(r"\d{4}-\d{2}-\d{2}", stamp) and stamp < cutoff:
                 self._drop_version(stamp)
+
+    def adopt_present(self, root: Path, index: dict, manifest: dict) -> int:
+        """Note as sent every file this computer already has, under the same
+        name and at the same size as the destination reports. They came from
+        there or are the same photos: sending them again would only copy the
+        destination's own files over themselves. Returns how many were noted."""
+        root = Path(root)
+        noted = 0
+        for rel, have in index.items():
+            if rel in manifest or not rel or ".." in rel.split("/"):
+                continue
+            try:
+                st = (root / rel).stat()
+            except OSError:
+                continue
+            if st.st_size == have[0]:
+                manifest[rel] = [st.st_size, st.st_mtime]
+                noted += 1
+        return noted
 
     def has_local_changes(self, root: Path, files) -> bool:
         """Whether anything differs from what was last sent here.
@@ -797,6 +820,9 @@ class Backend:
             return p
 
         manifest = self._load_manifest(root)
+        self.remote_times = {rel: v[1] for rel, v in index.items()}
+        if self.adopt_present(root, index, manifest):
+            self._save_manifest(root, manifest)
         skip = {os.path.normpath(s) for s in skip_paths}
 
         def order(rel: str):
@@ -884,6 +910,7 @@ class Backend:
     def _fetch_many(self, root: Path, todo, p: SyncProgress, manifest: dict,
                     on_progress, on_stage=None) -> None:
         told = 0
+        last_saved, since_saved = time.monotonic(), 0
         for rel, size in todo:
             told = _announce_stages(on_stage, told, stage_of(rel), p)
             if self.cancel.is_set():
@@ -904,9 +931,10 @@ class Backend:
                 try:
                     tmp.replace(local)
                     sent = manifest.get(rel)
-                    if sent and sent[0] == size:
+                    when = sent[1] if sent and sent[0] == size else self.remote_times.get(rel)
+                    if when:
                         # the photo's own time, not the moment it came back
-                        os.utime(local, (sent[1], sent[1]))
+                        os.utime(local, (when, when))
                     st = local.stat()
                 except OSError:
                     ok = False
@@ -924,8 +952,17 @@ class Backend:
                     pass
             p.done_files += 1
             p.done_bytes += max(size, 0)
+            since_saved += 1
+            # The record of what is on both sides is kept as the files come,
+            # not only at the end: a restore cut short (Piklin closed, the
+            # computer asleep) used to forget every file it had already
+            # brought, and the next backup sent them all again.
+            if since_saved >= 100 or time.monotonic() - last_saved >= 30:
+                self._save_manifest(root, manifest)
+                last_saved, since_saved = time.monotonic(), 0
             if on_progress:
                 on_progress(p)
+        self._save_manifest(root, manifest)
         if p.phase != "cancelled":
             _announce_stages(on_stage, told, STAGE_VIDEOS, p)
 
@@ -2177,6 +2214,7 @@ class RcloneBackend(Backend):
                 p.restored_state = True
             manifest[rel] = [st.st_size, st.st_mtime]
         p.done_files = base_files + len(batch)
+        self._save_manifest(root, manifest)
         if code and not p.message:
             p.message = q.message
 

@@ -24,11 +24,14 @@ from typing import Callable
 
 from gi.repository import Gio, GLib
 
+from . import backuplock
 from . import remote as remote_mod
 from .i18n import _, ngettext, day_month
 
 QUIET_SECONDS = 60
 RETRY_MINUTES = (5, 15, 60)
+# How long to wait before asking again when another computer is backing up there.
+BUSY_MINUTES = 5
 # How often another computer's changes are looked for while Piklin is open.
 SYNC_MINUTES = 10
 
@@ -39,6 +42,8 @@ class Outcome:
     unreachable: bool = False
     message: str = ""
     uploaded: int = 0
+    # another computer has the turn to back up here: its name; nothing was sent
+    busy: str = ""
 
 
 def _tend_videos(root: Path, backend, problems: list) -> None:
@@ -82,7 +87,7 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
     # Each destination on its own: a NAS left at home must not stop the
     # cloud copy made while travelling. The one that couldn't be reached
     # stays behind and catches up by itself once it can be reached again.
-    problems, unreachable = [], False
+    problems, unreachable, waiting = [], False, []
     for r in behind:
         backend = r.backend()
         if progress:
@@ -117,31 +122,42 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
                     name=name, done=f"{min(p.done_files + 1, p.total_files):,}",
                     total=f"{p.total_files:,}", percent=int(p.fraction * 100)))
 
-        # Nothing changed there since this computer last looked: what it sent
-        # is what is there, and the whole backup needn't be read again.
+        # One backup at a time to a destination: if another computer is
+        # sending its library there now, this one waits and asks again later.
         try:
-            same, _top = backend.unchanged_since_last_look(root)
-        except Exception:
-            same = False
-        known = backend.sent_index(root) if same else None
-        p = backend.push(root, files, on_progress=report,
-                         keep_versions_days=keep_days, known=known)
-        uploaded += p.uploaded
-        if p.phase == "done" and not p.errors:
+            turn = backuplock.take(backend)
+        except backuplock.Busy as other:
+            waiting.append(other.who)
+            continue
+        try:
+            # Nothing changed there since this computer last looked: what it sent
+            # is what is there, and the whole backup needn't be read again.
             try:
-                backend.remember_look(root, backend.top_listing(), full=known is None)
+                same, _top = backend.unchanged_since_last_look(root)
             except Exception:
-                pass
-            _tend_videos(root, backend, problems)
-        if p.phase != "done" or p.errors:
-            message = p.message or ngettext("{count} file couldn't be uploaded",
-                                            "{count} files couldn't be uploaded",
-                                            p.errors).format(count=p.errors)
-            problems.append(f"{r.name}: {message}")
-            unreachable = unreachable or p.unreachable
+                same = False
+            known = backend.sent_index(root) if same else None
+            p = backend.push(root, files, on_progress=report,
+                             keep_versions_days=keep_days, known=known)
+            uploaded += p.uploaded
+            if p.phase == "done" and not p.errors:
+                try:
+                    backend.remember_look(root, backend.top_listing(), full=known is None)
+                except Exception:
+                    pass
+                _tend_videos(root, backend, problems)
+            if p.phase != "done" or p.errors:
+                message = p.message or ngettext("{count} file couldn't be uploaded",
+                                                "{count} files couldn't be uploaded",
+                                                p.errors).format(count=p.errors)
+                problems.append(f"{r.name}: {message}")
+                unreachable = unreachable or p.unreachable
+        finally:
+            if turn is not None:
+                turn.release()
     if problems:
         return Outcome(False, unreachable, "; ".join(problems), uploaded)
-    return Outcome(True, uploaded=uploaded)
+    return Outcome(True, uploaded=uploaded, busy=", ".join(dict.fromkeys(waiting)))
 
 
 def describe_last(ts: float) -> str:
@@ -388,6 +404,15 @@ class AutoBackup:
         self._progress = ""
         from . import logs
         blog = logs.get("backup")
+        if outcome.ok and outcome.busy and not outcome.uploaded:
+            # Another computer is sending its library there. Nothing is lost by
+            # waiting: the changes stay pending and are looked at again soon.
+            blog.info("Automatic backup waiting: %s is backing up to the same place",
+                      outcome.busy)
+            self._waiting, self._problem = "busy", outcome.busy
+            self._schedule(BUSY_MINUTES * 60)
+            self.refresh_status()
+            return False
         if outcome.ok:
             blog.info("Automatic backup finished, %d file(s) uploaded", outcome.uploaded)
         elif outcome.unreachable:
@@ -427,6 +452,9 @@ class AutoBackup:
             return self._progress or _("Updating from your backup…")
         if not self.settings.get("remote_autosync"):
             return _("Automatic backup is off")
+        if self._waiting == "busy":
+            return _("{name} is backing up to the same place, waiting").format(
+                name=self._problem)
         if self._waiting == "power":
             return _("Backup waits until battery saver is off")
         if self._waiting == "network":

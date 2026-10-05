@@ -6082,3 +6082,13 @@ msgstr ""
 #: piklin/ui/settings_dialog.py:156
 msgid "Adds a launcher and the icon for this AppImage. Turning it off removes them."
 msgstr ""
+
+#: piklin/autobackup.py:420
+#, python-brace-format
+msgid "{name} is backing up to the same place, waiting"
+msgstr ""
+
+#: piklin/ui/settings_dialog.py:1172
+#, python-brace-format
+msgid "{name} is backing up to the same place. Try again in a few minutes."
+msgstr ""

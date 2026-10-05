@@ -414,6 +414,11 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
 
     # Edits: the other computer's, unless this one changed the same photo later.
     manifest = backend._load_manifest(root)
+    # What this computer already has that the backup has too is not news for
+    # the next backup, and what is fetched below gets the backup's own time.
+    backend.remote_times = {rel: v[1] for rel, v in index.items()}
+    if backend.adopt_present(root, index, manifest):
+        backend._save_manifest(root, manifest)
     todo = []
     edits = []
     for rel in sorted(index):
