@@ -87,7 +87,7 @@ SHA-256:
 ```
 33ca4669ce8815950474853a872b8831119ca0f3d41e6caf2486c0586eef17e5  Piklin-2.0.1.dmg
 c3491cef7cba7d6e0ec2e358476eb1ae36f0778d4b989ad68d57b2c5362e185f  piklin_2.0.1_amd64.deb
-86c92d96ce641974793763b2c71966823be46874815bf52764aac73524820206  Piklin-2.0.1-x86_64.AppImage
+3ed309c9ffc2aa0ec6e65c03f42791dab3d9ad56ff9155cf1921329ce7c7a1c3  Piklin-2.0.1-x86_64.AppImage
 ```
 
 The `.sha256` and `.sha256.sig` files are what Piklin's updater checks: each checksum, signed with Vezzu Studio's release key. This release is signed with a new key (see the note at the top).
@@ -187,7 +187,7 @@ SHA-256:
 ```
 33ca4669ce8815950474853a872b8831119ca0f3d41e6caf2486c0586eef17e5  Piklin-2.0.1.dmg
 c3491cef7cba7d6e0ec2e358476eb1ae36f0778d4b989ad68d57b2c5362e185f  piklin_2.0.1_amd64.deb
-86c92d96ce641974793763b2c71966823be46874815bf52764aac73524820206  Piklin-2.0.1-x86_64.AppImage
+3ed309c9ffc2aa0ec6e65c03f42791dab3d9ad56ff9155cf1921329ce7c7a1c3  Piklin-2.0.1-x86_64.AppImage
 ```
 
 Los archivos `.sha256` y `.sha256.sig` son lo que comprueba el actualizador de Piklin: cada checksum, firmado con la clave de publicación de Vezzu Studio. Esta versión está firmada con una clave nueva (mira el aviso de arriba).
