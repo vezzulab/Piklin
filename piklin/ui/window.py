@@ -3958,6 +3958,7 @@ class MainWindow(Adw.ApplicationWindow):
         GLib.timeout_add_seconds(60 * 60, lambda: (self._check_updates(quiet=True), True)[1])
         self.grid.load("library")
         self._arrange_from_files()
+        GLib.timeout_add(2500, self._maybe_offer_menu_entry)
         from . import onboarding
         pending = onboarding.take_pending(self.library.root)
         if pending is not None:
@@ -4070,6 +4071,35 @@ class MainWindow(Adw.ApplicationWindow):
         dialog.set_extra_child(scroll)
         dialog.add_response("ok", _("OK"))
         dialog.present(self)
+
+    def _maybe_offer_menu_entry(self):
+        """From an AppImage, once: nothing puts it in the applications menu,
+        so Piklin offers to."""
+        from .. import integrate
+        if integrate.appimage() is None:
+            return False
+        integrate.refresh()                 # an entry made earlier follows the file
+        if integrate.installed() or self.settings.get("menu_entry_asked"):
+            return False
+        if self.get_visible_dialog() is not None:
+            return True                     # after what is on screen is answered
+        dialog = Adw.AlertDialog(
+            heading=_("Add Piklin to Your Applications Menu?"),
+            body=_("Piklin is running from an AppImage, which does not appear in "
+                   "the applications menu by itself. Piklin can add it, with its "
+                   "icon, and take it away again in Preferences."))
+        dialog.add_response("later", _("Not Now"))
+        dialog.add_response("add", _("Add to Menu"))
+        dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_close_response("later")
+
+        def done(_d, response):
+            self.settings.set("menu_entry_asked", True)
+            if response == "add" and not integrate.install():
+                self._show_toast(_("Piklin could not be added to the menu"))
+        dialog.connect("response", done)
+        dialog.present(self)
+        return False
 
     def _maybe_offer_backup(self):
         """Once, at the start: where should a copy of the photos go?"""

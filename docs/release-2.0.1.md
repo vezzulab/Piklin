@@ -76,6 +76,10 @@ sudo apt install ./piklin_2.0.1_arm64.deb     # ARM
 
 - **Choose a cover for a folder.** A folder used to show the cover of its first album. Right-click a photo inside an album and choose **Make Folder Cover** to pick the picture for the folder the album is in. The choice is kept in your backup and reaches your other computers.
 
+### The AppImage
+
+- **A place in your applications menu.** Nothing installs an AppImage, so it never had a menu entry or an icon. The first time it opens, Piklin now offers to add both, and you can turn that off in Preferences. The entry follows the file if you move it.
+
 ## Verify your download
 
 SHA-256:
@@ -171,6 +175,10 @@ sudo apt install ./piklin_2.0.1_arm64.deb     # ARM
 #### Carpetas
 
 - **Elige la portada de una carpeta.** Una carpeta mostraba la portada de su primer álbum. Haz clic derecho en una foto dentro de un álbum y elige **Usar como portada de la carpeta** para escoger la imagen de la carpeta en que está el álbum. La elección se guarda en tu copia y llega a tus otras computadoras.
+
+#### El AppImage
+
+- **Un lugar en el menú de aplicaciones.** Nada instala un AppImage, así que nunca tuvo entrada en el menú ni icono. La primera vez que se abre, Piklin ahora ofrece añadir las dos cosas, y puedes quitarlo en Preferencias. La entrada sigue al archivo si lo mueves.
 
 #### Verifica tu descarga
 

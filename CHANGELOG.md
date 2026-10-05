@@ -17,6 +17,9 @@
 ### Folders
 - A folder no longer has to show the cover of its first album. Right-click a photo inside an album and choose Make Folder Cover to pick the picture for the folder the album is in. The choice is kept in your backup
 
+### The AppImage
+- The AppImage now offers to put Piklin in the applications menu, with its icon, the first time it opens. Nothing installs an AppImage, so until now it never had a menu entry or an icon and people made their own. It can be turned off again in Preferences, and the entry follows the file if you move it
+
 ## 2.0.0
 
 ### Your photos on a map

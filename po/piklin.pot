@@ -6054,3 +6054,31 @@ msgstr ""
 #: piklin/ui/window.py:3733
 msgid "Folder cover changed"
 msgstr ""
+
+#: piklin/ui/window.py:4090
+msgid "Add Piklin to Your Applications Menu?"
+msgstr ""
+
+#: piklin/ui/window.py:4092
+msgid "Piklin is running from an AppImage, which does not appear in the applications menu by itself. Piklin can add it, with its icon, and take it away again in Preferences."
+msgstr ""
+
+#: piklin/ui/window.py:4097
+msgid "Add to Menu"
+msgstr ""
+
+#: piklin/ui/window.py:4105
+msgid "Piklin could not be added to the menu"
+msgstr ""
+
+#: piklin/ui/settings_dialog.py:153
+msgid "Applications Menu"
+msgstr ""
+
+#: piklin/ui/settings_dialog.py:155
+msgid "Show Piklin in the applications menu"
+msgstr ""
+
+#: piklin/ui/settings_dialog.py:156
+msgid "Adds a launcher and the icon for this AppImage. Turning it off removes them."
+msgstr ""

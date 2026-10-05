@@ -13,6 +13,15 @@ ES = {
     "preferences tab\x04Backup": "Copias",
     "preferences tab\x04Library": "Carpetas",
 
+    # -- applications menu entry for the AppImage (2.0.1) ------------------------
+    "Add Piklin to Your Applications Menu?": "¿Añadir Piklin al menú de aplicaciones?",
+    "Piklin is running from an AppImage, which does not appear in the applications menu by itself. Piklin can add it, with its icon, and take it away again in Preferences.": "Piklin se está ejecutando desde un AppImage, que no aparece solo en el menú de aplicaciones. Piklin puede añadirlo, con su icono, y quitarlo otra vez en Preferencias.",
+    "Add to Menu": "Añadir al menú",
+    "Piklin could not be added to the menu": "No se pudo añadir Piklin al menú",
+    "Applications Menu": "Menú de aplicaciones",
+    "Show Piklin in the applications menu": "Mostrar Piklin en el menú de aplicaciones",
+    "Adds a launcher and the icon for this AppImage. Turning it off removes them.": "Añade un lanzador y el icono de este AppImage. Al apagarlo se quitan.",
+
     # -- restoring, syncing, folder covers, map (2.0.1) ---------------------------
     "Receiving photos from {name} — {done} of {total} ({percent}%)": "Recibiendo fotos de {name} — {done} de {total} ({percent}%)",
     "Receiving videos from {name} — {done} of {total} ({percent}%)": "Recibiendo videos de {name} — {done} de {total} ({percent}%)",

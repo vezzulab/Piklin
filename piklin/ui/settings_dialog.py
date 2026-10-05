@@ -141,6 +141,26 @@ class SettingsDialog(Adw.PreferencesDialog):
                       lambda r, _p: updates.save_state(enabled=r.get_active()))
         privacy.add(check)
         page.add(privacy)
+
+        from .. import integrate
+        if integrate.appimage() is not None:
+            menu = Adw.PreferencesGroup(title=_("Applications Menu"))
+            entry = Adw.SwitchRow(
+                title=_("Show Piklin in the applications menu"),
+                subtitle=_("Adds a launcher and the icon for this AppImage. "
+                           "Turning it off removes them."),
+                active=integrate.installed())
+
+            def toggled(row, _p):
+                self.settings.set("menu_entry_asked", True)
+                if row.get_active():
+                    if not integrate.install():
+                        row.set_active(False)
+                else:
+                    integrate.remove()
+            entry.connect("notify::active", toggled)
+            menu.add(entry)
+            page.add(menu)
         return page
 
     def _on_language(self, row, _pspec, codes):

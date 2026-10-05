@@ -38,6 +38,8 @@ DEFAULTS: dict[str, Any] = {
     # Reading the photos now and then for damage, mended from the backup
     # (health.py). On unless turned off in Backup.
     "health_check": True,
+    # An AppImage was asked once whether to be put in the applications menu.
+    "menu_entry_asked": False,
     "export_profile": "visually_lossless",
     "export_format": "keep",           # keep | jpeg | webp | avif | png
     "export_strip_metadata": False,
