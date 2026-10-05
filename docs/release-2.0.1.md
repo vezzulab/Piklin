@@ -54,9 +54,9 @@ sudo apt install ./piklin_2.0.1_arm64.deb     # ARM
 
 ## What's new
 
-### Install this one by hand
+### If you have Piklin 2.0.0, install this one by hand
 
-- **Piklin 2.0.1 has to be installed by hand, once: download it at github.com/vezzulab/Piklin/releases/latest.** Pressing Install inside Piklin will say it could not verify the update, because we replaced our signing key and your copy only knows the old one. From 2.0.1 on, updates install themselves again. Your library, albums, edits and backups stay as they are.
+- **If you have Piklin 2.0.0, install 2.0.1 by hand, once: download it at github.com/vezzulab/Piklin/releases/latest.** Pressing Install inside 2.0.0 will say it could not verify the update, because we replaced our signing key and that version only knows the old one. If you already have 2.0.1, this update installs by itself. Your library, albums, edits and backups stay as they are.
 
 ### The map
 
@@ -154,9 +154,9 @@ sudo apt install ./piklin_2.0.1_arm64.deb     # ARM
 
 ### Novedades
 
-#### Instala esta versión a mano
+#### Si tienes Piklin 2.0.0, instala esta versión a mano
 
-- **Piklin 2.0.1 hay que instalarlo a mano, una sola vez: descárgalo en github.com/vezzulab/Piklin/releases/latest.** Si pulsas Instalar dentro de Piklin dirá que no pudo verificar la actualización, porque reemplazamos nuestra clave de firma y tu copia solo conoce la anterior. Desde la 2.0.1 las actualizaciones vuelven a instalarse solas. Tu biblioteca, álbumes, cambios y copias se quedan como están.
+- **Si tienes Piklin 2.0.0, instala la 2.0.1 a mano, una sola vez: descárgala en github.com/vezzulab/Piklin/releases/latest.** Si pulsas Instalar dentro de la 2.0.0 dirá que no pudo verificar la actualización, porque reemplazamos nuestra clave de firma y esa versión solo conoce la anterior. Si ya tienes la 2.0.1, esta actualización se instala sola. Tu biblioteca, álbumes, cambios y copias se quedan como están.
 
 #### El mapa
 

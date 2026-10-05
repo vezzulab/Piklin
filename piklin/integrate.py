@@ -53,11 +53,23 @@ def _quoted(path: Path) -> str:
     return f'"{text}"'
 
 
+def _bundled_launcher() -> Path:
+    """The launcher Piklin ships: in the source tree's data folder, and at the
+    top of an AppImage, where the AppImage tools expect it."""
+    candidates = [DATA / "piklin.desktop"]
+    if os.environ.get("PIKLIN_APPDIR"):
+        candidates.append(Path(os.environ["PIKLIN_APPDIR"]) / "piklin.desktop")
+    for path in candidates:
+        if path.is_file():
+            return path
+    raise FileNotFoundError("piklin.desktop")
+
+
 def entry_text(image: Path, icon: Path) -> str:
     """The bundled launcher, pointed at ``image``: it names the command
     ``piklin``, which only a package puts on the PATH."""
     lines = []
-    for line in (DATA / "piklin.desktop").read_text(encoding="utf-8").splitlines():
+    for line in _bundled_launcher().read_text(encoding="utf-8").splitlines():
         if line.startswith("TryExec="):
             continue
         if line.startswith("Exec="):
