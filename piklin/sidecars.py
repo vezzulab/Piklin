@@ -163,6 +163,7 @@ def write_folders(library, catalog) -> None:
         "parent_uuid": by_id.get(r["parent_id"]),
         "created_at": r["created_at"],
         "position": r["position"],
+        "cover": r["cover_path"],
     } for r in rows]
     path = folders_path(library)
     folders = _keep_unknown(path, "folders", folders)
@@ -179,7 +180,10 @@ def restore_folders(library, catalog) -> int:
         return 0
 
     by_uuid = {f["uuid"]: f for f in folders}
-    created: dict[str, int] = {}
+    # Folders already here are kept, not made twice: this runs again when a
+    # restore shows the arrangement early and the rebuild does it once more.
+    created: dict[str, int] = {r["uuid"]: r["id"] for r in catalog.folders()}
+    existing = set(created)
 
     def ensure(uuid_: str, guard: set) -> int | None:
         if uuid_ in created:
@@ -193,11 +197,49 @@ def restore_folders(library, catalog) -> int:
         created[uuid_] = catalog.create_folder(
             f.get("name") or "Untitled Folder", parent_id=parent_id,
             folder_uuid=uuid_)
+        if f.get("cover"):
+            catalog.set_folder_cover(created[uuid_], f["cover"])
         return created[uuid_]
 
     for f in folders:
         ensure(f["uuid"], set())
-    return len(created)
+    return len(set(created) - existing)
+
+
+def restore_structure(library, catalog) -> tuple[int, int, int]:
+    """The library's arrangement - folders, albums, Smart Albums - from the
+    files that describe it, without waiting for the photos: a restore shows
+    this the moment these files are back, and the photos fill the albums in
+    as they arrive. Anything already in the catalog is left as it is.
+
+    Returns the numbers of folders, albums and Smart Albums made."""
+    from . import sync
+    n_folders = restore_folders(library, catalog)
+    folders = {r["uuid"]: r["id"] for r in catalog.folders()}
+    have = {r["uuid"] for r in catalog.q("SELECT uuid FROM albums")}
+    deleted = _read_json(deleted_albums_path(library)).get("albums") or {}
+    n_albums = 0
+    if library.albums.is_dir():
+        for album_file in sorted(library.albums.glob("*.json")):
+            if album_file.name.startswith("_"):
+                continue
+            data = _read_json(album_file)
+            if data.get("format") != "pikalicious-album" or not data.get("uuid"):
+                continue
+            if data["uuid"] in have:
+                continue
+            if sync.album_deleted_after_change(data, deleted.get(data["uuid"])):
+                continue
+            aid = catalog.create_album(
+                data.get("name") or album_file.stem, data["uuid"],
+                folder_id=folders.get(data.get("folder_uuid")))
+            ids = [row["id"] for row in
+                   (catalog.photo_by_path(p) for p in data.get("photos") or []) if row]
+            if ids:
+                catalog.album_add(aid, ids)
+            n_albums += 1
+    n_smart = restore_smart_albums(library, catalog)
+    return n_folders, n_albums, n_smart
 
 
 # -- watched roots --------------------------------------------------------

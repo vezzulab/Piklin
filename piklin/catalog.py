@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS folders (
     name       TEXT NOT NULL,
     parent_id  INTEGER REFERENCES folders(id) ON DELETE CASCADE,
     created_at REAL NOT NULL,
-    position   INTEGER NOT NULL DEFAULT 0
+    position   INTEGER NOT NULL DEFAULT 0,
+    cover_path TEXT
 );
 CREATE INDEX IF NOT EXISTS folders_parent ON folders(parent_id);
 
@@ -470,6 +471,11 @@ class Catalog:
         if "gps_manual" not in pcols:
             cur.execute("ALTER TABLE photos ADD COLUMN gps_manual INTEGER "
                         "NOT NULL DEFAULT 0")
+        # The photo a person chose to stand for a folder, by path so it
+        # survives a rebuild; None means the first album's cover.
+        fcols = {r[1] for r in cur.execute("PRAGMA table_info(folders)")}
+        if "cover_path" not in fcols:
+            cur.execute("ALTER TABLE folders ADD COLUMN cover_path TEXT")
         # The name a person gave a group of photos when placing them
         # ("Norwood Center"); an album shows the photos under that name.
         if "place_name" not in pcols:
@@ -1113,6 +1119,18 @@ class Catalog:
     def folders(self) -> list[sqlite3.Row]:
         return self.q("SELECT * FROM folders ORDER BY parent_id, position, "
                       "name COLLATE NOCASE")
+
+    def set_folder_cover(self, folder_id: int, path: str | None) -> None:
+        """The photo shown for the folder; None goes back to its first album's cover."""
+        with self.write() as cur:
+            cur.execute("UPDATE folders SET cover_path=? WHERE id=?", (path, folder_id))
+
+    def folder_cover_path(self, folder_id: int) -> str | None:
+        """The chosen cover, while that photo is still in the library."""
+        row = self.q1(
+            "SELECT p.path FROM folders f JOIN photos p ON p.path = f.cover_path "
+            "WHERE f.id=? AND p.trashed_at IS NULL", (folder_id,))
+        return row["path"] if row is not None else None
 
     def rename_folder(self, folder_id: int, name: str) -> None:
         with self.write() as cur:

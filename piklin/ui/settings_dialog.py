@@ -1215,9 +1215,44 @@ class SettingsDialog(Adw.PreferencesDialog):
         def progress_text(p):
             if p.phase != "downloading":
                 return _("Reading the backup…")
-            return _("Restoring — {done} of {total} ({size})").format(
-                done=f"{p.done_files:,}", total=f"{p.total_files:,}",
+            kind = {remote_mod.STAGE_ARRANGEMENT: _("Restoring albums and folders"),
+                    remote_mod.STAGE_PHOTOS: _("Restoring photos"),
+                    remote_mod.STAGE_VIDEOS: _("Restoring videos")}[
+                        remote_mod.stage_of(p.current or "")]
+            return _("{what} — {done} of {total} ({size})").format(
+                what=kind, done=f"{p.done_files:,}", total=f"{p.total_files:,}",
                 size=_fmt(p.done_bytes))
+
+        def show_progress(p):
+            # in the settings row, and at the foot of the window so it can be
+            # followed without keeping Preferences open
+            text = progress_text(p)
+            row.set_subtitle(text)
+            self._window._on_backup_status(text)
+            return False
+
+        def stage_done(stage, p):
+            GLib.idle_add(show_stage, stage, p)
+
+        def show_stage(stage, p):
+            if stage == remote_mod.STAGE_ARRANGEMENT and p is not None and p.restored_state:
+                # From here the catalog is behind the files on disk, so the
+                # library stops mirroring it back over them (see
+                # sidecars.write_all) until the rebuild.
+                flag = self.library.rebuild_flag
+                flag.parent.mkdir(parents=True, exist_ok=True)
+                flag.touch()
+                from .. import sidecars
+                try:
+                    sidecars.restore_structure(self.library, self.catalog)
+                except Exception:
+                    return False
+                self._window.refresh_sidebar()
+                self._toast(_("Your albums and folders are back. The photos are coming."))
+            elif stage == remote_mod.STAGE_PHOTOS and p is not None and p.restored:
+                # The photos are in: show them while the videos come.
+                self._window._start_scan(None)
+            return False
 
         def work():
             backend = r.backend()
@@ -1227,8 +1262,8 @@ class SettingsDialog(Adw.PreferencesDialog):
                 return
             p = backend.restore(
                 library.root, skip_paths=removed, overwrite_state=empty,
-                on_progress=lambda p: GLib.idle_add(row.set_subtitle,
-                                                    progress_text(p)))
+                on_progress=lambda p: GLib.idle_add(show_progress, p),
+                on_stage=stage_done)
             if p.phase == "done":
                 text = ngettext("Restored {count} file", "Restored {count} files",
                                 p.restored).format(count=f"{p.restored:,}")
@@ -1250,6 +1285,7 @@ class SettingsDialog(Adw.PreferencesDialog):
         def finish(text, test, p):
             push.set_sensitive(True)
             row.set_subtitle(text)
+            self._window._on_backup_status("")
             if test is not None and test.fingerprint:
                 self._ask_trust(cfg, test, retry=self._run_restore)
             if p is not None and p.phase == "no_space":

@@ -5813,3 +5813,46 @@ msgstr "Un GIF puede durar como máximo {limit} segundos; este duraría {length}
 #: piklin/video_edit.py:597
 msgid "No frames to put in the GIF."
 msgstr "No hay fotogramas para el GIF."
+
+#: piklin/autobackup.py:216
+#, python-brace-format
+msgid "Receiving photos from {name} — {done} of {total} ({percent}%)"
+msgstr "Recibiendo fotos de {name} — {done} de {total} ({percent}%)"
+
+#: piklin/autobackup.py:217
+#, python-brace-format
+msgid "Receiving videos from {name} — {done} of {total} ({percent}%)"
+msgstr "Recibiendo videos de {name} — {done} de {total} ({percent}%)"
+
+#: piklin/ui/map_view.py:252
+msgid "The map could not be loaded. Check your internet connection."
+msgstr "No se pudo cargar el mapa. Revisa tu conexión a internet."
+
+#: piklin/ui/settings_dialog.py:1218
+msgid "Restoring albums and folders"
+msgstr "Restaurando álbumes y carpetas"
+
+#: piklin/ui/settings_dialog.py:1219
+msgid "Restoring photos"
+msgstr "Restaurando fotos"
+
+#: piklin/ui/settings_dialog.py:1220
+msgid "Restoring videos"
+msgstr "Restaurando videos"
+
+#: piklin/ui/settings_dialog.py:1222
+#, python-brace-format
+msgid "{what} — {done} of {total} ({size})"
+msgstr "{what} — {done} de {total} ({size})"
+
+#: piklin/ui/settings_dialog.py:1251
+msgid "Your albums and folders are back. The photos are coming."
+msgstr "Tus álbumes y carpetas ya están. Las fotos están llegando."
+
+#: piklin/ui/window.py:3587
+msgid "Make Folder Cover"
+msgstr "Usar como portada de la carpeta"
+
+#: piklin/ui/window.py:3733
+msgid "Folder cover changed"
+msgstr "Portada de la carpeta cambiada"

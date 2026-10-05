@@ -270,7 +270,7 @@ Depends: python3 (>= 3.12), python3 (<< 3.15), python3-gi (>= 3.42), python3-gi-
  gir1.2-glib-2.0, gir1.2-gtk-4.0 (>= 4.14), gir1.2-adw-1 (>= 1.5),
  gir1.2-shumate-1.0,
  gir1.2-secret-1, pkexec | policykit-1, openssl, python3-cffi-backend
-Recommends: gvfs, gvfs-backends, usbmuxd, fonts-dejavu-core
+Recommends: gvfs, gvfs-backends, usbmuxd, fonts-dejavu-core, glib-networking
 Replaces: pikalicious
 Conflicts: pikalicious
 Suggests: rclone

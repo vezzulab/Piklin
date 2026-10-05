@@ -51,7 +51,7 @@ docker run --rm --platform "linux/$ARCH" -v "$ROOT":/src -w /src \
       gir1.2-adw-1 gir1.2-secret-1 gir1.2-shumate-1.0 libshumate-1.0-1 \
       libgtk-4-1 libadwaita-1-0 librsvg2-common \
       libgdk-pixbuf-2.0-0 adwaita-icon-theme hicolor-icon-theme patchelf file git \
-      ca-certificates dpkg-dev >/dev/null
+      glib-networking ca-certificates dpkg-dev >/dev/null
   git config --global --add safe.directory /src
   python3 -m venv --system-site-packages /tmp/venv
   export PATH=/tmp/venv/bin:\$PATH

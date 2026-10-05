@@ -3584,6 +3584,10 @@ class MainWindow(Adw.ApplicationWindow):
             [("cover", _("Make Album Cover"), None,
               lambda: self._make_album_cover(item))]
             if single and self._scope == "album" and self._album_id is not None else [],
+            [("folder-cover", _("Make Folder Cover"), None,
+              lambda: self._make_folder_cover(item))]
+            if (single and self._scope == "album" and self._album_id is not None
+                and self._current_album_folder() is not None) else [],
             [("delete", delete_label, "Delete",
               lambda: self._on_bulk_trash(None))],
         ])
@@ -3716,6 +3720,17 @@ class MainWindow(Adw.ApplicationWindow):
         self._write_album_sidecar(album_id)
         self.refresh_sidebar()
         self._show_toast(_("Album cover changed"))
+
+    def _make_folder_cover(self, item):
+        """Show this photo for the folder the album is in, instead of the
+        cover of the folder's first album."""
+        folder_id = self._current_album_folder()
+        if folder_id is None:
+            return
+        self.catalog.set_folder_cover(folder_id, item.path)
+        self._mirror_state()
+        self.refresh_sidebar()
+        self._show_toast(_("Folder cover changed"))
 
     # -- libraries -------------------------------------------------------
     def _on_open_library(self):
@@ -3942,6 +3957,7 @@ class MainWindow(Adw.ApplicationWindow):
         # updates are on, and never more than once an hour - see updates.due)
         GLib.timeout_add_seconds(60 * 60, lambda: (self._check_updates(quiet=True), True)[1])
         self.grid.load("library")
+        self._arrange_from_files()
         from . import onboarding
         pending = onboarding.take_pending(self.library.root)
         if pending is not None:
@@ -3958,6 +3974,23 @@ class MainWindow(Adw.ApplicationWindow):
             GLib.timeout_add(800, self._maybe_offer_backup)
         return False
 
+    def _arrange_from_files(self):
+        """Folders and albums that are in the library's files but not yet in
+        the catalog - a sync cut short, a restore, a library just copied
+        here - go into the sidebar at once, not after the photos have come."""
+        if not self.settings.get("remotes"):
+            return
+
+        def work():
+            from .. import sync
+            try:
+                if sync.structure_pending(self.library, self.catalog):
+                    sync.apply(self.library, self.catalog)
+                    GLib.idle_add(self.refresh_sidebar)
+            except Exception:
+                pass
+        threading.Thread(target=work, daemon=True).start()
+
     def _backup_soon(self):
         if getattr(self, "autobackup", None) is not None:
             self.autobackup.mark_changed()
@@ -3966,7 +3999,17 @@ class MainWindow(Adw.ApplicationWindow):
         """Bring in what another computer sent to this backup (off the UI
         thread), then show it."""
         from .. import sync
-        result = sync.pull(self.library, self.catalog, backend, progress)
+
+        def report(stage, *args):
+            # Folders and albums the moment they are in, the photos as soon
+            # as they are - not when everything has come.
+            if stage == "structure":
+                GLib.idle_add(self.refresh_sidebar)
+            elif stage == "photos":
+                GLib.idle_add(self._after_sync)
+            if progress:
+                progress(stage, *args)
+        result = sync.pull(self.library, self.catalog, backend, report)
         if result.changed:
             GLib.idle_add(self._after_sync)
         return result

@@ -6011,3 +6011,46 @@ msgstr ""
 #: piklin/video_edit.py:597
 msgid "No frames to put in the GIF."
 msgstr ""
+
+#: piklin/autobackup.py:216
+#, python-brace-format
+msgid "Receiving photos from {name} — {done} of {total} ({percent}%)"
+msgstr ""
+
+#: piklin/autobackup.py:217
+#, python-brace-format
+msgid "Receiving videos from {name} — {done} of {total} ({percent}%)"
+msgstr ""
+
+#: piklin/ui/map_view.py:252
+msgid "The map could not be loaded. Check your internet connection."
+msgstr ""
+
+#: piklin/ui/settings_dialog.py:1218
+msgid "Restoring albums and folders"
+msgstr ""
+
+#: piklin/ui/settings_dialog.py:1219
+msgid "Restoring photos"
+msgstr ""
+
+#: piklin/ui/settings_dialog.py:1220
+msgid "Restoring videos"
+msgstr ""
+
+#: piklin/ui/settings_dialog.py:1222
+#, python-brace-format
+msgid "{what} — {done} of {total} ({size})"
+msgstr ""
+
+#: piklin/ui/settings_dialog.py:1251
+msgid "Your albums and folders are back. The photos are coming."
+msgstr ""
+
+#: piklin/ui/window.py:3587
+msgid "Make Folder Cover"
+msgstr ""
+
+#: piklin/ui/window.py:3733
+msgid "Folder cover changed"
+msgstr ""

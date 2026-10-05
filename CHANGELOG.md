@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.0.1
+
+### The map
+- Fixed the map showing a white screen with only the pins on it on Linux. The AppImage had no way to make secure connections for the map's tiles, and its Python did not know where a computer other than Ubuntu keeps its certificates, so nothing from the internet loaded: not the map, not place search, not updates. Both are fixed
+- The ordinary map tiles now come from a source that allows apps, and if the map cannot be loaded at all Piklin says so instead of leaving it blank
+- Zooming is gentler: the buttons move half a step, and the wheel and trackpad ease in and keep the place under the pointer, without running far ahead, so you do not lose where you are
+
+- Zooming out now goes as far as it should: the clean map was stopping a level early and showed only a quarter of the world. The first view of your photos and the grouping of pins were off by the same level and are fixed too
+
+### Restoring and syncing from a backup
+- Folders and albums now appear first, as soon as a restore or a sync starts, laid out as they are in the backup, instead of after everything has come back. On a new computer the sidebar used to stay empty for as long as the photos took to arrive. If a sync was cut short, the folders and albums it had already brought are shown the next time Piklin opens
+- It all comes in three steps: your folders and albums, then your photos, then your videos, which take the longest. The photos are shown as soon as they are in, while the videos are still coming, and the progress at the foot of the window says which is arriving
+- A backup now sends photos before videos, in the same order
+
+### Folders
+- A folder no longer has to show the cover of its first album. Right-click a photo inside an album and choose Make Folder Cover to pick the picture for the folder the album is in. The choice is kept in your backup
+
 ## 2.0.0
 
 ### Your photos on a map

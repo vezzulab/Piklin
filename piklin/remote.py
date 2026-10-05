@@ -54,6 +54,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 from . import system
 from .i18n import _, ngettext
+from .video import is_video
 
 SERVICE = "Pikalicious"
 
@@ -434,6 +435,30 @@ class _CountingReader:
         return chunk
 
 
+# A restore, like a backup, goes in three stages: how the library is arranged
+# (small, and the part nothing can regenerate), then the photos, then the
+# videos - the slowest by far, so everything else is usable while they come.
+STAGE_ARRANGEMENT, STAGE_PHOTOS, STAGE_VIDEOS = 0, 1, 2
+
+
+def stage_of(rel: str) -> int:
+    if "/" not in rel or rel.startswith(("Edits/", "Albums/")):
+        return STAGE_ARRANGEMENT
+    return STAGE_VIDEOS if is_video(rel) else STAGE_PHOTOS
+
+
+def _announce_stages(on_stage, first: int, upto: int, p=None) -> int:
+    """Tell ``on_stage`` about each stage from ``first`` up to, not
+    including, ``upto``; returns where it got to."""
+    for stage in range(first, upto):
+        if on_stage is not None:
+            try:
+                on_stage(stage, p)
+            except Exception:
+                pass
+    return max(first, upto)
+
+
 class Backend:
     """What every destination must be able to do."""
 
@@ -742,8 +767,14 @@ class Backend:
     def restore(self, root: Path, skip_paths: Iterable[str] = (),
                 overwrite_state: bool = False,
                 on_progress: Callable[[SyncProgress], None] | None = None,
+                on_stage: Callable[[int, SyncProgress], None] | None = None,
                 ) -> SyncProgress:
         """Copy back what is missing from the library.
+
+        It comes in three stages (STAGE_ARRANGEMENT, STAGE_PHOTOS,
+        STAGE_VIDEOS). ``on_stage`` is told when the arrangement is in place
+        - the folders and albums can be shown while the photos are still
+        coming - and again when the photos are, with the videos still to go.
 
         Only files that are gone come back: nothing in the library is ever
         replaced. ``skip_paths`` are photos the user removed on purpose;
@@ -769,9 +800,8 @@ class Backend:
         skip = {os.path.normpath(s) for s in skip_paths}
 
         def order(rel: str):
-            # edits, albums and state first: small and irreplaceable
-            return (0 if "/" not in rel or rel.startswith(("Edits/", "Albums/"))
-                    else 1, rel)
+            # edits, albums and state first, then photos, then videos
+            return (stage_of(rel), rel)
 
         todo, merge = [], []
         for rel in sorted(index, key=order):
@@ -814,7 +844,9 @@ class Backend:
         if on_progress:
             on_progress(p)
         if todo:
-            self._fetch_many(root, todo, p, manifest, on_progress)
+            self._fetch_many(root, todo, p, manifest, on_progress, on_stage)
+        else:
+            _announce_stages(on_stage, 0, STAGE_VIDEOS, p)
         # The library's lists already here get what the backup adds to them.
         for rel in merge:
             if self.cancel.is_set():
@@ -850,8 +882,10 @@ class Backend:
         return p
 
     def _fetch_many(self, root: Path, todo, p: SyncProgress, manifest: dict,
-                    on_progress) -> None:
+                    on_progress, on_stage=None) -> None:
+        told = 0
         for rel, size in todo:
+            told = _announce_stages(on_stage, told, stage_of(rel), p)
             if self.cancel.is_set():
                 p.phase = "cancelled"
                 break
@@ -892,6 +926,8 @@ class Backend:
             p.done_bytes += max(size, 0)
             if on_progress:
                 on_progress(p)
+        if p.phase != "cancelled":
+            _announce_stages(on_stage, told, STAGE_VIDEOS, p)
 
 
 # ==========================================================================
@@ -2078,14 +2114,28 @@ class RcloneBackend(Backend):
         return p
 
     def _fetch_many(self, root: Path, todo, p: SyncProgress, manifest: dict,
-                    on_progress) -> None:
+                    on_progress, on_stage=None) -> None:
         exe = rclone_path()
-        batch = [t for t in todo if not (root / t[0]).exists()]
-        replace = [t for t in todo if (root / t[0]).exists()]
-        if replace or not exe:
-            super()._fetch_many(root, replace if exe else todo, p, manifest, on_progress)
-        if not batch or not exe or p.phase == "cancelled":
+        if not exe:
+            super()._fetch_many(root, todo, p, manifest, on_progress, on_stage)
             return
+        replace = [t for t in todo if (root / t[0]).exists()]
+        if replace:
+            super()._fetch_many(root, replace, p, manifest, on_progress)
+        # One rclone run for each stage, so the arrangement can be shown while
+        # the photos come and the photos while the videos do.
+        for stage in (STAGE_ARRANGEMENT, STAGE_PHOTOS, STAGE_VIDEOS):
+            if p.phase == "cancelled":
+                return
+            batch = [t for t in todo
+                     if stage_of(t[0]) == stage and not (root / t[0]).exists()]
+            if batch:
+                self._rclone_copy(exe, root, batch, p, manifest, on_progress)
+            if p.phase != "cancelled" and stage != STAGE_VIDEOS:
+                _announce_stages(on_stage, stage, stage + 1, p)
+
+    def _rclone_copy(self, exe, root: Path, batch, p: SyncProgress, manifest: dict,
+                     on_progress) -> None:
         base_files, base_bytes = p.done_files, p.done_bytes
         q = SyncProgress()
 
@@ -2123,6 +2173,8 @@ class RcloneBackend(Backend):
                 p.errors += 1
                 continue
             p.restored += 1
+            if rel in STATE_FILES or rel.startswith(("Albums/", "Edits/")):
+                p.restored_state = True
             manifest[rel] = [st.st_size, st.st_mtime]
         p.done_files = base_files + len(batch)
         if code and not p.message:
@@ -2410,7 +2462,11 @@ def library_files(root: Path, include_originals: bool = True,
     if include_originals:
         d = root / "Originals"
         if d.is_dir():
-            ordered += sorted(p for p in d.rglob("*") if p.is_file())
+            found = sorted(p for p in d.rglob("*") if p.is_file())
+            # photos before videos: a video takes minutes, a photo seconds,
+            # so what can be seen is across first
+            ordered += [p for p in found if not is_video(p)]
+            ordered += [p for p in found if is_video(p)]
     if include_cache:
         d = root / ".cache"
         if d.is_dir():

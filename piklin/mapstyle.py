@@ -199,10 +199,12 @@ def _renderer(tiles: list[str], maxzoom: int):
     return renderer
 
 
-def use_clean_map(simple_map, after=None) -> None:
+def use_clean_map(simple_map, after=None, on_error=None) -> None:
     """Give a ``Shumate.SimpleMap`` the clean map. The ordinary tiles it was
     made with stay until the new ones are ready, and for good if they never are.
-    ``after`` is called once the map has changed, to put back any limits."""
+    ``after`` is called once the map has changed, to put back any limits;
+    ``on_error`` when there is no way to learn where the tiles are, so the
+    map may stay blank and somebody should be told why."""
     from gi.repository import GLib
 
     def apply(tiles, maxzoom):
@@ -222,9 +224,12 @@ def use_clean_map(simple_map, after=None) -> None:
     def work():
         try:
             tiles, maxzoom = _fetch()
-        except OSError:
+        except OSError as exc:
+            log.warning("could not learn where the map tiles are: %s", exc)
             # No connection now: the last known address may still serve.
             if cached is None:
+                if on_error is not None:
+                    GLib.idle_add(lambda: (on_error(), GLib.SOURCE_REMOVE)[1])
                 return
             tiles, maxzoom = cached[0], cached[1]
         GLib.idle_add(apply, tiles, maxzoom)
@@ -244,7 +249,8 @@ def keep_world_whole(simple_map) -> None:
         if size != seen[0] and size[0] > 0:
             seen[0] = size
             viewport = widget.get_viewport()
-            floor = max(0, math.ceil(math.log2(size[0] / 256.0)))
+            tile = float(viewport.get_reference_map_source().get_tile_size())
+            floor = max(0, math.ceil(math.log2(size[0] / tile)))
             viewport.set_min_zoom_level(floor)
             if viewport.get_zoom_level() < floor:
                 viewport.set_zoom_level(floor)

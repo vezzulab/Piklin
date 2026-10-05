@@ -211,9 +211,11 @@ class AutoBackup:
     def _sync_progress(self, name: str):
         """What updating from ``name`` shows at the bottom of the sidebar, step by
         step: looking, receiving (with how far through), then adding it in."""
-        def report(stage, done=0, total=0, percent=0):
+        def report(stage, done=0, total=0, percent=0, kind=""):
             if stage == "downloading" and total:
-                text = _("Receiving from {name} — {done} of {total} ({percent}%)").format(
+                text = {"photos": _("Receiving photos from {name} — {done} of {total} ({percent}%)"),
+                        "videos": _("Receiving videos from {name} — {done} of {total} ({percent}%)"),
+                        }.get(kind, _("Receiving from {name} — {done} of {total} ({percent}%)")).format(
                     name=name, done=f"{min(done + 1, total):,}", total=f"{total:,}", percent=percent)
             elif stage == "applying":
                 text = _("Adding what came from {name}…").format(name=name)

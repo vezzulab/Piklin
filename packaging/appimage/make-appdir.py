@@ -132,11 +132,19 @@ def main() -> None:
         cache.replace(str(APPDIR), "@APPDIR@"))
     (LIB / "gdk-pixbuf-2.0/2.10.0/loaders.cache").unlink(missing_ok=True)
 
+    # HTTPS for everything libsoup fetches - the map's tiles among it - is a
+    # module GIO loads by name, which no library names: without it GIO falls
+    # back to a backend that cannot do TLS and every tile fails silently.
+    say("TLS for libsoup")
+    tls = SYSLIB / "gio/modules/libgiognutls.so"
+    (LIB / "gio/modules").mkdir(parents=True)
+    shutil.copy2(tls, LIB / "gio/modules" / tls.name)
+
     say("Libraries")
     skip = excluded()
     # What loads libraries: Python and its modules, the image loaders, and
     # every library a type library names (GTK, libadwaita, libsecret...).
-    seeds = [USR / "bin" / PY, *loaders]
+    seeds = [USR / "bin" / PY, *loaders, LIB / "gio/modules" / tls.name]
     seeds += [p for p in (LIB / PY / "lib-dynload").glob("*.so")]
     seeds += [p for p in dist.rglob("*.so")]
     for typelib in (LIB / "girepository-1.0").glob("*.typelib"):

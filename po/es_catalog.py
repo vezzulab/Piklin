@@ -13,6 +13,18 @@ ES = {
     "preferences tab\x04Backup": "Copias",
     "preferences tab\x04Library": "Carpetas",
 
+    # -- restoring, syncing, folder covers, map (2.0.1) ---------------------------
+    "Receiving photos from {name} — {done} of {total} ({percent}%)": "Recibiendo fotos de {name} — {done} de {total} ({percent}%)",
+    "Receiving videos from {name} — {done} of {total} ({percent}%)": "Recibiendo videos de {name} — {done} de {total} ({percent}%)",
+    "The map could not be loaded. Check your internet connection.": "No se pudo cargar el mapa. Revisa tu conexión a internet.",
+    "Restoring albums and folders": "Restaurando álbumes y carpetas",
+    "Restoring photos": "Restaurando fotos",
+    "Restoring videos": "Restaurando videos",
+    "{what} — {done} of {total} ({size})": "{what} — {done} de {total} ({size})",
+    "Your albums and folders are back. The photos are coming.": "Tus álbumes y carpetas ya están. Las fotos están llegando.",
+    "Make Folder Cover": "Usar como portada de la carpeta",
+    "Folder cover changed": "Portada de la carpeta cambiada",
+
     # -- automatic backup -------------------------------------------------------
     "Connecting to {name}…": "Conectando con {name}…",
     "Backing up to {name} — {done} of {total}": "Copiando a {name} — {done} de {total}",

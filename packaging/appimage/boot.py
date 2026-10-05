@@ -35,6 +35,9 @@ env["PIKLIN_APPDIR"] = APPDIR
 _host_data_dirs = env.get("XDG_DATA_DIRS")
 _startup_only = {
     "GI_TYPELIB_PATH": os.path.join(LIB, "girepository-1.0"),
+    # The module that lets libsoup - the map's tiles - speak HTTPS. Added to
+    # the computer's own GIO modules (gvfs and the rest), not instead of them.
+    "GIO_EXTRA_MODULES": os.path.join(LIB, "gio", "modules"),
     # The computer's schemas and icons first; the AppImage's own after them,
     # for whatever the computer lacks.
     "XDG_DATA_DIRS": (_host_data_dirs or "/usr/local/share:/usr/share") + os.pathsep + SHARE,
@@ -67,6 +70,26 @@ env.update(_startup_only)
 import gi  # noqa: E402
 
 
+def _ca_bundle() -> None:
+    """Python looks for the certificates that let it trust a website where
+    Ubuntu keeps them, and a computer laid out another way (Fedora, Arch,
+    openSUSE) has none there: every HTTPS request - the map's style, place
+    search, updates - failed as "no connection". Use the computer's own."""
+    if env.get("SSL_CERT_FILE") or env.get("SSL_CERT_DIR"):
+        return
+    import ssl
+    if os.path.exists(ssl.get_default_verify_paths().openssl_cafile or ""):
+        return
+    for path in ("/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt",
+                 "/etc/ssl/ca-bundle.pem", "/etc/ssl/cert.pem"):
+        if os.path.isfile(path):
+            env["SSL_CERT_FILE"] = path
+            return
+
+
+_ca_bundle()
+
+
 def _library_path() -> None:
     """GTK, libadwaita and the rest are loaded by name when their type
     library is first used. A computer that has its own copies would hand
@@ -87,6 +110,12 @@ from gi.repository import GdkPixbuf, Gtk  # noqa: E402,F401
 GdkPixbuf.Pixbuf.get_formats()           # the loaders are read now, once
 try:
     Gtk.Settings.get_default()           # and GTK's schemas
+except Exception:
+    pass
+
+try:                                     # and the TLS module, while it can be found
+    from gi.repository import Gio
+    Gio.TlsBackend.get_default()
 except Exception:
     pass
 

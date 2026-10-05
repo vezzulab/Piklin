@@ -154,6 +154,9 @@ class FolderView(Gtk.ScrolledWindow):
         if node["kind"] == "album":
             return node["row"]["cover_path"]
         if node["kind"] == "folder":
+            chosen = self.catalog.folder_cover_path(node["row"]["id"])
+            if chosen:
+                return chosen
             for child in node["children"]:
                 path = self._cover(child)
                 if path:

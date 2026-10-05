@@ -289,6 +289,25 @@ def _seen_path(root: Path, remote_id: str) -> Path:
     return Path(root) / ".cache" / "backups" / f"{remote_id}-seen.json"
 
 
+def structure_pending(library, catalog) -> bool:
+    """Are there folders or albums in the library's files that the catalog
+    does not have yet? So it is after a sync that was cut short, or on a
+    computer the arrangement has just arrived on."""
+    from . import sidecars
+    in_files = set()
+    if library.albums.is_dir():
+        for f in library.albums.glob("*.json"):
+            if not f.name.startswith("_"):
+                uuid_ = _read(f).get("uuid")
+                if uuid_:
+                    in_files.add(uuid_)
+    if in_files - {r["uuid"] for r in catalog.q("SELECT uuid FROM albums")}:
+        return True
+    folders = {e.get("uuid") for e in _read(sidecars.folders_path(library)).get("folders") or []
+               if isinstance(e, dict)}
+    return bool(folders - {None} - {r["uuid"] for r in catalog.folders()})
+
+
 def pull(library, catalog, backend, progress=None) -> SyncResult:
     """Bring into this library what another computer sent to ``backend``.
 
@@ -297,6 +316,12 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
     in line with them (see apply)."""
     from . import sidecars
     root = Path(library.root)
+    # Before the backup is even asked: whatever arrangement is already in the
+    # library's files goes into the catalog and onto the screen.
+    if structure_pending(library, catalog):
+        apply(library, catalog)
+        if progress:
+            progress("structure")
     # A handful of files first: when they are as this computer last saw them,
     # nobody sent anything, and the backup isn't read through.
     try:
@@ -379,6 +404,14 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
                 mine_path.unlink(missing_ok=True)
             result.changed = True
 
+    # The arrangement comes first: folders and albums as the backup has them
+    # are in the catalog, and shown, before a single photo is fetched - a new
+    # computer used to look empty for as long as the photos took to arrive.
+    if result.changed or structure_pending(library, catalog):
+        apply(library, catalog)
+        if progress:
+            progress("structure")
+
     # Edits: the other computer's, unless this one changed the same photo later.
     manifest = backend._load_manifest(root)
     todo = []
@@ -408,6 +441,9 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
                  if rel.startswith("Originals/") and not (root / rel).exists()
                  and rel not in replacing
                  and os.path.normpath(str(root / rel)) not in removed]
+    from .remote import STAGE_PHOTOS, stage_of
+    # photos before videos: a video takes minutes, a photo seconds
+    originals.sort(key=lambda t: (stage_of(t[0]), t[0]))
     todo += originals
     if todo:
         from .remote import SyncProgress
@@ -416,8 +452,22 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
 
         def report(q):
             if progress:
-                progress("downloading", q.done_files, q.total_files, int(q.fraction * 100))
-        backend._fetch_many(root, todo, p, manifest, report)
+                kind = "videos" if stage_of(q.current or "") > STAGE_PHOTOS else "photos"
+                progress("downloading", q.done_files, q.total_files,
+                         int(q.fraction * 100), kind)
+
+        def stage_done(stage, _p):
+            # The photos are in; show them while the videos are still coming.
+            if stage != STAGE_PHOTOS:
+                return
+            got = [rel for rel, _s in originals
+                   if stage_of(rel) == STAGE_PHOTOS and (root / rel).exists()]
+            if got:
+                apply(library, catalog, new_photos=True,
+                      edits=[root / rel for rel in edits if (root / rel).exists()])
+                if progress:
+                    progress("photos")
+        backend._fetch_many(root, todo, p, manifest, report, stage_done)
         backend._save_manifest(root, manifest)
         if p.phase == "cancelled":
             result.ok, result.message = False, "cancelled"
@@ -506,6 +556,9 @@ def apply(library, catalog, new_photos: bool = False, edits=()) -> None:
         parent_id = parent["id"] if parent else None
         if parent_id != row["parent_id"]:
             catalog.move_folder(row["id"], parent_id)
+        # the picture another computer chose for the folder
+        if entry.get("cover") and entry["cover"] != row["cover_path"]:
+            catalog.set_folder_cover(row["id"], entry["cover"])
     folder_ids = {u: r["id"] for u, r in rows.items()}
 
     # Smart Albums
