@@ -151,7 +151,8 @@ PY
   mkdir -p "$R/$LOADERS"
   cp -a "$P/$LOADERS/loaders" "$R/$LOADERS/"
   run_arch=(); [ "$a" = x86_64 ] && run_arch=(arch -x86_64)
-  GDK_PIXBUF_MODULEDIR="$P/$LOADERS/loaders" "${run_arch[@]}" "$P/bin/gdk-pixbuf-query-loaders" \
+  # (the +-form keeps an empty list from being an error in macOS's bash 3.2)
+  GDK_PIXBUF_MODULEDIR="$P/$LOADERS/loaders" ${run_arch[@]+"${run_arch[@]}"} "$P/bin/gdk-pixbuf-query-loaders" \
     | sed "s#$P#@RUNTIME@#g" > "$R/$LOADERS/loaders.cache.in"
 
   cp -a "$P/share/icons" "$R/share/"

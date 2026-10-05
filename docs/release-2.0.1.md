@@ -13,7 +13,7 @@
 
 | System | Versions | Computers |
 |---|---|---|
-| 🍎 macOS | 11 Big Sur or newer | Apple Silicon (M1 and later) and Intel Macs |
+| 🍎 macOS | 11 Big Sur or newer | Apple Silicon (M1 and later). Intel Macs: the Intel build is coming; stay on 2.0.0 until it is here |
 | 🐧 Ubuntu | 24.04 or newer | 64-bit PC (Intel or AMD, x86-64) and 64-bit ARM (arm64) |
 | 🐧 Linux Mint | 22 or newer | 64-bit PC (Intel or AMD, x86-64) |
 | 🐧 Debian | 13 or newer | 64-bit PC (Intel or AMD, x86-64) and 64-bit ARM (arm64) |
@@ -26,7 +26,7 @@ Find your computer in the table and download **one** file.
 
 | Your computer | File | What it is |
 |---|---|---|
-| 🍎 **Mac** — Apple Silicon (M1, M2, M3, M4…) and Intel | [**Piklin-2.0.1.dmg**](https://github.com/vezzulab/Piklin/releases/download/v2.0.1/Piklin-2.0.1.dmg) | Disk image: open it and drag Piklin to Applications |
+| 🍎 **Mac** — Apple Silicon (M1, M2, M3, M4…) | [**Piklin-2.0.1.dmg**](https://github.com/vezzulab/Piklin/releases/download/v2.0.1/Piklin-2.0.1.dmg) | Disk image: open it and drag Piklin to Applications |
 | 🐧 **Linux PC** — Intel or AMD (x86-64) | [**piklin_2.0.1_amd64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.1/piklin_2.0.1_amd64.deb) | Installer for Ubuntu, Mint, Debian |
 | 🐧 **Linux PC** — Intel or AMD (x86-64) | [**Piklin-2.0.1-x86_64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.1/Piklin-2.0.1-x86_64.AppImage) | Runs without installing; works on Fedora too |
 | 🐧 **Linux ARM** — 64-bit ARM (arm64) | [**piklin_2.0.1_arm64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.1/piklin_2.0.1_arm64.deb) | Installer for Ubuntu, Debian |
@@ -76,7 +76,17 @@ sudo apt install ./piklin_2.0.1_arm64.deb     # ARM
 
 - **Choose a cover for a folder.** A folder used to show the cover of its first album. Right-click a photo inside an album and choose **Make Folder Cover** to pick the picture for the folder the album is in. The choice is kept in your backup and reaches your other computers.
 
-<!-- After building and signing, add a "Verify your download" section here with the SHA-256 lines, as in release-2.0.0.md. -->
+## Verify your download
+
+SHA-256:
+
+```
+33ca4669ce8815950474853a872b8831119ca0f3d41e6caf2486c0586eef17e5  Piklin-2.0.1.dmg
+c3491cef7cba7d6e0ec2e358476eb1ae36f0778d4b989ad68d57b2c5362e185f  piklin_2.0.1_amd64.deb
+86c92d96ce641974793763b2c71966823be46874815bf52764aac73524820206  Piklin-2.0.1-x86_64.AppImage
+```
+
+The `.sha256` and `.sha256.sig` files are what Piklin's updater checks: each checksum, signed with Vezzu Studio's release key. This release is signed with a new key (see the note at the top).
 
 Official downloads come only from this repository and [vezzu.studio](https://vezzu.studio).
 
@@ -99,7 +109,7 @@ Piklin is free. If it helps you, you can [buy us a coffee on Ko-fi](https://ko-f
 
 | Sistema | Versiones | Computadoras |
 |---|---|---|
-| 🍎 macOS | 11 Big Sur o más nuevo | Apple Silicon (M1 y posteriores) y Mac Intel |
+| 🍎 macOS | 11 Big Sur o más nuevo | Apple Silicon (M1 y posteriores). Mac Intel: la versión para Intel viene en camino; quédate en la 2.0.0 hasta que llegue |
 | 🐧 Ubuntu | 24.04 o más nuevo | PC de 64 bits (Intel o AMD, x86-64) y ARM de 64 bits (arm64) |
 | 🐧 Linux Mint | 22 o más nuevo | PC de 64 bits (Intel o AMD, x86-64) |
 | 🐧 Debian | 13 o más nuevo | PC de 64 bits (Intel o AMD, x86-64) y ARM de 64 bits (arm64) |
@@ -112,7 +122,7 @@ Elige la fila de tu computadora y descarga **un** archivo.
 
 | Tu computadora | Archivo | Qué es |
 |---|---|---|
-| 🍎 **Mac** — Apple Silicon (M1, M2, M3, M4…) e Intel | [**Piklin-2.0.1.dmg**](https://github.com/vezzulab/Piklin/releases/download/v2.0.1/Piklin-2.0.1.dmg) | Imagen de disco: ábrela y arrastra Piklin a Aplicaciones |
+| 🍎 **Mac** — Apple Silicon (M1, M2, M3, M4…) | [**Piklin-2.0.1.dmg**](https://github.com/vezzulab/Piklin/releases/download/v2.0.1/Piklin-2.0.1.dmg) | Imagen de disco: ábrela y arrastra Piklin a Aplicaciones |
 | 🐧 **PC con Linux** — Intel o AMD (x86-64) | [**piklin_2.0.1_amd64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.1/piklin_2.0.1_amd64.deb) | Instalador para Ubuntu, Mint, Debian |
 | 🐧 **PC con Linux** — Intel o AMD (x86-64) | [**Piklin-2.0.1-x86_64.AppImage**](https://github.com/vezzulab/Piklin/releases/download/v2.0.1/Piklin-2.0.1-x86_64.AppImage) | Funciona sin instalar; también en Fedora |
 | 🐧 **Linux ARM** — ARM de 64 bits (arm64) | [**piklin_2.0.1_arm64.deb**](https://github.com/vezzulab/Piklin/releases/download/v2.0.1/piklin_2.0.1_arm64.deb) | Instalador para Ubuntu, Debian |
@@ -161,6 +171,18 @@ sudo apt install ./piklin_2.0.1_arm64.deb     # ARM
 #### Carpetas
 
 - **Elige la portada de una carpeta.** Una carpeta mostraba la portada de su primer álbum. Haz clic derecho en una foto dentro de un álbum y elige **Usar como portada de la carpeta** para escoger la imagen de la carpeta en que está el álbum. La elección se guarda en tu copia y llega a tus otras computadoras.
+
+#### Verifica tu descarga
+
+SHA-256:
+
+```
+33ca4669ce8815950474853a872b8831119ca0f3d41e6caf2486c0586eef17e5  Piklin-2.0.1.dmg
+c3491cef7cba7d6e0ec2e358476eb1ae36f0778d4b989ad68d57b2c5362e185f  piklin_2.0.1_amd64.deb
+86c92d96ce641974793763b2c71966823be46874815bf52764aac73524820206  Piklin-2.0.1-x86_64.AppImage
+```
+
+Los archivos `.sha256` y `.sha256.sig` son lo que comprueba el actualizador de Piklin: cada checksum, firmado con la clave de publicación de Vezzu Studio. Esta versión está firmada con una clave nueva (mira el aviso de arriba).
 
 Las descargas oficiales vienen solo de este repositorio y de [vezzu.studio](https://vezzu.studio).
 
