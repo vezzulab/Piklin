@@ -14,6 +14,10 @@
   <a href="https://ko-fi.com/vezzustudio"><img src="https://img.shields.io/badge/support-Ko--fi-0b0b0b?style=flat-square" alt="Support on Ko-fi"></a>
 </p>
 
+> **Piklin 2.0.1: install it by hand, once.** We replaced the key that signs updates, so installed copies cannot update to it by themselves. [Download 2.0.1](https://github.com/vezzulab/Piklin/releases/latest); your library, albums, edits and backups stay as they are, and updates install themselves again from there.
+>
+> **Piklin 2.0.1: instálalo a mano, una sola vez.** Reemplazamos la clave que firma las actualizaciones, así que las copias instaladas no pueden actualizarse solas a esta versión. [Descarga la 2.0.1](https://github.com/vezzulab/Piklin/releases/latest); tu biblioteca, álbumes, cambios y copias se quedan como están, y desde ahí las actualizaciones vuelven a instalarse solas.
+
 <p align="center">
   <img src="docs/screenshots/library.png" alt="The Piklin library" width="900">
 </p>

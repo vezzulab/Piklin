@@ -7,6 +7,8 @@
 
 **Piklin 2.0.1** fixes the map that showed up white on Linux, and brings your folders and albums back first when a new computer receives your library.
 
+> **Install this one by hand, once.** We had to replace the key that signs Piklin's updates, and installed copies only know the old one. So pressing **Install** inside Piklin 2.0.0 will say it could not verify the update. Download Piklin 2.0.1 below instead: your library, albums, edits and backups stay as they are, and from 2.0.1 on updates install themselves again.
+
 ## Works on
 
 | System | Versions | Computers |
@@ -52,6 +54,10 @@ sudo apt install ./piklin_2.0.1_arm64.deb     # ARM
 
 ## What's new
 
+### Install this one by hand
+
+- **Piklin 2.0.1 has to be installed by hand, once: download it at github.com/vezzulab/Piklin/releases/latest.** Pressing Install inside Piklin will say it could not verify the update, because we replaced our signing key and your copy only knows the old one. From 2.0.1 on, updates install themselves again. Your library, albums, edits and backups stay as they are.
+
 ### The map
 
 - **No more white map on Linux.** The AppImage could not make secure connections for the map's tiles, and its Python did not know where a computer other than Ubuntu keeps its certificates, so nothing from the internet loaded: not the map, not place search, not updates. Both are fixed.
@@ -86,6 +92,8 @@ Piklin is free. If it helps you, you can [buy us a coffee on Ko-fi](https://ko-f
 </summary>
 
 **Piklin 2.0.1** arregla el mapa que salía en blanco en Linux, y trae primero tus carpetas y álbumes cuando una computadora nueva recibe tu biblioteca.
+
+> **Instala esta versión a mano, una sola vez.** Tuvimos que reemplazar la clave que firma las actualizaciones de Piklin, y las copias ya instaladas solo conocen la anterior. Por eso, si pulsas **Instalar** dentro de Piklin 2.0.0, dirá que no pudo verificar la actualización. Descarga Piklin 2.0.1 aquí abajo: tu biblioteca, álbumes, cambios y copias se quedan como están, y desde la 2.0.1 las actualizaciones vuelven a instalarse solas.
 
 ### Funciona en
 
@@ -131,6 +139,10 @@ sudo apt install ./piklin_2.0.1_arm64.deb     # ARM
 ```
 
 ### Novedades
+
+#### Instala esta versión a mano
+
+- **Piklin 2.0.1 hay que instalarlo a mano, una sola vez: descárgalo en github.com/vezzulab/Piklin/releases/latest.** Si pulsas Instalar dentro de Piklin dirá que no pudo verificar la actualización, porque reemplazamos nuestra clave de firma y tu copia solo conoce la anterior. Desde la 2.0.1 las actualizaciones vuelven a instalarse solas. Tu biblioteca, álbumes, cambios y copias se quedan como están.
 
 #### El mapa
 

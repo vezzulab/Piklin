@@ -10,9 +10,13 @@
 #
 # The private key never enters the repository. It lives in
 #   ~/.config/vezzu-studio/piklin-release-key.pem   (or $PIKLIN_RELEASE_KEY)
-# and its public half is packaging/deb/release-key.pem. Keep a backup of the
-# private key somewhere safe: without it, installed copies can no longer
-# update themselves.
+# and its public half is packaging/deb/release-key.pem, which holds TWO public
+# keys: the release key and a recovery key (piklin-recovery-key.pem, kept
+# offline). Installed copies accept a signature from either, so if the release
+# key is ever lost, sign with the recovery key:
+#   PIKLIN_RELEASE_KEY=~/.config/vezzu-studio/piklin-recovery-key.pem packaging/sign-release.sh FILE
+# Keep a backup of both private keys in different safe places. The release key
+# was lost once, before 2.0.1, and every installed copy had to be replaced by hand.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

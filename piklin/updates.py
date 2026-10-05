@@ -292,11 +292,12 @@ def verify_signed(folder: Path, name: str, key_pem: str) -> Path:
         if not path.is_file():
             raise UpdateError("verification", f"missing {path.name}")
     try:
-        key = ed25519.public_key_from_pem(key_pem)
+        keys = ed25519.public_keys_from_pem(key_pem)
     except ValueError as exc:
         raise UpdateError("verification", str(exc))
     text = manifest.read_bytes()
-    if not ed25519.verify(key, text, signature.read_bytes()):
+    sig = signature.read_bytes()
+    if not any(ed25519.verify(key, text, sig) for key in keys):
         raise UpdateError("verification",
                           "the signature does not match Vezzu Studio's release key")
     match = re.fullmatch(rb"([0-9a-f]{64})  (\S+)\n?", text)

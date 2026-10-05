@@ -11,6 +11,7 @@ Only verification lives here: nothing in Piklin ever signs.
 from __future__ import annotations
 
 import base64
+import re
 import hashlib
 
 _P = 2 ** 255 - 19
@@ -99,6 +100,16 @@ def verify(public_key: bytes, message: bytes, signature: bytes) -> bool:
 # The DER prefix of an Ed25519 public key: SEQUENCE { AlgorithmIdentifier
 # { 1.3.101.112 }, BIT STRING } followed by the 32 bytes of the key.
 _SPKI_PREFIX = bytes.fromhex("302a300506032b6570032100")
+
+
+def public_keys_from_pem(text: str) -> list[bytes]:
+    """Every "PUBLIC KEY" block in ``text``, as raw 32-byte keys. The file the
+    app carries holds the release key and a recovery key kept offline, so that
+    losing one never again leaves installed copies unable to update."""
+    blocks = re.findall(r"-----BEGIN PUBLIC KEY-----.+?-----END PUBLIC KEY-----", text, re.S)
+    if not blocks:
+        raise ValueError("no public key")
+    return [public_key_from_pem(block) for block in blocks]
 
 
 def public_key_from_pem(text: str) -> bytes:

@@ -135,9 +135,22 @@ def verify(folder, version, arch, key=KEY):
     for path in (deb, manifest, sig):
         if not os.path.isfile(path):
             raise Refused(5, "missing %s" % os.path.basename(path))
-    check = run(["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", key,
-                 "-rawin", "-in", manifest, "-sigfile", sig])
-    if check.returncode != 0 or "Signature Verified Successfully" not in check.stdout:
+    # The file holds the release key and a recovery key: either may have signed.
+    with open(key, encoding="utf-8") as f:
+        blocks = re.findall(r"-----BEGIN PUBLIC KEY-----.+?-----END PUBLIC KEY-----",
+                            f.read(), re.S)
+    signed = False
+    with tempfile.TemporaryDirectory() as scratch:
+        for n, block in enumerate(blocks):
+            one = os.path.join(scratch, "key%d.pem" % n)
+            with open(one, "w", encoding="utf-8") as f:
+                f.write(block + "\n")
+            check = run(["openssl", "pkeyutl", "-verify", "-pubin", "-inkey", one,
+                         "-rawin", "-in", manifest, "-sigfile", sig])
+            if check.returncode == 0 and "Signature Verified Successfully" in check.stdout:
+                signed = True
+                break
+    if not signed:
         raise Refused(5, "the signature does not match Vezzu Studio's release key")
     with open(manifest, encoding="utf-8") as f:
         text = f.read()

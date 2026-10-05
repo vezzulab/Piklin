@@ -40,6 +40,7 @@
 <style>
 .l{display:none}html[data-lang=en] .l.en,html[data-lang=es] .l.es{display:inline}
 .hero img.banner.l{display:none}html[data-lang=en] .hero img.banner.l.en,html[data-lang=es] .hero img.banner.l.es{display:block}
+.notice{background:#fff3c4;color:#3b2f00;border-bottom:1px solid #e6cf72;padding:12px 24px;text-align:center;font-size:15px;line-height:1.45}.notice a{font-weight:700}
 .lang{display:inline-flex;margin-left:22px;border:1px solid #ffffff44;border-radius:999px;overflow:hidden;vertical-align:middle}
 .lang button{background:none;border:0;color:#c9c9c9;font:600 12px/1 inherit;letter-spacing:.06em;padding:8px 12px;cursor:pointer}
 .lang button[aria-pressed=true]{background:#fff;color:#050505}
@@ -98,6 +99,11 @@ footer a:hover{color:var(--ink)}
 </style>
 </head>
 <body>
+
+<div class="notice" role="note">
+  <span class="l en"><b>Piklin 2.0.1: install it by hand, once.</b> We replaced the key that signs updates, so Piklin 2.0.0 cannot install it by itself. <a href="https://github.com/vezzulab/Piklin/releases/latest">Download 2.0.1</a>: your photos and backups stay as they are, and updates install themselves again from there.</span>
+  <span class="l es"><b>Piklin 2.0.1: instálalo a mano, una sola vez.</b> Reemplazamos la clave que firma las actualizaciones, así que Piklin 2.0.0 no puede instalarla solo. <a href="https://github.com/vezzulab/Piklin/releases/latest">Descarga la 2.0.1</a>: tus fotos y copias se quedan como están, y desde ahí las actualizaciones vuelven a instalarse solas.</span>
+</div>
 
 <header class="hero center">
   <div class="wrap">
