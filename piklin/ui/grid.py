@@ -725,6 +725,9 @@ class PhotoGrid(Gtk.Box):
             if ok and pt.y + box.get_height() >= -view_h and pt.y <= 2 * view_h:
                 near.append((pt.y, list_item))
         # top to bottom, so what is on screen is built first
+        if near:
+            # their thumbnails are served before any asked for earlier
+            self.thumbs.bump()
         for _y, list_item in sorted(near, key=lambda n: n[0]):
             self._build_row(list_item)
         return GLib.SOURCE_REMOVE
@@ -1085,8 +1088,13 @@ class PhotoGrid(Gtk.Box):
                     except Exception:
                         pass
                 return False
-            GLib.idle_add(apply, priority=GLib.PRIORITY_DEFAULT_IDLE)
-        self.thumbs.request(getattr(item, "thumb_path", None) or item.path, GRID_SIZE, done)
+            # Above the redraw, so a thumbnail is on the next frame and does
+            # not wait for scrolling to stop; painting one is cheap.
+            GLib.idle_add(apply, priority=GLib.PRIORITY_HIGH_IDLE)
+        # A tile that has scrolled away by the time its turn comes is skipped
+        # without decoding its photo.
+        self.thumbs.request(getattr(item, "thumb_path", None) or item.path, GRID_SIZE, done,
+                            wanted=lambda: bool(self._tile_widgets.get(item.id)))
 
     # -- drag and drop ---------------------------------------------------
     DRAG_PREFIX = "pika-photos:"

@@ -404,6 +404,8 @@ class Indexer:
         def work(row):
             if self.cancel.is_set():
                 return row["id"], 2
+            # What is on screen is served first: wait while it is being.
+            self.thumbs.yield_to_screen(self.cancel)
             out = self.thumbs.generate(row["path"], GRID_SIZE)
             return row["id"], (1 if out else 2)
 

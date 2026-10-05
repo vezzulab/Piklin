@@ -16,8 +16,11 @@ an edit gives the tile a new thumbnail.
 from __future__ import annotations
 
 import hashlib
+import heapq
+import itertools
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -50,9 +53,20 @@ class ThumbCache:
         # genuinely parallelise here; processes would cost more in
         # pickling the results than they save. They run at low priority:
         # whatever the person is doing comes first.
-        self._pool = ThreadPoolExecutor(max_workers=n,
-                                        thread_name_prefix="thumb",
-                                        initializer=system.lower_thread_priority)
+        #
+        # Requests are not served in the order they came. What is on screen
+        # now is what somebody is waiting for, so the newest batch goes first
+        # (bump() starts one), and a request whose tile has since scrolled
+        # away is dropped before any photo is decoded for it.
+        self._jobs: list = []                  # heap of (-batch, order, job)
+        self._order = itertools.count()
+        self._batch = 0
+        self._wake = threading.Condition()
+        self._closed = False
+        self._threads = [threading.Thread(target=self._serve, name=f"thumb-{i}",
+                                          daemon=True) for i in range(n)]
+        for t in self._threads:
+            t.start()
         # Photos read through gvfs - a phone or camera over gphoto2 or MTP -
         # arrive a whole file at a time over USB, seconds each. They get
         # workers of their own, so they can never hold up the library's
@@ -66,8 +80,44 @@ class ThumbCache:
         self._done = 0            # finished since memory was last given back
 
     def shutdown(self) -> None:
-        self._pool.shutdown(wait=False, cancel_futures=True)
+        with self._wake:
+            self._closed = True
+            self._jobs.clear()
+            self._wake.notify_all()
         self._slow_pool.shutdown(wait=False, cancel_futures=True)
+
+    def bump(self) -> None:
+        """A new screenful is being asked for: its requests go before every
+        one made earlier, in the order they are made."""
+        with self._wake:
+            self._batch += 1
+
+    def pending(self) -> int:
+        """Requests waiting for a worker."""
+        with self._wake:
+            return len(self._jobs)
+
+    def yield_to_screen(self, cancel=None, longest: float = 0.5) -> None:
+        """For background work (the library's thumbnail builder): wait while
+        what is on screen is still being served, so it never takes the cores
+        from a tile somebody is looking at. Waits at most ``longest``."""
+        end = time.monotonic() + longest
+        while self.pending() and time.monotonic() < end:
+            if cancel is not None and cancel.is_set():
+                return
+            time.sleep(0.02)
+
+    def _serve(self) -> None:
+        from . import system
+        system.lower_thread_priority()
+        while True:
+            with self._wake:
+                while not self._jobs and not self._closed:
+                    self._wake.wait()
+                if self._closed:
+                    return
+                _batch, _n, job = heapq.heappop(self._jobs)
+            job()
 
     @staticmethod
     def _slow(src: Path | str) -> bool:
@@ -234,17 +284,21 @@ class ThumbCache:
             ev.set()
 
     def request(self, src: Path | str, size: int, callback,
-                mtime: float | None = None) -> None:
+                mtime: float | None = None, wanted=None) -> None:
         """Generate off the UI thread, then invoke ``callback(path)``.
 
         The callback runs on a worker thread; a GTK caller must hop back
-        to the main loop itself.
+        to the main loop itself. ``wanted`` is asked just before the work
+        starts: when it says no (the tile scrolled away) nothing is decoded
+        and the callback is not called.
         """
         with self._lock:
             self._queued += 1
 
         def work():
             try:
+                if wanted is not None and not wanted():
+                    return
                 callback(self.generate(src, size, mtime))
             except Exception:
                 callback(None)
@@ -259,7 +313,12 @@ class ThumbCache:
                     # decoding photos leaves freed memory with Piklin: give it back
                     from . import system
                     system.release_memory()
-        (self._slow_pool if self._slow(src) else self._pool).submit(work)
+        if self._slow(src):
+            self._slow_pool.submit(work)
+            return
+        with self._wake:
+            heapq.heappush(self._jobs, (-self._batch, next(self._order), work))
+            self._wake.notify()
 
     def size_on_disk(self) -> int:
         total = 0
