@@ -2239,7 +2239,8 @@ window.piklin menubutton.pika-map-stats > button {
   box-shadow: 0 2px 10px alpha(#000000, 0.22);
 }
 /* Closer and further, round, at the bottom right of the map. */
-window.piklin button.pika-map-zoom {
+window.piklin button.pika-map-zoom,
+dialog button.pika-map-zoom {
   min-width: 38px;
   min-height: 38px;
   padding: 0;
@@ -2249,10 +2250,12 @@ window.piklin button.pika-map-zoom {
   box-shadow: 0 2px 10px alpha(#000000, 0.22);
   color: @pika_text;
 }
-window.piklin button.pika-map-zoom:hover {
+window.piklin button.pika-map-zoom:hover,
+dialog button.pika-map-zoom:hover {
   background: shade(@pika_wall, 0.94);
 }
-window.piklin button.pika-map-zoom:active {
+window.piklin button.pika-map-zoom:active,
+dialog button.pika-map-zoom:active {
   background: shade(@pika_wall, 0.88);
 }
 /* The place being chosen for an album, under the picker's map. */

@@ -28,6 +28,7 @@ from .. import geocode
 from ..i18n import _, current_language, ngettext
 from ..places import Places
 from .map_view import TILE_LICENSE, TILE_LICENSE_URI, TILE_URL, MapPin, PIN, PIN_TAIL
+from .mapzoom import SmoothZoom, zoom_buttons
 
 
 class PlaceDialog(Adw.Dialog):
@@ -56,8 +57,12 @@ class PlaceDialog(Adw.Dialog):
         source.set_license(TILE_LICENSE)
         source.set_license_uri(TILE_LICENSE_URI)
         self.map.set_map_source(source)
-        self.map.set_show_zoom_buttons(True)
+        # Piklin's own zoom (see mapzoom.py): the library's wheel slides the
+        # map away once it cannot zoom further, which is just when somebody
+        # has zoomed right in to put a pin on the exact spot.
+        self.map.set_show_zoom_buttons(False)
         self.map.set_vexpand(True)
+        self._zoom = SmoothZoom(self.map)
 
         viewport = self.map.get_viewport()
         viewport.set_max_zoom_level(18)
@@ -112,7 +117,10 @@ class PlaceDialog(Adw.Dialog):
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         box.append(self._build_search())
-        box.append(self.map)
+        overlay = Gtk.Overlay(vexpand=True)
+        overlay.set_child(self.map)
+        overlay.add_overlay(zoom_buttons(self._zoom))
+        box.append(overlay)
         if ask_name:
             box.append(self._build_group_name())
         box.append(bar)

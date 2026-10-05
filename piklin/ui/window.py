@@ -3103,6 +3103,27 @@ class MainWindow(Adw.ApplicationWindow):
         self._context_popover = popover
         popover.popup()
 
+        def fit():
+            # GTK gives a popover the room below the pointer, or flips it
+            # above, and squeezes it into a scrolling strip when neither is
+            # enough - which is what a click in the middle of the window got.
+            # Once it has been drawn its true height is known: slide it up
+            # just far enough to show whole.
+            if not popover.get_mapped():
+                return GLib.SOURCE_REMOVE
+            inner = popover.get_first_child()
+            if inner is None:
+                return GLib.SOURCE_REMOVE
+            want = inner.measure(Gtk.Orientation.VERTICAL, -1)[1] + 2
+            room = anchor.get_height()
+            if rect.y + want > room:
+                fitted = Gdk.Rectangle()
+                fitted.x, fitted.y = rect.x, max(0, room - want)
+                fitted.width, fitted.height = 1, 1
+                popover.set_pointing_to(fitted)
+            return GLib.SOURCE_REMOVE
+        GLib.timeout_add(30, fit)
+
     def _on_rename_folder(self, folder_id, current_name):
         dialog = Adw.AlertDialog(heading=_("Rename Folder"))
         entry = Gtk.Entry(text=current_name, activates_default=True)

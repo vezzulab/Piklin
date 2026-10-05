@@ -43,6 +43,7 @@ from gi.repository import (Adw, GLib, GObject, Gdk, Graphene,  # noqa: E402
 from ..i18n import _, ngettext
 from ..places import Places
 from ..thumbs import GRID_SIZE
+from .mapzoom import SmoothZoom, zoom_buttons
 from .tile import PhotoTile
 
 # The ordinary tiles the map starts with, and keeps if the clean vector map
@@ -225,18 +226,8 @@ class MapView(Gtk.Box):
         self.map.add_tick_callback(watch_size)
         self._limit_zoom_out()
 
-        # The wheel zooms on the point under the pointer, worked out here.
-        # The library's own wheel keeps recentring on the pointer once the
-        # zoom cannot go further, and the map slides away across the world.
-        self._pointer = (0.0, 0.0)
-        motion = Gtk.EventControllerMotion()
-        motion.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        motion.connect("motion", lambda _c, x, y: setattr(self, "_pointer", (x, y)))
-        self.map.add_controller(motion)
-        wheel = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.VERTICAL)
-        wheel.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        wheel.connect("scroll", self._on_wheel)
-        self.map.add_controller(wheel)
+        # Wheel and buttons: steady zoom that keeps the place under the pointer.
+        self._zoom = SmoothZoom(self.map)
         # The clean map - grey, with places named and none pictured in red -
         # replaces these ordinary tiles as soon as it is ready; a new map
         # source forgets the zoom limits, so they are put back.
@@ -287,17 +278,7 @@ class MapView(Gtk.Box):
     # ------------------------------------------------------------------
     def _build_zoom(self) -> Gtk.Widget:
         """Closer and further, at the corner furthest from the photos."""
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
-                      halign=Gtk.Align.END, valign=Gtk.Align.END,
-                      margin_end=16, margin_bottom=16)
-        for icon, tip, act in (
-                ("list-add-symbolic", _("Zoom in"), lambda: self._zoom_by(0.5)),
-                ("list-remove-symbolic", _("Zoom out"), lambda: self._zoom_by(-0.5))):
-            button = Gtk.Button(icon_name=icon, tooltip_text=tip)
-            button.add_css_class("pika-map-zoom")
-            button.connect("clicked", lambda _b, a=act: a())
-            box.append(button)
-        return box
+        return zoom_buttons(self._zoom)
 
     def _build_panel(self) -> Gtk.Widget:
         """The albums of the pin under the pointer, at the right edge."""
@@ -476,7 +457,7 @@ class MapView(Gtk.Box):
         span = max(max(lats) - min(lats), max(lons) - min(lons))
         # 360° of longitude is zoom 0 and each zoom level halves it - for
         # 256 px tiles; a map of bigger tiles is that much further in.
-        shift = round(math.log2(self._tile() / 256.0))
+        shift = round(math.log2(self._zoom.tile() / 256.0))
         for level, degrees in ((2, 90), (4, 22), (6, 5), (8, 1.4), (10, 0.35), (12, 0.08)):
             if span > degrees:
                 vp.set_zoom_level(level + shift)
@@ -494,71 +475,6 @@ class MapView(Gtk.Box):
             self._recluster()
             return False
         self._recluster_id = GLib.timeout_add(150, run)
-
-    WHEEL_STEP = 0.15           # zoom levels for one click of a wheel
-    # However hard a trackpad coasts, the map is never taken further than this
-    # from where it is, so there is always something left to recognise.
-    MAX_AHEAD = 1.5
-
-    def _zoom_by(self, delta: float, point=None, duration: int = 350) -> None:
-        """Zoom by ``delta`` levels, eased, and never past the limits. Asking
-        again while it moves carries on from where it is going. With a
-        ``point`` (x, y on the map) the place under it stays under it;
-        without, the middle of the map is what is zoomed on."""
-        vp = self.map.get_viewport()
-        start = vp.get_zoom_level()
-        goal = getattr(self, "_zoom_goal", None)
-        if getattr(self, "_zoom_anim", None) is not None and goal is not None:
-            start_goal = goal
-        else:
-            start_goal = start
-        goal = start_goal + delta
-        goal = max(start - self.MAX_AHEAD, min(start + self.MAX_AHEAD, goal))
-        goal = max(vp.get_min_zoom_level(), min(vp.get_max_zoom_level(), goal))
-        self._zoom_goal = goal
-        if abs(goal - start) < 1e-6:
-            return
-        if getattr(self, "_zoom_anim", None) is not None:
-            self._zoom_anim.pause()
-        anchor = None
-        if point is not None:
-            anchor = (point, vp.widget_coords_to_location(self.map, *point))
-
-        def step(value):
-            vp.set_zoom_level(value)
-            if anchor is None:
-                return
-            (x, y), (lat0, lon0) = anchor
-            # Latitude is not linear on the screen, so a first correction
-            # leaves a little over; a couple more settle it.
-            for _ in range(3):
-                lat1, lon1 = vp.widget_coords_to_location(self.map, x, y)
-                vp.set_location(max(-85.0, min(85.0, vp.get_latitude() + lat0 - lat1)),
-                                vp.get_longitude() + lon0 - lon1)
-        target = Adw.CallbackAnimationTarget.new(step)
-        anim = Adw.TimedAnimation.new(self.map, start, goal, duration, target)
-        anim.set_easing(Adw.Easing.EASE_OUT_CUBIC)
-
-        def done(*_a):
-            if self._zoom_anim is anim:
-                self._zoom_anim = None
-        anim.connect("done", done)
-        self._zoom_anim = anim
-        anim.play()
-
-    def _on_wheel(self, _ctl, _dx, dy) -> bool:
-        """Zoom by the wheel, keeping the place under the pointer where it is."""
-        self._zoom_by(-dy * self.WHEEL_STEP, self._pointer, 180)
-        return True
-
-    def _tile(self) -> float:
-        """Pixels across one tile of the map being drawn: 256 for ordinary
-        tiles, 512 for the clean vector map. Every zoom level is that many
-        pixels per world wide, twice over each step in."""
-        try:
-            return float(self.map.get_viewport().get_reference_map_source().get_tile_size())
-        except Exception:
-            return 256.0
 
     def _limit_zoom_out(self) -> None:
         """Stop zooming out once the whole world is on screen.
@@ -583,7 +499,7 @@ class MapView(Gtk.Box):
         # world must stay at least as wide as the view, which also settles
         # the repetition. The cost is that the poles fall outside; nobody
         # keeps photographs there.
-        floor = max(0, math.ceil(math.log2(width / self._tile())))
+        floor = max(0, math.ceil(math.log2(width / self._zoom.tile())))
         vp = self.map.get_viewport()
         vp.set_min_zoom_level(floor)
         if vp.get_zoom_level() < floor:
@@ -632,7 +548,7 @@ class MapView(Gtk.Box):
         # The map is square in Mercator: at zoom z the world is
         # 256 * 2^z pixels across, so this is degrees of longitude per
         # pixel, which is what the gathering radius is expressed in.
-        radius = CLUSTER_PX * 360.0 / (self._tile() * (2.0 ** zoom))
+        radius = CLUSTER_PX * 360.0 / (self._zoom.tile() * (2.0 ** zoom))
         order = sorted(range(len(spots)),
                        key=lambda i: (-len(spots[i][2]), spots[i][0], spots[i][1]))
         # Only spots in the neighbouring squares can be within the
