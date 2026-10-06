@@ -3106,21 +3106,30 @@ class MainWindow(Adw.ApplicationWindow):
         def fit():
             # GTK gives a popover the room below the pointer, or flips it
             # above, and squeezes it into a scrolling strip when neither is
-            # enough - which is what a click in the middle of the window got.
-            # Once it has been drawn its true height is known: slide it up
-            # just far enough to show whole.
+            # enough. Once it has been drawn its true height is known, so it
+            # is put where it fits whole: below the pointer if there is room,
+            # else above it (the way a menu opens from low on the screen),
+            # else as high as it needs. It is a little taller than its
+            # contents (the popover's own margin and shadow), and a window
+            # that reaches the edge of the screen has no room to spare:
+            # a menu that overhangs by a few pixels is shrunk by the desktop.
             if not popover.get_mapped():
                 return GLib.SOURCE_REMOVE
             inner = popover.get_first_child()
             if inner is None:
                 return GLib.SOURCE_REMOVE
-            want = inner.measure(Gtk.Orientation.VERTICAL, -1)[1] + 2
+            need = inner.measure(Gtk.Orientation.VERTICAL, -1)[1] + 32
             room = anchor.get_height()
-            if rect.y + want > room:
-                fitted = Gdk.Rectangle()
-                fitted.x, fitted.y = rect.x, max(0, room - want)
-                fitted.width, fitted.height = 1, 1
-                popover.set_pointing_to(fitted)
+            below, above = room - rect.y, rect.y
+            if below >= need:
+                return GLib.SOURCE_REMOVE
+            if above >= need:
+                popover.set_position(Gtk.PositionType.TOP)
+                return GLib.SOURCE_REMOVE
+            fitted = Gdk.Rectangle()
+            fitted.x, fitted.y = rect.x, max(0, room - need)
+            fitted.width, fitted.height = 1, 1
+            popover.set_pointing_to(fitted)
             return GLib.SOURCE_REMOVE
         GLib.timeout_add(30, fit)
 
