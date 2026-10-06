@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.0.2 (in progress)
+
+### Thumbnails
+- The photos on screen get their thumbnails first. After scrolling past a few hundred photos, the ones you stopped on used to wait behind all the ones you passed
+
+### The map and the menus
+- Placing photos on the map: the picker's wheel no longer slides the map away when you zoom right in, and it has the same round zoom buttons as the main map
+- A right-click menu fits in the window wherever you click, without a scrolling strip
+
+### Backups to a NAS
+- A restore or sync cut short no longer makes the next backup send everything again: the record of what came back is kept as the files arrive, and a file the NAS already has is known as sent
+- When nothing is new, no backup is made at all
+- Two computers sharing a NAS no longer back up to it at once: the second says who has the turn and waits
+
+### Linux
+- The applications-menu launcher of the AppImage (and the .deb's) now names the window class Piklin really announces, so the desktop - GNOME, KDE, X11 - finds its icon
+
 ## 2.0.1
 
 ### The map
