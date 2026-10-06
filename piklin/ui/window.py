@@ -3988,6 +3988,7 @@ class MainWindow(Adw.ApplicationWindow):
         GLib.timeout_add_seconds(60 * 60, lambda: (self._check_updates(quiet=True), True)[1])
         self.grid.load("library")
         self._arrange_from_files()
+        self._correct_dates_from_names()
         GLib.timeout_add(2500, self._maybe_offer_menu_entry)
         from . import onboarding
         pending = onboarding.take_pending(self.library.root)
@@ -4004,6 +4005,18 @@ class MainWindow(Adw.ApplicationWindow):
             self._start_scan(None)
             GLib.timeout_add(800, self._maybe_offer_backup)
         return False
+
+    def _correct_dates_from_names(self):
+        """Photos dated only by when their file arrived get the date in their
+        name, if it has one - in the background, and the grid is redrawn if any
+        moved."""
+        def work():
+            try:
+                if self.catalog.refresh_name_dates():
+                    GLib.idle_add(self._refresh)
+            except Exception:
+                pass
+        threading.Thread(target=work, daemon=True).start()
 
     def _arrange_from_files(self):
         """Folders and albums that are in the library's files but not yet in

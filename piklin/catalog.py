@@ -1318,6 +1318,27 @@ class Catalog:
                 "DELETE FROM album_items WHERE album_id=? AND photo_id=?",
                 [(album_id, pid) for pid in photo_ids])
 
+    def refresh_name_dates(self) -> int:
+        """Give the photos dated only by their file's own time the date their
+        name carries, when it carries one (0_BURST20211017223453637_COVER is
+        the 17th of October 2021). A file's time is when it reached this
+        computer, so these photos sat under "Yesterday" among the ones from the
+        night they were taken. A date set by hand, or read from the photo
+        itself, is never touched. Returns how many were corrected."""
+        from pathlib import Path
+        from .imageio import _date_from_name
+        fixes = []
+        for row in self.q("SELECT id, path FROM photos WHERE date_source='mtime'"):
+            when = _date_from_name(Path(row["path"]).stem)
+            if when is not None:
+                fixes.append((when, row["id"]))
+        if fixes:
+            with self.write() as cur:
+                cur.executemany(
+                    "UPDATE photos SET taken_at=?, date_source='filename' "
+                    "WHERE id=? AND date_source='mtime'", fixes)
+        return len(fixes)
+
     def set_album_cover(self, album_id: int, photo_id: int | None) -> None:
         """The photo shown for the album; None goes back to its first photo."""
         with self.write() as cur:

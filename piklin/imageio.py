@@ -13,6 +13,7 @@ between a thumbnail pass that keeps up with an SSD and one that does not.
 from __future__ import annotations
 
 import hashlib
+import re
 import os
 import struct
 from datetime import datetime
@@ -154,27 +155,27 @@ def _gps(exif) -> tuple[float | None, float | None]:
 
 
 # Filenames cameras and phones actually produce, when EXIF is absent.
-_NAME_DATE_PATTERNS = (
-    ("%Y%m%d_%H%M%S", 15), ("%Y-%m-%d_%H-%M-%S", 19), ("%Y%m%d%H%M%S", 14),
-    ("%Y-%m-%d %H.%M.%S", 19), ("%Y-%m-%d", 10), ("%Y%m%d", 8),
-)
+# A date in a file name, wherever it sits in it: IMG_20211017_223453,
+# PXL_20211017_223453123, 0_BURST20211017223453637_COVER, Screenshot_2021-10-17-22-34-53,
+# 2021-10-17 22.34.53, VID-20211017-WA0003. The time is optional; digits after it
+# (milliseconds, a counter) are ignored. It must not be the middle of a longer
+# run of digits, which is a number, not a date.
+_NAME_DATE = re.compile(
+    r"(?<!\d)((?:19|20)\d{2})[-_. ]?(0[1-9]|1[0-2])[-_. ]?(0[1-9]|[12]\d|3[01])"
+    r"(?:(?:\s+at\s+|[-_. T])?([01]\d|2[0-3])[-_.:]?([0-5]\d)[-_.:]?([0-5]\d))?")
 
 
 def _date_from_name(name: str) -> float | None:
-    digits = "".join(c if c.isalnum() else ("-" if c in "-_. " else "")
-                     for c in name)
-    for prefix in (name, digits):
-        for token in (prefix, prefix.lstrip("IMGVIDPXLDSC_-")):
-            for fmt, ln in _NAME_DATE_PATTERNS:
-                cand = token[:ln]
-                if len(cand) < ln:
-                    continue
-                try:
-                    dt = datetime.strptime(cand, fmt)
-                except ValueError:
-                    continue
-                if 1990 <= dt.year <= datetime.now().year + 1:
-                    return dt.timestamp()
+    now = datetime.now()
+    for m in _NAME_DATE.finditer(name):
+        year, month, day, hh, mm, ss = m.groups()
+        try:
+            dt = datetime(int(year), int(month), int(day),
+                          int(hh or 0), int(mm or 0), int(ss or 0))
+        except ValueError:                      # a 31st of February
+            continue
+        if 1990 <= dt.year <= now.year + 1:
+            return dt.timestamp()
     return None
 
 
