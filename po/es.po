@@ -5894,3 +5894,7 @@ msgstr "{name} está haciendo una copia en el mismo sitio; esperando"
 #, python-brace-format
 msgid "{name} is backing up to the same place. Try again in a few minutes."
 msgstr "{name} está haciendo una copia en el mismo sitio. Inténtalo de nuevo en unos minutos."
+
+#: piklin/ui/window.py:930
+msgid "Albums & Folders"
+msgstr "Álbumes y carpetas"

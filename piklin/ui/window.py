@@ -927,7 +927,7 @@ class MainWindow(Adw.ApplicationWindow):
         add_menu.append(_("New Album…"), "win.new-album")
         add_menu.append(_("New Smart Album…"), "win.new-smart-album")
         add_menu.append(_("New Folder…"), "win.new-folder")
-        albums_heading = header(_("Albums"), add_menu, tools=True)
+        albums_heading = header(_("Albums & Folders"), add_menu, collapsible=False, tools=True)
         self._make_drop_target(albums_heading, None, None, top=True)
         nodes = self._album_nodes()
         if self._album_query and not nodes and not section_state["collapsed"]:

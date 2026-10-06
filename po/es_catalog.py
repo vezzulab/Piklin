@@ -13,6 +13,9 @@ ES = {
     "preferences tab\x04Backup": "Copias",
     "preferences tab\x04Library": "Carpetas",
 
+    # -- sidebar heading for folders and albums (2.0.2) --------------------------
+    "Albums & Folders": "Álbumes y carpetas",
+
     # -- one backup at a time to a destination (2.0.2) ---------------------------
     "{name} is backing up to the same place, waiting": "{name} está haciendo una copia en el mismo sitio; esperando",
     "{name} is backing up to the same place. Try again in a few minutes.": "{name} está haciendo una copia en el mismo sitio. Inténtalo de nuevo en unos minutos.",

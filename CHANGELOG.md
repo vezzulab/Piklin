@@ -14,6 +14,9 @@
 - When nothing is new, no backup is made at all
 - Two computers sharing a NAS no longer back up to it at once: the second says who has the turn and waits
 
+### The sidebar
+- The heading over your albums and folders is now "Albums & Folders", since it holds both, and it no longer folds away: your albums are always one glance from the rest of the library. The folders inside it still open and close
+
 ### Linux
 - The applications-menu launcher of the AppImage (and the .deb's) now names the window class Piklin really announces, so the desktop - GNOME, KDE, X11 - finds its icon
 
