@@ -66,7 +66,7 @@ def write_photo_state(library, catalog) -> None:
     Keyed by the photo's path rather than its database id: ids are an
     artefact of the database being rebuilt, paths survive it.
     """
-    originals = str(library.originals) + "/"
+    originals = str(getattr(library, "originals", None) or Path(library.root) / "Originals") + "/"
     rows = catalog.q(
         "SELECT path, favorite, rating, hidden, trashed_at, title, caption, "
         "keywords, taken_at, date_source, gps_lat, gps_lon, gps_manual, place_name FROM photos "
