@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS photos (
     height       INTEGER NOT NULL DEFAULT 0,
     orientation  INTEGER NOT NULL DEFAULT 1,
     taken_at     REAL,              -- EXIF DateTimeOriginal, else mtime
-    date_source  TEXT,              -- 'exif' | 'filename' | 'mtime'
+    date_source  TEXT,              -- 'exif' | 'filename' | 'folder' | 'mtime' | 'recorded' | 'manual'
     camera_make  TEXT,
     camera_model TEXT,
     lens         TEXT,
@@ -614,7 +614,13 @@ class Catalog:
             # A date or location adjusted by hand outranks what the file
             # says; otherwise the next rescan would silently undo it.
             if c in ("taken_at", "date_source"):
-                return (f"{c}=CASE WHEN photos.date_source='manual' "
+                # A date carried by the backup ('recorded') outranks the
+                # file's own time and its folder, which a restore sets to the
+                # moment it wrote the file, but not a date found in the photo
+                # or its name.
+                return (f"{c}=CASE WHEN photos.date_source='manual' OR "
+                        f"(photos.date_source='recorded' AND "
+                        f"excluded.date_source IN ('folder','mtime')) "
                         f"THEN photos.{c} ELSE excluded.{c} END")
             if c in ("gps_lat", "gps_lon"):
                 return (f"{c}=CASE WHEN photos.gps_manual=1 "
@@ -1319,25 +1325,32 @@ class Catalog:
                 [(album_id, pid) for pid in photo_ids])
 
     def refresh_name_dates(self) -> int:
-        """Give the photos dated only by their file's own time the date their
-        name carries, when it carries one (0_BURST20211017223453637_COVER is
-        the 17th of October 2021). A file's time is when it reached this
-        computer, so these photos sat under "Yesterday" among the ones from the
-        night they were taken. A date set by hand, or read from the photo
-        itself, is never touched. Returns how many were corrected."""
+        """Give the photos dated only by their file's own time a better date:
+        the one their name carries (0_BURST20211017223453637_COVER is the 17th of
+        October 2021), or else the day of the folder they are filed in
+        (Originals/2021/2021-10-17/). A file's time is when it reached this
+        computer - a restore writes every file at that moment - so these photos
+        sat under "Yesterday" among the ones from the night they were taken. A
+        date set by hand, or read from the photo itself, is never touched.
+        Returns how many were corrected."""
         from pathlib import Path
-        from .imageio import _date_from_name
-        fixes = []
-        for row in self.q("SELECT id, path FROM photos WHERE date_source='mtime'"):
-            when = _date_from_name(Path(row["path"]).stem)
+        from .imageio import _date_from_name, _file_or_folder_date
+        by_name, by_folder = [], []
+        for row in self.q("SELECT id, path, taken_at FROM photos WHERE date_source='mtime'"):
+            path = Path(row["path"])
+            when = _date_from_name(path.stem)
             if when is not None:
-                fixes.append((when, row["id"]))
-        if fixes:
-            with self.write() as cur:
-                cur.executemany(
-                    "UPDATE photos SET taken_at=?, date_source='filename' "
-                    "WHERE id=? AND date_source='mtime'", fixes)
-        return len(fixes)
+                by_name.append((when, row["id"]))
+                continue
+            when, source = _file_or_folder_date(path, row["taken_at"])
+            if source == "folder":
+                by_folder.append((when, row["id"]))
+        with self.write() as cur:
+            cur.executemany("UPDATE photos SET taken_at=?, date_source='filename' "
+                            "WHERE id=? AND date_source='mtime'", by_name)
+            cur.executemany("UPDATE photos SET taken_at=?, date_source='folder' "
+                            "WHERE id=? AND date_source='mtime'", by_folder)
+        return len(by_name) + len(by_folder)
 
     def set_album_cover(self, album_id: int, photo_id: int | None) -> None:
         """The photo shown for the album; None goes back to its first photo."""

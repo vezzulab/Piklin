@@ -14,6 +14,11 @@
 - When nothing is new, no backup is made at all
 - Two computers sharing a NAS no longer back up to it at once: the second says who has the turn and waits
 
+### Dates
+- A photo with no date inside it was dated by its file, which after a restore or a copy is the moment it was written: photos sat under "Yesterday" among the ones from the night they were taken. Piklin now reads the date from the file name wherever it is in it (a Pixel burst cover, a screenshot, a WhatsApp image), and for a photo kept in a dated folder (Originals/2021/2021-10-17/) it uses that day. The file's own time still stands when it falls on the folder's day, and then it has the hour too
+- Photos already in your library with a wrong date are corrected when Piklin opens. A date read from the photo or set by hand is never changed
+- The time of a photo that carries none is now kept in the backup and brought back by a restore, so a restore cannot replace it by the day it ran
+
 ### The sidebar
 - The heading over your albums and folders is now "Albums & Folders", since it holds both, and it no longer folds away: your albums are always one glance from the rest of the library. The folders inside it still open and close
 

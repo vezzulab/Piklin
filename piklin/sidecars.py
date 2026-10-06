@@ -19,9 +19,11 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import datetime
 from pathlib import Path
 
 from . import sync
+from .imageio import _date_from_folder
 
 FORMAT = "pikalicious-state"
 VERSION = 1
@@ -64,13 +66,19 @@ def write_photo_state(library, catalog) -> None:
     Keyed by the photo's path rather than its database id: ids are an
     artefact of the database being rebuilt, paths survive it.
     """
+    originals = str(library.originals) + "/"
     rows = catalog.q(
         "SELECT path, favorite, rating, hidden, trashed_at, title, caption, "
         "keywords, taken_at, date_source, gps_lat, gps_lon, gps_manual, place_name FROM photos "
         "WHERE favorite=1 OR rating>0 OR hidden=1 OR trashed_at IS NOT NULL "
         "OR COALESCE(title,'') != '' OR COALESCE(caption,'') != '' "
         "OR COALESCE(keywords,'') != '' OR date_source='manual' OR gps_manual=1 "
-        "OR COALESCE(place_name,'') != ''")
+        "OR COALESCE(place_name,'') != '' "
+        # A photo with no date inside it or in its name is dated by its file,
+        # and that is lost with the computer it was on: a restore gives every
+        # file the moment it was written. The date is kept in the backup.
+        "OR (date_source IN ('mtime','recorded') AND substr(path, 1, ?) = ?)",
+        (len(originals), originals))
     photos = {}
     for r in rows:
         entry = {}
@@ -83,6 +91,20 @@ def write_photo_state(library, catalog) -> None:
         # A date or location set by hand exists only here and in the catalog.
         if r["date_source"] == "manual" and r["taken_at"] is not None:
             entry["taken_at"] = r["taken_at"]
+        elif r["date_source"] == "recorded" and r["taken_at"] is not None:
+            entry["taken_at"] = r["taken_at"]
+            entry["date_kind"] = "recorded"
+        elif r["date_source"] == "mtime" and r["taken_at"] is not None:
+            # The file's time is worth keeping only when it falls on the day of
+            # the folder the photo is filed in: then it is the photo's own time,
+            # with the hour, that a restore would otherwise replace by the
+            # moment it wrote the file. When it does not, it is when the file
+            # was copied, and the folder already says the day.
+            folder = _date_from_folder(r["path"])
+            if (folder is not None and datetime.fromtimestamp(folder).date()
+                    == datetime.fromtimestamp(r["taken_at"]).date()):
+                entry["taken_at"] = r["taken_at"]
+                entry["date_kind"] = "recorded"
         if r["gps_manual"]:
             entry["location"] = ([r["gps_lat"], r["gps_lon"]]
                                  if r["gps_lat"] is not None else None)
@@ -128,7 +150,13 @@ def restore_photo_state(library, catalog) -> int:
                  entry.get("title"), entry.get("caption"), entry.get("keywords"),
                  path))
             restored += cur.rowcount
-            if entry.get("taken_at") is not None:
+            if entry.get("taken_at") is not None and entry.get("date_kind") == "recorded":
+                # carried by the backup: better than the file's time or its
+                # folder, never better than a date found in the photo or its name
+                cur.execute("UPDATE photos SET taken_at=?, date_source='recorded' "
+                            "WHERE path=? AND date_source IN ('mtime','folder')",
+                            (entry["taken_at"], path))
+            elif entry.get("taken_at") is not None:
                 cur.execute("UPDATE photos SET taken_at=?, date_source='manual' "
                             "WHERE path=?", (entry["taken_at"], path))
             if "location" in entry:

@@ -445,8 +445,8 @@ def probe_video(path: Path | str, root_id: int | None = None) -> dict | None:
         rec["taken_at"], rec["date_source"] = ts, "metadata"
     else:
         ts = iio._date_from_name(p.stem)
-        rec["taken_at"], rec["date_source"] = ((ts, "filename") if ts
-                                               else (st.st_mtime, "mtime"))
+        rec["taken_at"], rec["date_source"] = (
+            (ts, "filename") if ts else iio._file_or_folder_date(p, st.st_mtime))
     if meta.get("location"):
         rec["gps_lat"], rec["gps_lon"] = meta["location"]
     for key, field in (("make", "camera_make"), ("model", "camera_model")):

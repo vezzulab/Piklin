@@ -179,6 +179,45 @@ def _date_from_name(name: str) -> float | None:
     return None
 
 
+# The library files what it imports in Originals/YYYY/YYYY-MM-DD/, by the day
+# the photo was taken; a folder somebody named by a date is the same hint.
+_FOLDER_DATE = re.compile(r"^((?:19|20)\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])(?!\d)")
+
+
+def _date_from_folder(path: Path | str) -> float | None:
+    """The day a photo's folder is named for, at noon - there is no time of day
+    in a folder - or None. It is the last resort, for a photo with no date
+    inside it or in its name: a restore from a backup gives every file the
+    moment it was written, so the folder is what remembers the day."""
+    now = datetime.now()
+    for folder in Path(path).parents[:3]:
+        m = _FOLDER_DATE.match(folder.name)
+        if not m:
+            continue
+        try:
+            dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), 12)
+        except ValueError:
+            return None
+        return dt.timestamp() if 1990 <= dt.year <= now.year + 1 else None
+    return None
+
+
+def _file_or_folder_date(path: Path | str, mtime: float) -> tuple[float, str]:
+    """The date of a photo that has none inside it or in its name: (time, source).
+
+    A file's own time is only the photo's when something kept it. A file copied
+    into the library, or written by a restore, has the moment it was copied, and
+    the dated folder it was filed in is what remembers the day. So the file's
+    time stands when it falls on the folder's day (and then it has the hour
+    too), and the folder's day stands when it does not."""
+    folder = _date_from_folder(path)
+    if folder is None:
+        return mtime, "mtime"
+    if datetime.fromtimestamp(mtime).date() == datetime.fromtimestamp(folder).date():
+        return mtime, "mtime"
+    return folder, "folder"
+
+
 def fingerprint(path: Path | str, size: int | None = None) -> str:
     """Cheap content fingerprint: size plus the head and tail of the file.
 
@@ -307,7 +346,7 @@ def _finish_probe(rec: dict[str, Any], tags: dict[str, Any]) -> dict | None:
         if ts:
             rec["taken_at"], rec["date_source"] = ts, "filename"
         else:
-            rec["taken_at"], rec["date_source"] = st.st_mtime, "mtime"
+            rec["taken_at"], rec["date_source"] = _file_or_folder_date(p, st.st_mtime)
 
     try:
         rec["fingerprint"] = fingerprint(p, st.st_size)
