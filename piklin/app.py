@@ -94,6 +94,20 @@ def _load_bundled_fonts():
     return False
 
 
+def _announce_class():
+    """On X11 a window's class is what the desktop matches to a launcher and
+    its icon. Wayland announces the application id, so make this the same:
+    the launcher then names one thing (StartupWMClass) that fits both."""
+    try:
+        gi.require_version("GdkX11", "4.0")
+        from gi.repository import GdkX11
+        display = Gdk.Display.get_default()
+        if isinstance(display, GdkX11.X11Display):
+            display.set_program_class(APP_ID)
+    except (ValueError, ImportError, AttributeError):
+        pass
+
+
 def _load_css():
     _add_css(Path(__file__).parent / "ui" / "style.css")
     if sys.platform == "darwin":
@@ -172,6 +186,7 @@ class PikaliciousApp(Adw.Application):
         # Piklin's logo on every window, however Piklin was started.
         Gtk.Window.set_default_icon_name("piklin")
         _load_bundled_fonts()
+        _announce_class()
         _load_css()
         _forgiving_clicks()
         quit_action = Gio.SimpleAction.new("quit", None)

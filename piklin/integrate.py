@@ -37,7 +37,21 @@ def _share() -> Path:
 
 
 def entry_path() -> Path:
+    # Named after the application id: a desktop ties a window to its launcher
+    # first by that name, so this one is found whatever else it matches by.
+    return _share() / "applications" / f"{APP_ID}.desktop"
+
+
+def _old_entry_path() -> Path:
+    """The name the first AppImage 2.0.1 gave it."""
     return _share() / "applications" / "piklin.desktop"
+
+
+def _ours(path: Path) -> bool:
+    try:
+        return MARKER in path.read_text(encoding="utf-8")
+    except OSError:
+        return False
 
 
 def icon_path() -> Path:
@@ -87,16 +101,13 @@ def entry_text(image: Path, icon: Path) -> str:
 
 
 def installed() -> bool:
-    try:
-        return MARKER in entry_path().read_text(encoding="utf-8")
-    except OSError:
-        return False
+    return _ours(entry_path()) or _ours(_old_entry_path())
 
 
 def current() -> bool:
     """Installed, and starting the AppImage that is running now."""
     image = appimage()
-    if image is None or not installed():
+    if image is None or not _ours(entry_path()) or _ours(_old_entry_path()):
         return False
     try:
         return entry_path().read_text(encoding="utf-8") == entry_text(image, icon_path())
@@ -122,6 +133,11 @@ def install() -> bool:
         _write(entry_path(), entry_text(image, icon_path()).encode("utf-8"))
     except OSError:
         return False
+    if _ours(_old_entry_path()):
+        try:
+            _old_entry_path().unlink()          # one launcher, not two
+        except OSError:
+            pass
     # Menus notice a changed folder by themselves; this is only to hurry them.
     try:
         subprocess.run(["update-desktop-database", str(entry_path().parent)],
@@ -133,12 +149,17 @@ def install() -> bool:
 
 def remove() -> None:
     """Take the launcher and the icon away, if they are Piklin's own."""
-    if installed():
-        for path in (entry_path(), icon_path()):
+    for path in (entry_path(), _old_entry_path()):
+        if _ours(path):
             try:
                 path.unlink()
             except OSError:
                 pass
+    if icon_path().is_file() and not installed():
+        try:
+            icon_path().unlink()
+        except OSError:
+            pass
 
 
 def refresh() -> None:
