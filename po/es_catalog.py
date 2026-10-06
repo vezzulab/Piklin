@@ -1581,6 +1581,25 @@ ES = {
     "Choose Another Folder…": "Elegir otra carpeta…",
     "Choose where to export": "Elige dónde exportar",
 
+    # -- Edit Info
+    'Edit Info': 'Editar información',
+    'Edit Info…': 'Editar información…',
+    'Edit Info of {count} Photos…': 'Editar información de {count} fotos…',
+    "Updated {count} photo": ('Se actualizó {count} foto', 'Se actualizaron {count} fotos'),
+    'Leave a field empty to keep what each photo has.': 'Deja un campo vacío para conservar lo que tiene cada foto.',
+    "The photo file isn't changed. What you type is saved in Piklin and in your backup.": 'El archivo de la foto no cambia. Lo que escribas se guarda en Piklin y en tu copia de seguridad.',
+    'Title': 'Título',
+    'Keywords, separated by commas': 'Palabras clave, separadas por comas',
+    'Remove from every photo': 'Quitar de todas las fotos',
+    'Keywords': 'Palabras clave',
+    "Add to each photo's keywords": 'Añadir a las palabras clave de cada foto',
+    "Replace each photo's keywords": 'Reemplazar las palabras clave de cada foto',
+    'Date and time': 'Fecha y hora',
+    "Keep each photo's own": 'Conservar la de cada foto',
+    'Set every photo to this': 'Poner esta a todas las fotos',
+    'Move the group, keeping the spacing': 'Mover el grupo, conservando la separación',
+    'Where these photos were taken': 'Dónde se tomaron estas fotos',
+    'Choose on Map…': 'Elegir en el mapa…',
 }
 
 

@@ -3564,6 +3564,23 @@ class MainWindow(Adw.ApplicationWindow):
         ask_rename_photo(self, self.library, self.catalog, photo_id,
                          lambda _new: self._refresh())
 
+    def _edit_info(self, ids):
+        """Title, caption, keywords and date for one photo or a chosen group."""
+        from .info_dialog import InfoDialog
+        if not ids:
+            return
+        dialog = InfoDialog(self.catalog, ids, can_place=self.map_view is not None)
+
+        def saved(_dialog):
+            self._show_toast(ngettext("Updated {count} photo", "Updated {count} photos",
+                                      len(ids)).format(count=f"{len(ids):,}"))
+            self._refresh()
+            self._mirror_state()
+
+        dialog.connect("saved", saved)
+        dialog.connect("place", lambda _d: self._place_photos(ids))
+        dialog.present(self)
+
     def _on_photo_context_menu(self, _grid, item, widget, x, y):
         from .models import PhotoItem
         if not isinstance(item, PhotoItem):
@@ -3595,6 +3612,9 @@ class MainWindow(Adw.ApplicationWindow):
               lambda: self._on_photo_activated(self.grid, item)),
              ("rename", _("Rename…"), "F2",
               lambda: self._rename_photo_id(item.id))] if single else [],
+            [("info", _("Edit Info…") if single
+              else _("Edit Info of {count} Photos…").format(count=n_sel), None,
+              lambda: self._edit_info(ids))],
             [("favorite", _("Remove from Favourites") if all_fav else _("Favourite"),
               "period", lambda: self._on_bulk_favorite(None)),
              ("hide", hide_label,

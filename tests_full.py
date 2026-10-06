@@ -2963,6 +2963,44 @@ check("words that already read are left in their own colour",
       _cr.readable_on("#3a332b", "#e9e4dc") == "#3a332b"
       and _cr.readable_on("#ffffff", "#111111") == "#ffffff")
 
+# ===================================================================
+section("Edit Info: one photo or a group")
+from piklin.ui.info_dialog import apply_edits as _ae, merge_keywords as _mk, parse_when as _pw
+_libE = _L(os.path.join(TMP, "Info Library.piklin")).ensure()
+_dayE = _libE.originals / "2020" / "2020-01-01"; _dayE.mkdir(parents=True)
+for _n in ("a.jpg", "b.jpg"):
+    shutil.copy2(SRC[0], _dayE / _n)
+_cE = _C(_libE.db)
+_Ix(_cE, None, library_root=_libE.root).scan([_libE.originals])
+_idsE = [r["id"] for r in _cE.q("SELECT id FROM photos ORDER BY filename")]
+check("Edit Info: two photos to work on", len(_idsE) == 2, _idsE)
+_cE.set_text_fields([_idsE[0]], keywords="beach, sun")
+_cE.set_text_fields([_idsE[1]], title="Keep me")
+_ae(_cE, _idsE, caption="Holiday", keywords="Sun, sea", keywords_mode="add")
+_ra, _rb = (_cE.photo(i) for i in _idsE)
+check("a caption goes to every photo, and each keeps its own title",
+      _ra["caption"] == _rb["caption"] == "Holiday" and _rb["title"] == "Keep me")
+check("keywords are added to each photo's own, none twice",
+      _ra["keywords"] == "beach, sun, sea" and _rb["keywords"] == "Sun, sea", (_ra["keywords"], _rb["keywords"]))
+_ae(_cE, _idsE, keywords="x", keywords_mode="replace")
+check("keywords can replace the photo's own", _cE.photo(_idsE[0])["keywords"] == "x")
+_ae(_cE, _idsE, clear=("caption", "keywords"))
+check("a field can be removed from every photo",
+      not _cE.photo(_idsE[0])["caption"] and not _cE.photo(_idsE[1])["keywords"]
+      and _cE.photo(_idsE[1])["title"] == "Keep me")
+_t0 = _pw("2019-05-04 10:00")
+_ae(_cE, _idsE, when=_t0, date_mode="set")
+check("one date for every photo", {_cE.photo(i)["taken_at"] for i in _idsE} == {_t0})
+_gap = _cE.photo(_idsE[1])["taken_at"]
+_cE.set_taken_at([_idsE[1]], _t0 + 600)
+_ae(_cE, _idsE, when=_t0 + 86400, date_mode="move")
+check("moving the group keeps the spacing",
+      _cE.photo(_idsE[1])["taken_at"] - _cE.photo(_idsE[0])["taken_at"] == 600)
+check("dates are read with or without a time",
+      _pw("2019-05-04") is not None and _pw("04/05/2019") is None)
+check("merging keywords ignores capitals and stray separators",
+      _mk("a; B", "b, c,, ") == "a, B, c")
+
 print("\n" + "="*64)
 print(f"  {len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:

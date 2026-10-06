@@ -5898,3 +5898,78 @@ msgstr "{name} está haciendo una copia en el mismo sitio. Inténtalo de nuevo e
 #: piklin/ui/window.py:930
 msgid "Albums & Folders"
 msgstr "Álbumes y carpetas"
+
+#: piklin/ui/info_dialog.py
+msgid "Edit Info"
+msgstr "Editar información"
+
+#: piklin/ui/info_dialog.py
+msgid "Edit Info…"
+msgstr "Editar información…"
+
+#: piklin/ui/info_dialog.py
+msgid "Edit Info of {count} Photos…"
+msgstr "Editar información de {count} fotos…"
+
+#: piklin/ui/info_dialog.py
+#, python-brace-format
+msgid "Updated {count} photo"
+msgid_plural "Updated {count} photos"
+msgstr[0] "Se actualizó {count} foto"
+msgstr[1] "Se actualizaron {count} fotos"
+
+#: piklin/ui/info_dialog.py
+msgid "Leave a field empty to keep what each photo has."
+msgstr "Deja un campo vacío para conservar lo que tiene cada foto."
+
+#: piklin/ui/info_dialog.py
+msgid "The photo file isn't changed. What you type is saved in Piklin and in your backup."
+msgstr "El archivo de la foto no cambia. Lo que escribas se guarda en Piklin y en tu copia de seguridad."
+
+#: piklin/ui/info_dialog.py
+msgid "Title"
+msgstr "Título"
+
+#: piklin/ui/info_dialog.py
+msgid "Keywords, separated by commas"
+msgstr "Palabras clave, separadas por comas"
+
+#: piklin/ui/info_dialog.py
+msgid "Remove from every photo"
+msgstr "Quitar de todas las fotos"
+
+#: piklin/ui/info_dialog.py
+msgid "Keywords"
+msgstr "Palabras clave"
+
+#: piklin/ui/info_dialog.py
+msgid "Add to each photo's keywords"
+msgstr "Añadir a las palabras clave de cada foto"
+
+#: piklin/ui/info_dialog.py
+msgid "Replace each photo's keywords"
+msgstr "Reemplazar las palabras clave de cada foto"
+
+#: piklin/ui/info_dialog.py
+msgid "Date and time"
+msgstr "Fecha y hora"
+
+#: piklin/ui/info_dialog.py
+msgid "Keep each photo's own"
+msgstr "Conservar la de cada foto"
+
+#: piklin/ui/info_dialog.py
+msgid "Set every photo to this"
+msgstr "Poner esta a todas las fotos"
+
+#: piklin/ui/info_dialog.py
+msgid "Move the group, keeping the spacing"
+msgstr "Mover el grupo, conservando la separación"
+
+#: piklin/ui/info_dialog.py
+msgid "Where these photos were taken"
+msgstr "Dónde se tomaron estas fotos"
+
+#: piklin/ui/info_dialog.py
+msgid "Choose on Map…"
+msgstr "Elegir en el mapa…"

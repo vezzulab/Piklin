@@ -6096,3 +6096,78 @@ msgstr ""
 #: piklin/ui/window.py:930
 msgid "Albums & Folders"
 msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Edit Info"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Edit Info…"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Edit Info of {count} Photos…"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+#, python-brace-format
+msgid "Updated {count} photo"
+msgid_plural "Updated {count} photos"
+msgstr[0] ""
+msgstr[1] ""
+
+#: piklin/ui/info_dialog.py
+msgid "Leave a field empty to keep what each photo has."
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "The photo file isn't changed. What you type is saved in Piklin and in your backup."
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Title"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Keywords, separated by commas"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Remove from every photo"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Keywords"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Add to each photo's keywords"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Replace each photo's keywords"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Date and time"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Keep each photo's own"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Set every photo to this"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Move the group, keeping the spacing"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Where these photos were taken"
+msgstr ""
+
+#: piklin/ui/info_dialog.py
+msgid "Choose on Map…"
+msgstr ""
