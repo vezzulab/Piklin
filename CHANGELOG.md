@@ -1,6 +1,9 @@
 # Changelog
 
-## 2.0.2 (in progress)
+## 2.0.2
+
+### Photo info
+- New **Edit Info…** in the right-click menu of one photo or of a chosen group: title, caption, keywords, date and time, and a button to choose the place on the map. For a group, a field left empty keeps what each photo has, keywords can be added to the ones a photo already has or replace them, and a date can be set for them all or moved with their spacing kept. The photo files are not changed; what you type is kept in Piklin and in your backup
 
 ### Thumbnails
 - The photos on screen get their thumbnails first. After scrolling past a few hundred photos, the ones you stopped on used to wait behind all the ones you passed
