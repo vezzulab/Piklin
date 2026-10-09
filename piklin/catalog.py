@@ -408,9 +408,12 @@ class Catalog:
         cur.execute("PRAGMA synchronous=NORMAL")
         cur.execute("PRAGMA foreign_keys=ON")
         cur.execute("PRAGMA busy_timeout=15000")
-        # 64 MiB page cache: the grid's date-range queries stay in memory
-        # even on a 100k-photo library.
-        cur.execute("PRAGMA cache_size=-65536")
+        # Every thread has a connection of its own, and each keeps its own
+        # page cache. The window's thread gets 64 MiB, so the grid's
+        # date-range queries stay in memory even on a 100k-photo library;
+        # the threads that scan, back up and count read in order and get 4.
+        main = threading.current_thread() is threading.main_thread()
+        cur.execute(f"PRAGMA cache_size=-{65536 if main else 4096}")
         cur.execute("PRAGMA temp_store=MEMORY")
         cur.execute("PRAGMA mmap_size=268435456")
         return con
@@ -528,6 +531,10 @@ class Catalog:
 
     def q(self, sql: str, params: Sequence[Any] = ()) -> list[sqlite3.Row]:
         return self.con.execute(sql, params).fetchall()
+
+    def iter_q(self, sql: str, params: Sequence[Any] = ()):
+        """Like ``q`` but one row at a time, for results too long to hold."""
+        yield from self.con.execute(sql, params)
 
     def q1(self, sql: str, params: Sequence[Any] = ()) -> sqlite3.Row | None:
             return self.con.execute(sql, params).fetchone()

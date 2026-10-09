@@ -90,7 +90,7 @@ class HealthWatch:
             hlog = logs.get("health")
             report, mending = health_mod.Report(), health_mod.Mending()
             try:
-                paths = [r["path"] for r in self.catalog.q("SELECT path FROM photos")]
+                paths = [r["path"] for r in self.catalog.iter_q("SELECT path FROM photos")]
                 report = self.health.check(paths, SLICE_BYTES, seconds=SLICE_SECONDS,
                                            cancel=self._cancel)
                 if report.damaged:

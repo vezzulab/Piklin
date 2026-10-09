@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.3
+
+### Memory and processor
+- Opening a large library no longer takes the processor and memory all at once: the first screen loads first, and the scan, the date fixes and the folder arrangement start a few seconds later, one after the other
+- Each background task used to keep its own 64 MiB database cache; only the window keeps that now, the others use 4 MiB. With five tasks working, that is about 300 MB less
+- Thumbnails and photo details are read in blocks of 256 instead of queueing thousands of jobs at once, and the memory they used is given back between blocks
+- Photos shot upright and tagged as turned were read again every time Piklin opened. They are checked once and no longer read again
+
 ## 2.0.2
 
 ### Photo info

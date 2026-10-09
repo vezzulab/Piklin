@@ -3998,6 +3998,9 @@ class MainWindow(Adw.ApplicationWindow):
         GLib.timeout_add_seconds(20, lambda: (self._repair_video_sizes(), False)[1])
         # videos left to make smaller when Piklin was last closed
         GLib.timeout_add_seconds(30, lambda: (self._queue_video_shrink([]), False)[1])
+        # What is on screen comes first and the rest follows in turns, so
+        # opening Piklin never has the scan, the counts and the date fixes
+        # all asking for the disk and the cores at the same moment.
         self.refresh_sidebar()
         # A few seconds in, so opening Piklin is never slowed by the network.
         # Every time Piklin opens it looks for a new version - a few seconds
@@ -4007,22 +4010,22 @@ class MainWindow(Adw.ApplicationWindow):
         # updates are on, and never more than once an hour - see updates.due)
         GLib.timeout_add_seconds(60 * 60, lambda: (self._check_updates(quiet=True), True)[1])
         self.grid.load("library")
-        self._arrange_from_files()
-        self._correct_dates_from_names()
+        GLib.timeout_add(5000, lambda: (self._arrange_from_files(),
+                                        self._correct_dates_from_names(), False)[2])
         GLib.timeout_add(2500, self._maybe_offer_menu_entry)
         from . import onboarding
         pending = onboarding.take_pending(self.library.root)
         if pending is not None:
             # Piklin reopened at the end of the first steps: finish them here
             if self.catalog.roots():
-                self._start_scan(None)
+                GLib.timeout_add(3000, lambda: (self._start_scan(None), False)[1])
             GLib.timeout_add(400, lambda: (onboarding.apply(self, pending), False)[1])
         elif not self.catalog.roots() and not self.settings.get("onboarding_done"):
             GLib.timeout_add(300, lambda: (onboarding.FirstSteps(self).present(self), False)[1])
         elif not self.catalog.roots():
             pass                    # left empty on purpose: the empty page says how to add
         else:
-            self._start_scan(None)
+            GLib.timeout_add(3000, lambda: (self._start_scan(None), False)[1])
             GLib.timeout_add(800, self._maybe_offer_backup)
         return False
 

@@ -29,6 +29,8 @@ from . import imageio as iio
 from .catalog import Catalog
 from .thumbs import GRID_SIZE, ThumbCache
 
+_BLOCK = 256        # jobs handed to the workers at a time
+
 # Directories that never contain photos worth indexing, and that are
 # expensive or confusing to walk into.
 SKIP_DIRS = {
@@ -194,10 +196,16 @@ class Indexer:
         # the file itself has not changed: unreadable files it kept as
         # zero-size "photos", and EXIF-rotated photos whose width and
         # height were recorded unrotated.
+        # The turned-photo check runs once per library: a photo shot upright
+        # and tagged as turned is stored wide on purpose, so the same rows
+        # would match on every start and be read again for nothing.
+        turned_checked = self.catalog.scalar(
+            "SELECT value FROM meta WHERE key='turned_sizes_checked'")
         reprobe = {
             r["path"] for r in self.catalog.q(
-                "SELECT path FROM photos WHERE width = 0 OR height = 0 "
-                "OR (orientation BETWEEN 5 AND 8 AND width > height)")}
+                "SELECT path FROM photos WHERE width = 0 OR height = 0"
+                + ("" if turned_checked else
+                   " OR (orientation BETWEEN 5 AND 8 AND width > height)"))}
 
         found: list[tuple[Path, os.stat_result, int]] = []
         for root, rid in root_ids.items():
@@ -246,37 +254,41 @@ class Indexer:
         from . import system
         with ThreadPoolExecutor(max_workers=self.workers,
                                 initializer=system.lower_thread_priority) as pool:
-            futures = {pool.submit(iio.probe, path, rid): path
-                       for path, st, rid in stale}
-            for fut in as_completed(futures):
+            for start in range(0, len(stale), _BLOCK):
                 if self.cancel.is_set():
                     break
-                path = futures[fut]
-                p.done += 1
-                p.current = path.name
-                try:
-                    rec = fut.result()
-                except Exception:
-                    rec = None
-                if rec is None:
-                    p.errors += 1
-                    # Known to the catalog but not a readable photo (now,
-                    # or ever - older versions kept such files): drop the
-                    # row so it stops showing as a blank tile.
-                    if str(path) in known:
-                        not_photos.append(known[str(path)][0])
-                else:
-                    if str(path) in known:
-                        p.updated += 1
+                futures = {pool.submit(iio.probe, path, rid): path
+                           for path, st, rid in stale[start:start + _BLOCK]}
+                for fut in as_completed(futures):
+                    if self.cancel.is_set():
+                        break
+                    path = futures[fut]
+                    p.done += 1
+                    p.current = path.name
+                    try:
+                        rec = fut.result()
+                    except Exception:
+                        rec = None
+                    if rec is None:
+                        p.errors += 1
+                        # Known to the catalog but not a readable photo (now,
+                        # or ever - older versions kept such files): drop the
+                        # row so it stops showing as a blank tile.
+                        if str(path) in known:
+                            not_photos.append(known[str(path)][0])
                     else:
-                        p.added += 1
-                    batch.append(rec)
-                if len(batch) >= batch_size:
-                    self.catalog.upsert_photos(batch)
-                    batch = []
-                    report()
-                elif p.done % 50 == 0:
-                    report()
+                        if str(path) in known:
+                            p.updated += 1
+                        else:
+                            p.added += 1
+                        batch.append(rec)
+                    if len(batch) >= batch_size:
+                        self.catalog.upsert_photos(batch)
+                        batch = []
+                        report()
+                    elif p.done % 50 == 0:
+                        report()
+                system.release_memory()
         if batch:
             self.catalog.upsert_photos(batch)
         if not_photos:
@@ -291,6 +303,12 @@ class Indexer:
             p.phase = "cancelled"
             report()
             return p
+
+        if full_scan and not turned_checked:
+            with self.catalog.write() as cur:
+                cur.execute(
+                    "INSERT INTO meta(key,value) VALUES('turned_sizes_checked','1') "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value")
 
         # Files that are gone from disk.  Recognise moves first: a photo
         # that reappeared elsewhere with the same fingerprint keeps its
@@ -413,22 +431,29 @@ class Indexer:
         from . import system
         with ThreadPoolExecutor(max_workers=self.workers,
                                 initializer=system.lower_thread_priority) as pool:
-            for fut in as_completed([pool.submit(work, r) for r in rows]):
+            # A block at a time: thousands of waiting jobs are not all made
+            # at once, and memory is handed back between blocks.
+            for start in range(0, len(rows), _BLOCK):
                 if self.cancel.is_set():
                     break
-                try:
-                    results.append(fut.result())
-                except Exception:
-                    p.errors += 1
-                p.done += 1
-                if len(results) >= 128:
-                    with self.catalog.write() as cur:
-                        cur.executemany(
-                            "UPDATE photos SET thumb_state=? WHERE id=?",
-                            [(s, i) for i, s in results])
-                    results = []
-                    if on_progress:
-                        on_progress(p)
+                block = [pool.submit(work, r) for r in rows[start:start + _BLOCK]]
+                for fut in as_completed(block):
+                    if self.cancel.is_set():
+                        break
+                    try:
+                        results.append(fut.result())
+                    except Exception:
+                        p.errors += 1
+                    p.done += 1
+                    if len(results) >= 128:
+                        with self.catalog.write() as cur:
+                            cur.executemany(
+                                "UPDATE photos SET thumb_state=? WHERE id=?",
+                                [(s, i) for i, s in results])
+                        results = []
+                        if on_progress:
+                            on_progress(p)
+                system.release_memory()
         if results:
             with self.catalog.write() as cur:
                 cur.executemany("UPDATE photos SET thumb_state=? WHERE id=?",
