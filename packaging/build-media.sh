@@ -95,13 +95,15 @@ if ! ls "$PREFIX"/lib/libdav1d.a "$PREFIX"/lib/*/libdav1d.a >/dev/null 2>&1; the
    && ninja -C build install >/dev/null)
 fi
 
+# No link-time optimisation: its LTO objects made gcc 14 crash (an internal compiler
+# error in lto1) when FFmpeg was linked on x86_64.
 if [ ! -f "$PREFIX/lib/libSvtAv1Enc.a" ]; then
   say "SVT-AV1 $SVTAV1 (BSD)"
   build_dir svtav1 "svtav1-$SVTAV1.tar.gz"
   cmake -S "$SRC/svtav1" -B "$SRC/svtav1/_build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib \
       -DBUILD_SHARED_LIBS=OFF -DBUILD_APPS=OFF -DBUILD_DEC=OFF -DBUILD_TESTING=OFF \
-      -DCMAKE_POSITION_INDEPENDENT_CODE=ON >/dev/null \
+      -DSVT_AV1_LTO=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON >/dev/null \
    && cmake --build "$SRC/svtav1/_build" -j"$JOBS" >/dev/null \
    && cmake --install "$SRC/svtav1/_build" >/dev/null
 fi
