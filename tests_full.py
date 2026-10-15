@@ -1719,6 +1719,36 @@ check("the check still refuses a smaller copy that lost half the video",
                                          _ve2.VideoEdit(duration=_vc_dur, end=_vc_dur / 2),
                                          fmt="mp4", max_side=320)))
 
+# Cutting a video with sound at 44.1 kHz (what phones record) leaves part of an audio
+# block over, and that leftover must not carry its old timestamps into the new
+# buffer: it raised, so the cut - and Optimize Videos - failed for most videos
+_au = os.path.join(TMP, "with-sound.mov")
+with _av2.open(_au, "w", format="mov") as _o:
+    _vs_ = _o.add_stream("mpeg4", rate=25); _vs_.width, _vs_.height, _vs_.pix_fmt = 320, 180, "yuv420p"
+    _as_ = _o.add_stream("aac", rate=44100); _as_.layout = "mono"
+    _yy, _xx = np.mgrid[0:180, 0:320]
+    for _i in range(40):
+        _img = np.stack([(_xx + _i * 6) % 256, (_yy + _i * 3) % 256, (_xx + _yy) % 256], -1).astype(np.uint8)
+        _fr = _av2.VideoFrame.from_ndarray(_img, format="rgb24").reformat(format="yuv420p"); _fr.pts = _i
+        for _p in _vs_.encode(_fr): _o.mux(_p)
+    for _p in _vs_.encode(): _o.mux(_p)
+    _t = np.arange(44100 * 2) / 44100.0
+    _wave = (0.2 * np.sin(2 * np.pi * 440 * _t)).astype(np.float32)
+    _chunk = 1024
+    for _k in range(0, len(_wave) - _chunk, _chunk):
+        _af = _av2.AudioFrame.from_ndarray(_wave[_k:_k + _chunk][None, :], format="fltp", layout="mono")
+        _af.sample_rate = 44100; _af.pts = _k
+        for _p in _as_.encode(_af): _o.mux(_p)
+    for _p in _as_.encode(): _o.mux(_p)
+_cut_ok, _cut = True, ""
+for _end in (0.5, 1.3):
+    try:
+        _cut = _ve2.export(_au, Path(TMP) / f"with-sound-cut-{_end}.mp4", _ve2.VideoEdit(duration=2.0, end=_end), fmt="mp4")
+        _cut_ok = _cut_ok and _cut.stat().st_size > 0
+    except Exception as _exc:
+        _cut_ok, _cut = False, f"end={_end}: {_exc!r}"[:100]
+check("a video with sound can be cut anywhere, not only on an audio block", _cut_ok, _cut)
+
 # A video made smaller twice under one name is recognised by a computer that
 # still has the first original and by one that already took the first copy
 _ch_root = Path(TMP) / "ChainLib"; (_ch_root / "Originals").mkdir(parents=True)
@@ -2029,7 +2059,7 @@ with _av.open(_snd, "w") as _o:
     _wave = (0.2 * np.sin(2 * np.pi * 440 * _t)).astype(np.float32)
     for _k in range(0, len(_wave) - _fs, _fs):
         _af = _av.AudioFrame.from_ndarray(np.stack([_wave[_k:_k + _fs]] * 2), format="fltp", layout="stereo")
-        _af.sample_rate = 48000; _af.pts = _k
+        _af.sample_rate = 44100; _af.pts = _k
         for _p in _as.encode(_af): _o.mux(_p)
     for _p in _vs.encode(): _o.mux(_p)
     for _p in _as.encode(): _o.mux(_p)

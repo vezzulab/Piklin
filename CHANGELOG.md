@@ -9,6 +9,9 @@
 - Your backup and your other computers follow. The big original stays in the backup for the days you keep old versions, then goes; every other computer fetches the smaller video, checks it against its own and replaces it
 - Making a video smaller is faster: the AV1 encoder runs at a quicker setting for Compressed
 
+### Fixes
+- Cutting a video that has sound could fail, and with it making that video smaller. It happened whenever the cut fell inside a block of the sound, which is most cuts of what a phone records (mono, 44.1 kHz). A video can now be cut anywhere
+
 ## 2.0.3
 
 ### Memory and processor

@@ -532,6 +532,7 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
                 want = int(round(offset * 48000)) - apts
                 if fifo.samples > want > 0:
                     keep = fifo.read(want)
+                    keep.pts = None        # the new fifo counts from zero itself
                     fifo = av.AudioFifo()
                     fifo.write(keep)
                 elif fifo.samples < want:
