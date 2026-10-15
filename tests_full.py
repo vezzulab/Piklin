@@ -1766,6 +1766,10 @@ for _size in (1000, 700):
           "Originals/a.mp4" in _vs.incoming(_ch_root))
 _ch.write_bytes(b"x" * 555)
 check("a copy of any other size is left alone", "Originals/a.mp4" not in _vs.incoming(_ch_root))
+_ch.write_bytes(b"x" * 1000)
+check("a video another computer made smaller is not compressed again here",
+      _vs.convert_one(type("L", (), {"root": _ch_root})(), None,
+                      _vs.Candidate(1, str(_ch), 1000, 5.0, 0, 0, 0, 0, "compressed"), []) == "gone")
 
 # The backup: the large original set apart, then let go after HOLD_DAYS
 from piklin import autobackup as _ab

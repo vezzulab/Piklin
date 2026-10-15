@@ -127,6 +127,8 @@ def plan(catalog, originals: Path | str, min_saving: int = MIN_SAVING_BYTES,
     prof = profile_for(profile)
     av1 = av1_available()
     out = []
+    # Another computer already made these smaller: this one fetches them.
+    elsewhere = {str((root / rel).resolve()) for rel in incoming(root)}
     for r in catalog.q(
             "SELECT id, path, bytes, duration, width, height FROM photos "
             "WHERE duration > 0 AND trashed_at IS NULL AND paired_to IS NULL"):
@@ -134,6 +136,8 @@ def plan(catalog, originals: Path | str, min_saving: int = MIN_SAVING_BYTES,
             Path(r["path"]).resolve().relative_to(root)
         except ValueError:
             continue                      # outside the library: never touched
+        if str(Path(r["path"]).resolve()) in elsewhere:
+            continue
         dur = float(r["duration"] or 0)
         size = int(r["bytes"] or 0)
         if dur <= 0 or size <= 0:
@@ -592,6 +596,8 @@ def convert_one(library, catalog, candidate: Candidate, remotes, now: float | No
     if not old.is_file():
         return "gone"
     rel = _rel(root, old)
+    if rel in incoming(root):
+        return "gone"          # another computer did it: the smaller one comes from the backup
     size = old.stat().st_size
     hold = set_apart_locally(root, rel, now) if local_hold_needed(remotes) else None
     av1 = av1_available()

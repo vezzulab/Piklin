@@ -329,7 +329,12 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
     except Exception as exc:
         return SyncResult(False, str(exc), unreachable=True)
     if same:
-        return SyncResult()
+        # Nothing new at the backup, but a video another computer made smaller
+        # may still be waiting here (its record came before this version could
+        # act on it).
+        from . import videospace
+        if not videospace.incoming(root):
+            return SyncResult()
     try:
         index = backend.listing()
     except Exception as exc:

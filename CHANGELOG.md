@@ -10,6 +10,7 @@
 - Making a video smaller is faster: the AV1 encoder runs at a quicker setting for Compressed
 
 ### Fixes
+- A computer that has not made a video smaller itself now takes the smaller one another computer already made from the backup, even when the backup has had no news since. It no longer makes that video smaller a second time
 - Cutting a video that has sound could fail, and with it making that video smaller. It happened whenever the cut fell inside a block of the sound, which is most cuts of what a phone records (mono, 44.1 kHz). A video can now be cut anywhere
 
 ## 2.0.3

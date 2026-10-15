@@ -71,6 +71,7 @@ sudo apt install ./piklin_2.0.4_amd64.deb
 
 ### Fixes
 
+- **A computer takes the smaller video another computer already made,** from the backup, even when the backup has had no news since, and no longer makes that video smaller a second time.
 - **Cutting a video that has sound could fail,** and with it making that video smaller. It happened for many cut points on videos with 44.1 kHz sound, which is what many phones record. A video can now be cut anywhere.
 
 ## Verify your download
@@ -166,6 +167,7 @@ sudo apt install ./piklin_2.0.4_amd64.deb
 
 #### Arreglos
 
+- **Una computadora toma el video más pequeño que otra ya hizo,** desde la copia de seguridad, aunque la copia no tenga novedades, y ya no vuelve a hacerlo más pequeño.
 - **Cortar un video que tiene sonido podía fallar,** y con eso también hacerlo más pequeño. Pasaba con muchos puntos de corte en videos con sonido de 44,1 kHz, que es lo que graban muchos teléfonos. Ahora un video se puede cortar en cualquier punto.
 
 #### Verifica tu descarga
