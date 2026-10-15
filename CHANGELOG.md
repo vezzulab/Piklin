@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.4
+
+### Videos: Original or Compressed
+- Preferences › Storage has a new choice for the videos in your library. **Original** keeps every video exactly as your camera recorded it. **Compressed** makes them smaller in the background: nothing wider than 1080p, and a phone's 4K video can take a few percent of its size
+- Compressed works on its own. It looks through the library, and again as new videos come in, and only while the computer is plugged in and not busy. The choice is yours to change at any time, and asks before it starts
+- Each smaller video replaces the original only after Piklin checks it is the same video: its length, its sound and its picture. Albums, favourites and edits stay with it
+- Your backup and your other computers follow. The big original stays in the backup for the days you keep old versions, then goes; every other computer fetches the smaller video, checks it against its own and replaces it
+- Making a video smaller is faster: the AV1 encoder runs at a quicker setting for Compressed
+
 ## 2.0.3
 
 ### Memory and processor

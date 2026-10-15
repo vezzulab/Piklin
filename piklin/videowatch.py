@@ -18,6 +18,9 @@ from . import videospace
 
 EVERY_SECONDS = 60
 LOCAL_TEND_SECONDS = 3600
+# In "compressed" mode: how often the library looks for videos that came in
+# since, and the least a pass is worth starting for.
+PLAN_EVERY_SECONDS = 6 * 3600
 
 
 class VideoWatch:
@@ -35,6 +38,7 @@ class VideoWatch:
         self._freed = 0
         self._done = 0
         self._last_tend = 0.0
+        self._planning = False
         try:
             self._power = Gio.PowerProfileMonitor.dup_default()
         except Exception:
@@ -49,12 +53,57 @@ class VideoWatch:
 
     def start(self, candidates) -> None:
         have = {q["id"] for q in self.queue}
-        queue = self.queue + [{"id": c.photo_id, "bit_rate": c.bit_rate}
+        queue = self.queue + [{"id": c.photo_id, "bit_rate": c.bit_rate, "profile": c.profile}
                               for c in candidates if c.photo_id not in have]
         self.settings.set("videos_to_convert", queue)
         self.settings.set("videos_convert_paused", False)
         self._freed = self._done = 0
         GLib.idle_add(self._kick)
+
+    # -- the mode: keep the originals, or keep videos small -------------------
+    @property
+    def mode(self) -> str:
+        mode = self.settings.get("video_mode")
+        return mode if mode in videospace.MODES else "original"
+
+    def set_mode(self, mode: str) -> None:
+        """Original: nothing more is made smaller, and what is waiting is
+        forgotten (videos already made smaller stay so). Compressed: the library
+        is looked through now, and again as videos come in."""
+        mode = mode if mode in videospace.MODES else "original"
+        self.settings.set("video_mode", mode)
+        if mode == "original":
+            self.settings.set("videos_to_convert", [])
+            self._cancel.set()
+            self.on_status({"state": "finished", "done": 0, "freed": 0})
+        else:
+            self._cancel.clear()
+            self.settings.set("videos_convert_paused", False)
+            self.settings.set("videos_planned_at", 0.0)
+            GLib.idle_add(self._kick)
+
+    def _plan_new(self) -> None:
+        """Compressed mode, nothing waiting: queue the videos that came in
+        (or were left out) since the last look."""
+        self._planning = True
+
+        def work():
+            try:
+                found = videospace.plan(self.catalog, self.library.originals,
+                                        profile="compressed")
+            except Exception:
+                found = []
+            GLib.idle_add(self._planned, found)
+        threading.Thread(target=work, daemon=True, name="videos-plan").start()
+
+    def _planned(self, found):
+        self._planning = False
+        if self.mode != "compressed":
+            return False                    # changed its mind while looking
+        self.settings.set("videos_planned_at", time.time())
+        if found:
+            self.start(found)
+        return False
 
     def pause(self, paused: bool = True) -> None:
         self.settings.set("videos_convert_paused", paused)
@@ -109,6 +158,11 @@ class VideoWatch:
         if now - self._last_tend >= LOCAL_TEND_SECONDS:
             self._last_tend = now
             threading.Thread(target=self._tend_local, daemon=True).start()
+        if (self.mode == "compressed" and not self.queue and not self._running
+                and not self._planning and not self.paused
+                and now - float(self.settings.get("videos_planned_at") or 0) >= PLAN_EVERY_SECONDS
+                and self.waiting_for() is None):
+            self._plan_new()
         if self._running or not self.queue:
             return GLib.SOURCE_CONTINUE
         why = self.waiting_for()
@@ -131,7 +185,8 @@ class VideoWatch:
                 if row is not None:
                     cand = videospace.Candidate(
                         row["id"], row["path"], int(row["bytes"] or 0), float(row["duration"] or 0),
-                        int(row["width"] or 0), int(row["height"] or 0), int(item["bit_rate"]), 0)
+                        int(row["width"] or 0), int(row["height"] or 0), int(item["bit_rate"]), 0,
+                        item.get("profile") or "balanced")
 
                     def progress(fraction, d=self._done, t=total):
                         GLib.idle_add(self.on_status, {"state": "converting", "done": d + 1,

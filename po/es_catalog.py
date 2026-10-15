@@ -40,6 +40,26 @@ ES = {
     "Your albums and folders are back. The photos are coming.": "Tus álbumes y carpetas ya están. Las fotos están llegando.",
     "Make Folder Cover": "Usar como portada de la carpeta",
     "Folder cover changed": "Portada de la carpeta cambiada",
+    # -- videos: keep the originals, or keep them small -------------------------
+    "Videos in Your Library": "Videos en tu biblioteca",
+    "Videos take far more room than photos. Choose how Piklin keeps the ones in your library. You can change this at any time.":
+        "Los videos ocupan mucho más espacio que las fotos. Elige cómo guarda Piklin los de tu biblioteca. Puedes cambiarlo cuando quieras.",
+    "Every video stays exactly as your camera recorded it, at full quality. Takes the most room.":
+        "Cada video se queda tal como lo grabó tu cámara, con toda su calidad. Es lo que más espacio ocupa.",
+    "Compressed": "Comprimido",
+    "Videos are made smaller in the background, only while the computer is plugged in and not busy. Anything larger than 1080p is brought down to 1080p, and a phone's 4K video can take a few percent of its size. A smaller copy replaces the original only after Piklin checks it is the same video: its length, its sound and its picture. Albums, favourites and edits stay with it.":
+        "Los videos se hacen más pequeños en segundo plano, solo mientras el equipo está enchufado y sin hacer otra cosa. Todo lo que pase de 1080p se baja a 1080p, y un video 4K de teléfono puede quedar en unos pocos por ciento de su tamaño. La copia más pequeña reemplaza al original solo después de que Piklin comprueba que es el mismo video: su duración, su sonido y su imagen. Los álbumes, los favoritos y las ediciones se quedan con él.",
+    "What happens to the originals": "Qué pasa con los originales",
+    "Your other computers follow: each fetches the smaller video from the backup, checks it against its own, and only then replaces it. Once the originals are let go, making a video smaller cannot be undone.":
+        "Tus otros equipos lo siguen: cada uno baja el video más pequeño de la copia de seguridad, lo compara con el suyo y solo entonces lo reemplaza. Cuando los originales se eliminan, ya no se puede volver atrás.",
+    "Your videos are kept as they are.": "Tus videos se guardan tal como están.",
+    "{count} video left to compress": ("Queda {count} video por comprimir", "Quedan {count} videos por comprimir"),
+    "Looking through your videos…": "Revisando tus videos…",
+    "Compress Your Videos?": "¿Comprimir tus videos?",
+    "Piklin will make the videos in your library smaller, one at a time, in the background. Each smaller copy is checked against the original before it takes its place.\n\nThe originals are kept for seven days, in your backup or on this computer, and then let go. After that you cannot get the full-size video back.":
+        "Piklin hará más pequeños los videos de tu biblioteca, uno a la vez, en segundo plano. Cada copia más pequeña se compara con el original antes de ocupar su lugar.\n\nLos originales se guardan siete días, en tu copia de seguridad o en este equipo, y luego se eliminan. Después de eso no podrás recuperar el video en su tamaño completo.",
+    "Keep Originals": "Conservar originales",
+    "Compress": "Comprimir",
 
     # -- automatic backup -------------------------------------------------------
     "Connecting to {name}…": "Conectando con {name}…",

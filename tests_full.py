@@ -1692,6 +1692,51 @@ check("when it passes, the smaller copy takes the original's place",
       _vs_res == "smaller" and _vs_new.exists() and not _vs_in.exists()
       and _vs_new.stat().st_size < os.path.getsize(_camclip), (_vs_res, _vs_new))
 
+# The Compressed choice: nothing wider than 1080p, a lower rate, still checked
+_vc_lib = _L(os.path.join(TMP, "CompressedLib.piklin")).ensure()
+_vc_in = _vc_lib.originals / "2024" / "2024-06-01" / "clip.MOV"
+_vc_in.parent.mkdir(parents=True); shutil.copy2(_camclip, _vc_in)
+_vc_cat = Catalog(_vc_lib.db); _IxS(_vc_cat, None, library_root=_vc_lib.root).add_files([str(_vc_in)])
+_vc_bal = _vs.plan(_vc_cat, _vc_lib.originals, min_saving=0, min_share=0, profile="balanced")
+_vc_com = _vs.plan(_vc_cat, _vc_lib.originals, min_saving=0, min_share=0, profile="compressed")
+check("the Compressed plan carries its profile and expects less than Balanced",
+      bool(_vc_com) and _vc_com[0].profile == "compressed" and _vc_bal[0].profile == "balanced"
+      and _vc_com[0].expected <= _vc_bal[0].expected, (_vc_bal[:1], _vc_com[:1]))
+check("a 4K picture is capped by the 1080p it will become",
+      _vs.cap_for(3840, 2160, _vs.COMPRESSED) == 3_500_000 and _vs.cap_for(3840, 2160) == 20_000_000)
+check("an unknown mode or profile falls back to the safe one",
+      _vs.profile_for("nonsense").id == "balanced" and _vs.MODES == ("original", "compressed"))
+_vc_dur = float(_vc_cat.photo_by_path(str(_vc_in.resolve()))["duration"] or 2.5)
+_vc_small = _ve2.export(_vc_in, Path(TMP) / "vc-small.mp4", _ve2.VideoEdit(duration=_vc_dur),
+                        fmt="mp4", max_side=320)
+from piklin.video import stream_info as _vc_si
+_vc_info = _vc_si(_vc_small) or {}
+check("a picture is brought down to the longest edge asked for",
+      max(_vc_info.get("width", 9999), _vc_info.get("height", 9999)) <= 320, _vc_info)
+check("the check accepts a copy brought down to a smaller size", _vs.verify(_vc_in, _vc_small))
+check("the check still refuses a smaller copy that lost half the video",
+      not _vs.verify(_vc_in, _ve2.export(_vc_in, Path(TMP) / "vc-half.mp4",
+                                         _ve2.VideoEdit(duration=_vc_dur, end=_vc_dur / 2),
+                                         fmt="mp4", max_side=320)))
+
+# A video made smaller twice under one name is recognised by a computer that
+# still has the first original and by one that already took the first copy
+_ch_root = Path(TMP) / "ChainLib"; (_ch_root / "Originals").mkdir(parents=True)
+_ch = _ch_root / "Originals" / "a.mp4"
+_ch.write_bytes(b"x" * 700)
+_vs.record_conversion(_ch_root, _ch, _ch, 1000, 5.0)                  # 1000 -> 700
+_ch.write_bytes(b"x" * 300)
+_vs.record_conversion(_ch_root, _ch, _ch, 700, 5.0)                   # 700 -> 300
+_ch_entry = _vs._load(_ch_root)["Originals/a.mp4"]
+check("a second shrink keeps every size the video has had",
+      _ch_entry["old_sizes"] == [700, 1000], _ch_entry)
+for _size in (1000, 700):
+    _ch.write_bytes(b"x" * _size)
+    check(f"a copy still {_size} bytes is recognised as waiting for the smaller one",
+          "Originals/a.mp4" in _vs.incoming(_ch_root))
+_ch.write_bytes(b"x" * 555)
+check("a copy of any other size is left alone", "Originals/a.mp4" not in _vs.incoming(_ch_root))
+
 # The backup: the large original set apart, then let go after HOLD_DAYS
 from piklin import autobackup as _ab
 _bk_lib = _L(os.path.join(TMP, "HoldLib.piklin")).ensure()

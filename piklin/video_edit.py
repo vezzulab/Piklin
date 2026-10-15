@@ -332,7 +332,8 @@ def export(path, dst, edit: VideoEdit, fmt: str = "mp4",
            strip_metadata: bool = False, meta: dict | None = None,
            on_progress: Callable[[float], None] | None = None,
            cancel: threading.Event | None = None,
-           bit_rate: int | None = None, crf: int | None = None) -> Path:
+           bit_rate: int | None = None, crf: int | None = None,
+           preset: int | None = None) -> Path:
     """Render ``path`` with ``edit`` into ``dst``. Returns the file written.
 
     The output is written under a temporary name and only renamed into
@@ -340,6 +341,7 @@ def export(path, dst, edit: VideoEdit, fmt: str = "mp4",
     half-written behind. ``bit_rate`` caps the video's bits per second (see
     videospace.py); the usual rate for its size is used when it is lower.
     ``crf`` is the quality asked of the AV1 encoder: lower is better and larger.
+    ``preset`` is its speed: a higher number is faster and a little larger.
     """
     import av
     segs = edit.segments()
@@ -353,7 +355,7 @@ def export(path, dst, edit: VideoEdit, fmt: str = "mp4",
             _export_gif(av, path, tmp, edit, segs, max_side or 480, on_progress, cancel)
         else:
             _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
-                          strip_metadata, meta or {}, on_progress, cancel, bit_rate, crf)
+                          strip_metadata, meta or {}, on_progress, cancel, bit_rate, crf, preset)
         tmp.replace(dst)
     finally:
         tmp.unlink(missing_ok=True)
@@ -365,7 +367,8 @@ class Cancelled(Exception):
 
 
 def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
-                  strip_metadata, meta, on_progress, cancel, bit_rate=None, crf=None):
+                  strip_metadata, meta, on_progress, cancel, bit_rate=None, crf=None,
+                  preset=None):
     spec = EXPORT_FORMATS[fmt]
     vcodec = encoder_for("video", fmt)
     if vcodec is None:
@@ -394,7 +397,7 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
             # Asked for by quality, not by bits per second: the encoder spends
             # what each scene needs, which is how it gets smaller than a cap.
             # tune=0 favours what the eye sees over a number.
-            vout.options = {"crf": str(int(crf or 32)), "preset": "6",
+            vout.options = {"crf": str(int(crf or 32)), "preset": str(int(preset or 6)),
                             "svtav1-params": "tune=0"}
         else:
             # about 0.12 bit per pixel per frame: 1080p30 near 7.5 Mbit/s

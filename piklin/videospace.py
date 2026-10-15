@@ -34,6 +34,36 @@ AV1_MIN_BPS = 1_200_000
 AV1_MIN_SIMILARITY = 0.92
 
 
+@dataclass(frozen=True)
+class Profile:
+    """How hard a video is squeezed. ``balanced`` keeps the picture size and
+    is what Optimize Videos has always done; ``compressed`` is the choice a
+    person makes in Preferences to keep videos small: nothing wider than
+    1080p, and a rate low enough that a phone's 4K shrinks to a few percent."""
+    id: str
+    caps: tuple                    # (long side, bits per second) for H.264
+    av1_crfs: tuple                # AV1 qualities, the smallest file first
+    av1_share: float               # about how much of the size is left, in AV1
+    av1_min_bps: int               # a video already this thin is left alone
+    av1_min_similarity: float
+    max_side: int | None           # longest edge allowed, or None to keep it
+    preset: int                    # SVT-AV1 speed: higher is faster, a little larger
+    av1_bps_1080: int = 0          # AV1 rate asked at 1080p, to plan with (0: use the share)
+
+
+BALANCED = Profile("balanced", CAPS, AV1_CRFS, AV1_EXPECTED_SHARE, AV1_MIN_BPS,
+                   AV1_MIN_SIMILARITY, None, 6)
+COMPRESSED = Profile("compressed", ((854, 900_000), (1280, 2_200_000), (1920, 3_500_000),
+                                    (10_000, 3_500_000)),
+                     (38, 34, 30), 0.15, 1_000_000, 0.88, 1920, 8, av1_bps_1080=2_000_000)
+PROFILES = {"balanced": BALANCED, "compressed": COMPRESSED}
+MODES = ("original", "compressed")        # what a person picks in Preferences
+
+
+def profile_for(name) -> Profile:
+    return PROFILES.get(name) or BALANCED
+
+
 def av1_available() -> bool:
     """Whether this computer can make AV1, the codec that saves the most."""
     try:
@@ -43,12 +73,14 @@ def av1_available() -> bool:
         return False
 
 
-def cap_for(width: int, height: int) -> int:
+def cap_for(width: int, height: int, profile: Profile = BALANCED) -> int:
     side = max(width or 0, height or 0)
-    for limit, bps in CAPS:
+    if profile.max_side:
+        side = min(side, profile.max_side)       # it will not be larger than this
+    for limit, bps in profile.caps:
         if side <= limit:
             return bps
-    return CAPS[-1][1]
+    return profile.caps[-1][1]
 
 
 @dataclass
@@ -61,6 +93,7 @@ class Candidate:
     height: int
     bit_rate: int               # the video bits per second to ask for
     expected: int               # bytes afterwards, about
+    profile: str = "balanced"   # how hard to squeeze it (see PROFILES)
 
     @property
     def saving(self) -> int:
@@ -72,11 +105,26 @@ class Candidate:
         return max(1, self.width * self.height) * max(self.duration, 0.1)
 
 
+def _expected_av1(profile: Profile, size: int, dur: float, width: int, height: int,
+                  current: float) -> int:
+    """About how many bytes an AV1 copy takes."""
+    if not profile.av1_bps_1080:
+        return int(size * profile.av1_share)
+    # a picture is brought down to ``max_side``; the rate follows its pixels
+    w, h = max(width, 1), max(height, 1)
+    if profile.max_side and max(w, h) > profile.max_side:
+        k = profile.max_side / max(w, h)
+        w, h = w * k, h * k
+    bps = min(current, profile.av1_bps_1080 * min(1.0, w * h / (1920 * 1080)))
+    return int(min(size * 0.6, (bps + AUDIO_BPS) * dur / 8))
+
+
 def plan(catalog, originals: Path | str, min_saving: int = MIN_SAVING_BYTES,
-         min_share: float = MIN_SAVING_SHARE) -> list[Candidate]:
+         min_share: float = MIN_SAVING_SHARE, profile: str = "balanced") -> list[Candidate]:
     """The library's videos worth making smaller, the most space for the
     least work first."""
     root = Path(originals).resolve()
+    prof = profile_for(profile)
     av1 = av1_available()
     out = []
     for r in catalog.q(
@@ -92,18 +140,19 @@ def plan(catalog, originals: Path | str, min_saving: int = MIN_SAVING_BYTES,
             continue
         current = size * 8 / dur
         if av1:
-            if current < AV1_MIN_BPS:
+            if current < prof.av1_min_bps:
                 continue
             target = 0                     # by quality, not by a rate
-            expected = int(size * AV1_EXPECTED_SHARE)
+            expected = _expected_av1(prof, size, dur, int(r["width"] or 0),
+                                     int(r["height"] or 0), current)
         else:
-            target = min(cap_for(r["width"], r["height"]), int(current * 0.8))
+            target = min(cap_for(r["width"], r["height"], prof), int(current * 0.8))
             expected = int((target + AUDIO_BPS) * dur / 8)
         saving = size - expected
         if saving < min_saving or saving < size * min_share:
             continue
         out.append(Candidate(r["id"], r["path"], size, dur, int(r["width"] or 0),
-                             int(r["height"] or 0), target, expected))
+                             int(r["height"] or 0), target, expected, prof.id))
     out.sort(key=lambda c: c.saving / c.work, reverse=True)
     return out
 
@@ -164,7 +213,12 @@ def verify(src, out, min_similarity: float = 0.80) -> bool:
         for k in range(4):
             z = np.rot90(y, k)
             if abs(z.shape[0] - x.shape[0]) > 2 or abs(z.shape[1] - x.shape[1]) > 2:
-                continue
+                # a copy brought down to a smaller size has the same shape
+                # sampled a little differently: line it up, if it is the same shape
+                if abs(z.shape[0] / z.shape[1] - x.shape[0] / x.shape[1]) > 0.03:
+                    continue
+                z = z[np.linspace(0, z.shape[0] - 1, x.shape[0]).astype(int)][
+                    :, np.linspace(0, z.shape[1] - 1, x.shape[1]).astype(int)]
             h, w = min(x.shape[0], z.shape[0]), min(x.shape[1], z.shape[1])
             best = max(best, ssim(np.stack([x[:h, :w]] * 3, -1), np.stack([z[:h, :w]] * 3, -1)))
         if best < min_similarity:
@@ -217,6 +271,12 @@ def record_conversion(root, old_path, new_path, old_size: int, duration: float,
     entry = {"new": _rel(root, new_path), "old_size": int(old_size), "new_size": int(new_size),
              "duration": float(duration or 0), "at": time.time() if now is None else now,
              "remotes": {}}
+    # Made smaller again under the same name: a computer that still has the
+    # first big original, and one that already took the first smaller copy,
+    # both have to recognise this record. Every size the file has had is kept.
+    before = data.get(_rel(root, old_path))
+    if before and before.get("new") == entry["new"] and int(before.get("new_size") or 0) == int(old_size):
+        entry["old_sizes"] = sorted({*before.get("old_sizes", [before.get("old_size")]), int(old_size)} - {None})
     data[_rel(root, old_path)] = entry
     _save(root, data)
     _write_shared(root, _rel(root, old_path), entry)
@@ -422,8 +482,8 @@ def _write_shared(root, old_rel: str, entry: dict) -> None:
     except (OSError, ValueError):
         data = {}
     videos = dict(data.get("videos") or {})
-    videos[old_rel] = {k: entry[k] for k in ("new", "old_size", "new_size", "duration", "at")
-                       if k in entry}
+    videos[old_rel] = {k: entry[k] for k in ("new", "old_size", "old_sizes", "new_size",
+                                             "duration", "at") if k in entry}
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps({"format": "piklin-converted-videos", "version": 1,
                                "videos": videos}, indent=1))
@@ -455,7 +515,8 @@ def incoming(root) -> dict:
     for rel, e in videos.items():
         old = root / rel
         same_name = e["new"] == rel
-        if old.is_file() and old.stat().st_size == e.get("old_size") and (
+        sizes = {e.get("old_size"), *(e.get("old_sizes") or [])}
+        if old.is_file() and old.stat().st_size in sizes and (
                 same_name or not (root / e["new"]).exists()):
             out[rel] = e
     return out
@@ -534,11 +595,13 @@ def convert_one(library, catalog, candidate: Candidate, remotes, now: float | No
     size = old.stat().st_size
     hold = set_apart_locally(root, rel, now) if local_hold_needed(remotes) else None
     av1 = av1_available()
+    prof = profile_for(candidate.profile)
     result = devices.shrink_video(
         library, catalog, candidate.photo_id, on_progress=on_progress,
         cancel=cancel, bit_rate=candidate.bit_rate,
-        verify=((lambda a, b: verify(a, b, AV1_MIN_SIMILARITY)) if av1 else verify),
-        set_apart=hold, fmt="av1" if av1 else "mp4", crfs=AV1_CRFS if av1 else ())
+        verify=((lambda a, b: verify(a, b, prof.av1_min_similarity)) if av1 else verify),
+        set_apart=hold, fmt="av1" if av1 else "mp4", crfs=prof.av1_crfs if av1 else (),
+        max_side=prof.max_side, preset=prof.preset)
     if result == "smaller":
         row = catalog.photo(candidate.photo_id)
         new = Path(row["path"]) if row is not None else old
@@ -559,10 +622,12 @@ def measure_speed(candidate: Candidate, seconds: float = 5.0) -> float:
     with tempfile.TemporaryDirectory() as tmp:
         t0 = time.monotonic()
         av1 = av1_available()
+        prof = profile_for(candidate.profile)
         ve.export(candidate.path, Path(tmp) / "sample.mp4",
                   ve.VideoEdit(duration=candidate.duration, start=start, end=end),
                   fmt="av1" if av1 else "mp4", bit_rate=candidate.bit_rate,
-                  crf=AV1_CRFS[0] if av1 else None)
+                  crf=prof.av1_crfs[0] if av1 else None, max_side=prof.max_side,
+                  preset=prof.preset)
         spent = max(time.monotonic() - t0, 0.05)
     return max(1, candidate.width * candidate.height) * (end - start) / spent
 

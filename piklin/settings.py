@@ -29,6 +29,12 @@ DEFAULTS: dict[str, Any] = {
     "create_tray": [],
     "videos_to_convert": [],
     "videos_convert_paused": False,
+    # What the library does with videos: "original" keeps every video exactly
+    # as it was recorded; "compressed" makes them smaller in the background
+    # (see videospace.py).
+    "video_mode": "original",
+    # When the library last looked for videos to make smaller (seconds).
+    "videos_planned_at": 0.0,
     # Sizes of upright phone videos measured again once (see the window).
     "video_sizes_checked_v2": False,
     # Measured again once more, for videos whose pixels aren't square. Missing

@@ -336,53 +336,158 @@ class SettingsDialog(Adw.PreferencesDialog):
         return page
 
     def _free_space_group(self):
-        """Videos that could take less room, and the work under way."""
-        group = Adw.PreferencesGroup(title=_("Optimize Videos"))
-        self.space_row = Adw.ActionRow(title=_("Videos"), subtitle=_("Measuring…"))
-        group.add(self.space_row)
+        """What the library does with its videos: keep them as recorded, or
+        keep them small. The choice is the person's; Piklin does the rest."""
+        from .. import videospace
+        from .videospace_dialog import backup_note, fmt_size
         watch = getattr(self._window, "video_watch", None)
-        if watch is not None and watch.queue:
-            left = len(watch.queue)
-            self.space_row.set_subtitle(ngettext(
-                "{count} video left to optimize", "{count} videos left to optimize",
-                left).format(count=left) + ("  ·  " + _("Paused") if watch.paused else ""))
-            pause = Gtk.Button(label=_("Resume") if watch.paused else _("Pause"),
-                               valign=Gtk.Align.CENTER)
-
-            def toggle(btn):
-                watch.pause(not watch.paused)
-                btn.set_label(_("Resume") if watch.paused else _("Pause"))
-            pause.connect("clicked", toggle)
-            self.space_row.add_suffix(pause)
+        group = Adw.PreferencesGroup(
+            title=_("Videos in Your Library"),
+            description=_("Videos take far more room than photos. Choose how Piklin keeps "
+                          "the ones in your library. You can change this at any time."))
+        if watch is None:
             return group
-        review = Gtk.Button(label=_("Review…"), valign=Gtk.Align.CENTER, sensitive=False)
-        self.space_row.add_suffix(review)
 
-        def work():
-            from .. import videospace
-            try:
-                found = videospace.plan(self.catalog, self.library.originals)
-            except Exception:
-                found = []
-            GLib.idle_add(show, found)
+        original = Gtk.CheckButton(valign=Gtk.Align.CENTER, active=watch.mode == "original")
+        compressed = Gtk.CheckButton(valign=Gtk.Align.CENTER, group=original,
+                                     active=watch.mode == "compressed")
+        row_o = Adw.ActionRow(
+            title=_("Original"),
+            subtitle=_("Every video stays exactly as your camera recorded it, at full "
+                       "quality. Takes the most room."),
+            activatable_widget=original)
+        row_o.add_prefix(original)
+        row_c = Adw.ActionRow(
+            title=_("Compressed"),
+            subtitle=_("Videos are made smaller in the background, only while the computer "
+                       "is plugged in and not busy. Anything larger than 1080p is brought "
+                       "down to 1080p, and a phone's 4K video can take a few percent of its "
+                       "size. A smaller copy replaces the original only after Piklin checks "
+                       "it is the same video: its length, its sound and its picture. "
+                       "Albums, favourites and edits stay with it."),
+            activatable_widget=compressed)
+        row_c.add_prefix(compressed)
+        group.add(row_o)
+        group.add(row_c)
 
-        def show(found):
-            from .videospace_dialog import fmt_size
-            if not found:
-                self.space_row.set_subtitle(_("Your videos already take little room"))
-                return False
-            self.space_row.set_subtitle(ngettext(
-                "{count} video could take {size} less", "{count} videos could take {size} less",
-                len(found)).format(count=len(found), size=fmt_size(sum(c.saving for c in found))))
-            review.set_sensitive(True)
+        remotes = list(getattr(self._window.autobackup, "remotes", []) or [])
+        note, warning = backup_note(remotes)
+        elsewhere = Adw.ActionRow(
+            title=_("What happens to the originals"),
+            subtitle=note + " " + _("Your other computers follow: each fetches the smaller "
+                                    "video from the backup, checks it against its own, and "
+                                    "only then replaces it. Once the originals are let go, "
+                                    "making a video smaller cannot be undone."))
+        if warning:
+            elsewhere.add_css_class("warning")
+        group.add(elsewhere)
 
-            def open_it(_b):
-                from .videospace_dialog import VideoSpaceDialog
-                self.close()
-                VideoSpaceDialog(self._window, found).present(self._window)
-            review.connect("clicked", open_it)
+        status = Adw.ActionRow(title=_("Videos"))
+        pause = Gtk.Button(valign=Gtk.Align.CENTER)
+        review = Gtk.Button(label=_("Review…"), valign=Gtk.Align.CENTER)
+        status.add_suffix(review)
+        status.add_suffix(pause)
+        group.add(status)
+        found = {"videos": [], "asked": False}
+
+        def look():
+            def work():
+                try:
+                    videos = videospace.plan(self.catalog, self.library.originals,
+                                             profile="compressed")
+                except Exception:
+                    videos = []
+                GLib.idle_add(looked, videos)
+            threading.Thread(target=work, daemon=True).start()
+
+        def looked(videos):
+            found["videos"] = videos
+            refresh()
             return False
-        threading.Thread(target=work, daemon=True).start()
+
+        def refresh():
+            pause.set_visible(False)
+            review.set_visible(False)
+            if watch.mode == "original":
+                status.set_subtitle(_("Your videos are kept as they are."))
+                return
+            if watch.queue:
+                left = len(watch.queue)
+                status.set_subtitle(ngettext(
+                    "{count} video left to compress", "{count} videos left to compress",
+                    left).format(count=left) + ("  ·  " + _("Paused") if watch.paused else ""))
+                pause.set_label(_("Resume") if watch.paused else _("Pause"))
+                pause.set_visible(True)
+            elif found["videos"]:
+                videos = found["videos"]
+                status.set_subtitle(ngettext(
+                    "{count} video could take {size} less",
+                    "{count} videos could take {size} less",
+                    len(videos)).format(count=len(videos),
+                                        size=fmt_size(sum(c.saving for c in videos))))
+                review.set_visible(True)
+            elif found["asked"]:
+                status.set_subtitle(_("Your videos already take little room"))
+            else:
+                status.set_subtitle(_("Looking through your videos…"))
+
+        def toggle_pause(btn):
+            watch.pause(not watch.paused)
+            refresh()
+        pause.connect("clicked", toggle_pause)
+
+        def open_review(_b):
+            from .videospace_dialog import VideoSpaceDialog
+            self.close()
+            VideoSpaceDialog(self._window, found["videos"]).present(self._window)
+        review.connect("clicked", open_review)
+
+        def use(mode):
+            watch.set_mode(mode)
+            found["videos"], found["asked"] = [], mode == "compressed"
+            refresh()
+            if mode == "compressed":
+                look()
+
+        def on_original(check):
+            if check.get_active() and watch.mode != "original":
+                use("original")
+        original.connect("toggled", on_original)
+
+        def on_compressed(check):
+            if not check.get_active() or watch.mode == "compressed":
+                return
+            ask = Adw.AlertDialog(
+                heading=_("Compress Your Videos?"),
+                body=_("Piklin will make the videos in your library smaller, one at a time, "
+                       "in the background. Each smaller copy is checked against the "
+                       "original before it takes its place.\n\nThe originals are kept for "
+                       "seven days, in your backup or on this computer, and then let go. "
+                       "After that you cannot get the full-size video back."))
+            ask.add_response("cancel", _("Keep Originals"))
+            ask.add_response("compress", _("Compress"))
+            ask.set_response_appearance("compress", Adw.ResponseAppearance.SUGGESTED)
+            ask.set_close_response("cancel")
+
+            def answered(_d, response):
+                if response == "compress":
+                    use("compressed")
+                else:
+                    original.set_active(True)
+            ask.connect("response", answered)
+            ask.present(self.get_root())
+        compressed.connect("toggled", on_compressed)
+
+        def tick():
+            if status.get_root() is None:
+                return GLib.SOURCE_REMOVE
+            refresh()
+            return GLib.SOURCE_CONTINUE
+        GLib.timeout_add_seconds(3, tick)
+        refresh()
+        if watch.mode == "compressed":
+            found["asked"] = True
+            look()
         return group
 
     def _on_profile(self, check, pid):
