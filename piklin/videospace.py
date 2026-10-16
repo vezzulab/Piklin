@@ -138,6 +138,8 @@ def plan(catalog, originals: Path | str, min_saving: int = MIN_SAVING_BYTES,
             continue                      # outside the library: never touched
         if str(Path(r["path"]).resolve()) in elsewhere:
             continue
+        if already_smaller(root, r["path"], int(r["bytes"] or 0)):
+            continue
         dur = float(r["duration"] or 0)
         size = int(r["bytes"] or 0)
         if dur <= 0 or size <= 0:
@@ -170,26 +172,84 @@ def _has_audio(path) -> bool:
         return False
 
 
-def _frames(path, times, side=320):
+def _container_duration(path) -> float:
+    import av
+    try:
+        with av.open(str(path)) as c:
+            if c.duration:
+                return float(c.duration) / 1_000_000.0
+            v = c.streams.video[0]
+            if v.duration and v.time_base:
+                return float(v.duration * v.time_base)
+    except Exception:
+        pass
+    return 0.0
+
+
+def _frames(path, times, side=320, around=0):
+    """The frame nearest each moment, as a small grey picture. With ``around``,
+    for each moment a list of that frame and the ``around`` before and after
+    it: two videos of the same thing seldom put a frame at the very same
+    instant, and in a scene with movement one frame apart already looks
+    different."""
+    import collections
+
     import av
     import numpy as np
+
+    def small(frame):
+        # Made smaller by averaging, not by taking every sixth pixel: a video
+        # that is stored sideways and turned for showing has its pixels in
+        # another grid, and a grid that starts a few pixels off made the same
+        # picture look different.
+        import cv2
+        img = frame.to_ndarray(format="gray")
+        h, w = img.shape
+        step = max(1, max(h, w) // side)
+        if step > 1:
+            img = cv2.resize(img, (max(1, w // step), max(1, h // step)),
+                             interpolation=cv2.INTER_AREA)
+        return np.asarray(img, dtype=np.float32) / 255.0
+
     shots = []
     with av.open(str(path)) as c:
         v = c.streams.video[0]
         for t in times:
             c.seek(int(t / v.time_base), stream=v, any_frame=False, backward=True)
-            got = None
+            # The frame nearest the moment asked for, in both videos. Taking the
+            # first one from 50 ms before it gave a frame three apart when one
+            # video has a key frame exactly there and the other does not.
+            before = collections.deque(maxlen=around + 1)
+            frames, after_left, got = [], around, None
             for frame in c.decode(v):
-                if frame.time is not None and frame.time >= t - 0.05:
-                    got = frame
-                    break
-                got = frame
+                if got is None:
+                    if frame.time is None or frame.time >= t - 1e-3:
+                        prev = before[-1] if before else None
+                        if (prev is not None and frame.time is not None
+                                and abs(prev.time - t) < abs(frame.time - t)):
+                            # the one before is nearer: it is the centre
+                            frames = list(before)
+                            got = prev
+                            after_left = around - 1
+                            frames.append(frame)
+                        else:
+                            frames = list(before) + [frame]
+                            got = frame
+                        if after_left <= 0:
+                            break
+                        continue
+                    before.append(frame)
+                else:
+                    frames.append(frame)
+                    after_left -= 1
+                    if after_left <= 0:
+                        break
+            if got is None:
+                got = before[-1] if before else None
+                frames = list(before)
             if got is None:
                 return None
-            img = got.to_ndarray(format="gray")
-            h, w = img.shape
-            step = max(1, max(h, w) // side)
-            shots.append(np.asarray(img[::step, ::step], dtype=np.float32) / 255.0)
+            shots.append([small(f) for f in frames] if around else small(got))
     return shots
 
 
@@ -198,33 +258,41 @@ def verify(src, out, min_similarity: float = 0.80) -> bool:
     it had sound, and looking the same at its start, middle and end."""
     from .video import stream_info
     from .quality import ssim
-    a, b = stream_info(src) or {}, stream_info(out) or {}
-    da, db = float(a.get("duration") or 0), float(b.get("duration") or 0)
+    # How long each is, as the file says. Frames divided by the frame rate is
+    # wrong for a video whose rate varies (a screen recording): it made one video
+    # two percent longer than another that was the same.
+    da, db = _container_duration(src), _container_duration(out)
+    if da <= 0 or db <= 0:
+        a, b = stream_info(src) or {}, stream_info(out) or {}
+        da, db = float(a.get("duration") or 0), float(b.get("duration") or 0)
     if da <= 0 or db <= 0 or abs(da - db) > max(0.5, da * 0.01):
         return False
     if _has_audio(src) and not _has_audio(out):
         return False
     times = [da * 0.1, da * 0.3, da * 0.5, da * 0.7, max(0.0, da * 0.9 - 0.1)]
-    fa, fb = _frames(src, times), _frames(out, times)
+    fa, fb = _frames(src, times, around=2), _frames(out, times)
     if not fa or not fb or len(fa) != len(fb):
         return False
     import numpy as np
-    for x, y in zip(fa, fb):
+    for xs, y in zip(fa, fb):
         # A phone's upright video is stored sideways with a rotation flag;
         # its frames decode sideways while the smaller copy is written
-        # upright. Whichever turn lines them up is the one that counts.
+        # upright. Whichever turn lines them up is the one that counts - and
+        # whichever of the frames about that moment, for the two videos need
+        # not put a frame at the very same instant.
         best = 0.0
-        for k in range(4):
-            z = np.rot90(y, k)
-            if abs(z.shape[0] - x.shape[0]) > 2 or abs(z.shape[1] - x.shape[1]) > 2:
-                # a copy brought down to a smaller size has the same shape
-                # sampled a little differently: line it up, if it is the same shape
-                if abs(z.shape[0] / z.shape[1] - x.shape[0] / x.shape[1]) > 0.03:
-                    continue
-                z = z[np.linspace(0, z.shape[0] - 1, x.shape[0]).astype(int)][
-                    :, np.linspace(0, z.shape[1] - 1, x.shape[1]).astype(int)]
-            h, w = min(x.shape[0], z.shape[0]), min(x.shape[1], z.shape[1])
-            best = max(best, ssim(np.stack([x[:h, :w]] * 3, -1), np.stack([z[:h, :w]] * 3, -1)))
+        for x in xs:
+            for k in range(4):
+                z = np.rot90(y, k)
+                if abs(z.shape[0] - x.shape[0]) > 2 or abs(z.shape[1] - x.shape[1]) > 2:
+                    # a copy brought down to a smaller size has the same shape
+                    # sampled a little differently: line it up, if it is the same shape
+                    if abs(z.shape[0] / z.shape[1] - x.shape[0] / x.shape[1]) > 0.03:
+                        continue
+                    z = z[np.linspace(0, z.shape[0] - 1, x.shape[0]).astype(int)][
+                        :, np.linspace(0, z.shape[1] - 1, x.shape[1]).astype(int)]
+                h, w = min(x.shape[0], z.shape[0]), min(x.shape[1], z.shape[1])
+                best = max(best, ssim(np.stack([x[:h, :w]] * 3, -1), np.stack([z[:h, :w]] * 3, -1)))
         if best < min_similarity:
             return False
     return True
@@ -272,9 +340,10 @@ def record_conversion(root, old_path, new_path, old_size: int, duration: float,
     import time
     data = _load(root)
     new_size = Path(new_path).stat().st_size if Path(new_path).is_file() else 0
+    from .backuplock import me
     entry = {"new": _rel(root, new_path), "old_size": int(old_size), "new_size": int(new_size),
              "duration": float(duration or 0), "at": time.time() if now is None else now,
-             "remotes": {}}
+             "remotes": {}, "by": me()[0]}
     # Made smaller again under the same name: a computer that still has the
     # first big original, and one that already took the first smaller copy,
     # both have to recognise this record. Every size the file has had is kept.
@@ -487,7 +556,7 @@ def _write_shared(root, old_rel: str, entry: dict) -> None:
         data = {}
     videos = dict(data.get("videos") or {})
     videos[old_rel] = {k: entry[k] for k in ("new", "old_size", "old_sizes", "new_size",
-                                             "duration", "at") if k in entry}
+                                             "duration", "at", "by") if k in entry}
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps({"format": "piklin-converted-videos", "version": 1,
                                "videos": videos}, indent=1))
@@ -500,10 +569,306 @@ def merge_shared(mine: dict | None, theirs: dict | None) -> dict:
     videos: dict = {}
     for side in (mine or {}, theirs or {}):
         for rel, e in (side.get("videos") or {}).items():
-            if isinstance(e, dict) and e.get("new") and (
-                    rel not in videos or float(e.get("at") or 0) > float(videos[rel].get("at") or 0)):
+            if not (isinstance(e, dict) and e.get("new")):
+                continue
+            have = videos.get(rel)
+            if have is None:
                 videos[rel] = e
+                continue
+            newer, older = (e, have) if float(e.get("at") or 0) > float(have.get("at") or 0) else (have, e)
+            winner = dict(newer)
+            if older.get("new") == winner.get("new"):
+                # Two computers made the same video smaller, each its own way.
+                # The later record stands, and the other's smaller video is one
+                # of the sizes it replaces: a computer holding that one takes
+                # the later one, and the two never send theirs over each other.
+                sizes = {winner.get("old_size"), older.get("old_size"), older.get("new_size"),
+                         *(winner.get("old_sizes") or []), *(older.get("old_sizes") or [])}
+                sizes.discard(None)
+                sizes.discard(0)
+                sizes.discard(winner.get("new_size"))
+                if sizes:
+                    winner["old_sizes"] = sorted(sizes)
+            videos[rel] = winner
     return {"format": "piklin-converted-videos", "version": 1, "videos": videos}
+
+
+def settled(root, path, size: int | None = None) -> bool:
+    """Is there nothing left to do for this video here: it is the smaller one
+    already, or another computer has made it smaller and it comes from the
+    backup. Said from this computer's own record, with no turn to take."""
+    root = Path(root)
+    try:
+        rel = Path(path).resolve().relative_to(root.resolve()).as_posix()
+    except (OSError, ValueError):
+        return False
+    return already_smaller(root, path, size) or rel in incoming(root)
+
+
+# Each computer keeps its own file of the videos it made smaller at the
+# destination, and no other computer ever writes to it: nothing can be written
+# over by a computer that had an older copy. Everyone reads them all.
+LEDGER_DIR = "Smaller Videos"
+
+
+def _ledger_files_seen(root) -> dict:
+    import json
+    try:
+        data = json.loads((Path(root) / ".cache" / "videos" / "ledgers-seen.json").read_text())
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _merge_into_local(root, theirs: dict) -> None:
+    import json
+    root = Path(root)
+    try:
+        mine = json.loads(shared_path(root).read_text())
+    except (OSError, ValueError):
+        mine = {}
+    merged = merge_shared(mine, theirs)
+    if merged != mine:
+        tmp = shared_path(root).with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(merged, indent=1))
+        tmp.replace(shared_path(root))
+
+
+def refresh_ledger(root, backend) -> bool:
+    """Read what the other computers say they made smaller, at the destination,
+    and merge it into this computer's record. True when it has been read (or
+    there is nothing there yet); False when it could not be, and nothing should
+    be decided from it."""
+    import json
+    import shutil
+    import tempfile
+    root = Path(root)
+    folder = Path(tempfile.mkdtemp(prefix="piklin-ledger-"))
+    try:
+        # one file from each computer that has made a video smaller
+        try:
+            files = backend.list_files(LEDGER_DIR)
+        except NotImplementedError:
+            files = None
+        except Exception:
+            return False
+        seen = _ledger_files_seen(root)
+        if files is not None:
+            from .backuplock import me
+            own = f"{me()[0]}.json"
+            for name, (size, ts) in files.items():
+                if name == own or not name.endswith(".json"):
+                    continue
+                if seen.get(name) == [size, ts]:
+                    continue
+                target = folder / "ledger.json"
+                target.unlink(missing_ok=True)
+                if not backend.get(f"{LEDGER_DIR}/{name}", target) or not target.is_file():
+                    return False
+                _merge_into_local(root, json.loads(target.read_text()))
+                seen[name] = [size, ts]
+            try:
+                path = root / ".cache" / "videos" / "ledgers-seen.json"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(seen))
+            except OSError:
+                pass
+        # and the one file earlier versions shared, still read
+        top = backend.top_listing()
+        if SHARED in top:
+            target = folder / "shared.json"
+            if not backend.get(SHARED, target) or not target.is_file():
+                return False
+            _merge_into_local(root, json.loads(target.read_text()))
+        return True
+    except (OSError, ValueError, AttributeError):
+        return False
+    except Exception:
+        return False
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def publish_ledger(root, backend) -> bool:
+    """Put what this computer made smaller at the destination, in its own file,
+    for the next computer to read before it decides anything. Videos recorded
+    before computers were told apart are included: they are everyone's."""
+    import json
+    import shutil
+    import tempfile
+    from .backuplock import me
+    ident = me()[0]
+    try:
+        videos = (json.loads(shared_path(root).read_text()).get("videos") or {})
+    except (OSError, ValueError, AttributeError):
+        return False
+    def has_it(e) -> bool:
+        # Recorded before computers were told apart: said by a computer that
+        # holds the smaller video, which can vouch for it.
+        try:
+            return (root / e["new"]).stat().st_size == int(e["new_size"])
+        except (OSError, KeyError, TypeError, ValueError):
+            return False
+    root = Path(root)
+    mine = {rel: e for rel, e in videos.items()
+            if isinstance(e, dict) and (e.get("by") == ident
+                                        or (e.get("by") is None and has_it(e)))}
+    if not mine:
+        return True
+    folder = Path(tempfile.mkdtemp(prefix="piklin-ledger-"))
+    try:
+        source = folder / "ledger.json"
+        source.write_text(json.dumps({"format": "piklin-converted-videos", "version": 2,
+                                      "videos": mine}))
+        return bool(backend.put(source, f"{LEDGER_DIR}/{ident}.json"))
+    except Exception:
+        return False
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def publish_if_new(root, backend) -> bool:
+    """Say at the destination what this computer knows about, if that is not
+    what it said last time: before anything is decided, so another computer
+    that reads there next does not do it again."""
+    import hashlib
+    import json
+    try:
+        videos = json.loads(shared_path(root).read_text()).get("videos") or {}
+    except (OSError, ValueError, AttributeError):
+        return True
+    stamp = hashlib.sha1(json.dumps(videos, sort_keys=True).encode()).hexdigest()
+    path = Path(root) / ".cache" / "videos" / "published.json"
+    try:
+        done = json.loads(path.read_text())
+    except (OSError, ValueError):
+        done = {}
+    key = backend.remote.id
+    if done.get(key) == stamp:
+        return True
+    if not publish_ledger(root, backend):
+        return False
+    done[key] = stamp
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(done))
+    except OSError:
+        pass
+    return True
+
+
+def recheck_products(root, backend, every: float = 600.0) -> int:
+    """Look, folder by folder, at this computer's smaller videos at the
+    destination; any that is not there, or is there at another size, is
+    forgotten as sent so the next backup sends it. The way a destination is
+    changed under a computer - another computer sending its large original over
+    a smaller video - shows nowhere at its top, so the top cannot be trusted
+    to say nothing changed. Looked at most every ``every`` seconds. Returns how
+    many were found."""
+    import json
+    import time
+    root = Path(root)
+    path = root / ".cache" / "videos" / "rechecked.json"
+    try:
+        done = json.loads(path.read_text())
+    except (OSError, ValueError):
+        done = {}
+    key = backend.remote.id
+    now = time.time()
+    if now - float(done.get(key) or 0) < every:
+        return 0
+    try:
+        videos = json.loads(shared_path(root).read_text()).get("videos") or {}
+    except (OSError, ValueError, AttributeError):
+        return 0
+    groups: dict[str, list] = {}
+    for e in videos.values():
+        if not isinstance(e, dict) or not e.get("new") or not e.get("new_size"):
+            continue
+        try:
+            size = (root / e["new"]).stat().st_size
+        except OSError:
+            continue
+        if size == int(e["new_size"]) and "/" in e["new"]:
+            folder, name = e["new"].rsplit("/", 1)
+            groups.setdefault(folder, []).append((e["new"], name, size))
+    if not groups:
+        return 0
+    manifest = backend._load_manifest(root)
+    found = 0
+    for folder, items in groups.items():
+        try:
+            listed = backend.list_files(folder)
+        except NotImplementedError:
+            return 0
+        except Exception:
+            return found                    # could not read it: nothing is decided
+        for rel, name, size in items:
+            have = listed.get(name)
+            if (have is None or have[0] != size) and rel in manifest:
+                del manifest[rel]
+                found += 1
+    if found:
+        backend._save_manifest(root, manifest)
+    done[key] = now
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(done))
+    except OSError:
+        pass
+    return found
+
+
+def already_smaller(root, path, size: int | None = None) -> bool:
+    """Is this video itself a smaller one Piklin made, here or on another
+    computer? Such a video is not made smaller again: that was work done
+    twice, and every time a computer woke up to find the same videos waiting."""
+    import json
+    root = Path(root)
+    try:
+        videos = json.loads(shared_path(root).read_text()).get("videos") or {}
+        rel = Path(path).resolve().relative_to(root.resolve()).as_posix()
+        size = Path(path).stat().st_size if size is None else size
+    except (OSError, ValueError, AttributeError):
+        return False
+    return any(isinstance(e, dict) and e.get("new") == rel
+               and int(e.get("new_size") or 0) == int(size) for e in videos.values())
+
+
+def repair_backup(root, index: dict, manifest: dict) -> int:
+    """Smaller videos this computer holds that the backup does not have, or has
+    at another size: forget that they were sent, so the next backup sends them.
+
+    It happens when another computer, still holding the large original, sends
+    it over the smaller video; this one believed the smaller one was there and
+    never looked again, and every computer waiting for it waited for good.
+    Returns how many were found."""
+    import json
+    root = Path(root)
+    try:
+        videos = json.loads(shared_path(root).read_text()).get("videos") or {}
+    except (OSError, ValueError, AttributeError):
+        return 0
+    found = 0
+    for e in videos.values():
+        if not isinstance(e, dict) or not e.get("new") or not e.get("new_size"):
+            continue
+        rel = e["new"]
+        try:
+            size = (root / rel).stat().st_size
+        except OSError:
+            continue
+        have = index.get(rel)
+        if size == int(e["new_size"]) and (have is None or have[0] != size) and rel in manifest:
+            del manifest[rel]
+            found += 1
+    return found
+
+
+def superseded(root) -> set:
+    """Videos this computer still has at full size that another computer made
+    smaller: they are not sent to the backup, or they would undo that."""
+    return {Path(root) / rel for rel in incoming(root)}
 
 
 def incoming(root) -> dict:
@@ -526,7 +891,8 @@ def incoming(root) -> dict:
     return out
 
 
-def apply_incoming(library, catalog, backend, index: dict, now: float | None = None) -> dict:
+def apply_incoming(library, catalog, backend, index: dict, now: float | None = None,
+                   on_progress=None) -> dict:
     """Make this library's copies of those videos smaller the same way: the
     smaller video is fetched from the backup and compared with this
     computer's own original - length, sound and picture - and only then takes
@@ -537,7 +903,10 @@ def apply_incoming(library, catalog, backend, index: dict, now: float | None = N
     root = Path(library.root)
     now = time.time() if now is None else now
     counts = {"replaced": 0, "problems": 0, "waiting": 0}
-    for old_rel, e in incoming(root).items():
+    todo = incoming(root)
+    for n, (old_rel, e) in enumerate(todo.items()):
+        if on_progress is not None:
+            on_progress(n, len(todo))
         new_rel = e["new"]
         remote = index.get(new_rel)
         if remote is None or (e.get("new_size") and remote[0] != e["new_size"]):
@@ -598,6 +967,8 @@ def convert_one(library, catalog, candidate: Candidate, remotes, now: float | No
     rel = _rel(root, old)
     if rel in incoming(root):
         return "gone"          # another computer did it: the smaller one comes from the backup
+    if already_smaller(root, old):
+        return "gone"          # this is the smaller one already: it is not made smaller twice
     size = old.stat().st_size
     hold = set_apart_locally(root, rel, now) if local_hold_needed(remotes) else None
     av1 = av1_available()
@@ -615,6 +986,65 @@ def convert_one(library, catalog, candidate: Candidate, remotes, now: float | No
         if hold is not None and hold.is_file():
             note_local_hold(root, rel, hold, now)
     return result
+
+
+def open_turn(library, remotes, turns: list) -> str:
+    """Take this computer's turn at every destination and read what the others
+    have done there. "ok" when it can go on; "busy" when another computer has
+    the turn; "unread" when a destination could not be read - nothing is
+    decided without reading it."""
+    from . import backuplock
+    for r in remotes:
+        try:
+            backend = r.backend()
+            try:
+                turn = backuplock.take(backend, backuplock.VIDEOS_LOCK)
+            except backuplock.Busy:
+                return "busy"
+            turns.append((backend, turn))
+            if not refresh_ledger(library.root, backend):
+                return "unread"
+        except Exception:
+            return "unread"
+    return "ok"
+
+
+def make_smaller(library, catalog, remotes, item: dict, cancel=None, on_progress=None):
+    """One waiting video, from start to finish, however many computers share
+    the destination: it takes the turn (one computer at a time does this),
+    reads what the others have done there, decides from that, makes the video
+    smaller, says so at the destination before the turn ends, and lets the
+    turn go. Returns (result, bytes freed); the result is what convert_one
+    returns, or "busy" (another computer has the turn) or "unread" (the
+    destination could not be read) - the video then waits."""
+    result, freed = "gone", 0
+    turns: list = []
+    try:
+        row = catalog.photo(item["id"])
+        if row is None or settled(library.root, row["path"], int(row["bytes"] or 0)):
+            return "gone", 0                   # nothing to do: no turn needed
+        gate = open_turn(library, remotes, turns)
+        if gate != "ok":
+            return gate, 0
+        row = catalog.photo(item["id"])
+        cand = Candidate(row["id"], row["path"], int(row["bytes"] or 0),
+                         float(row["duration"] or 0), int(row["width"] or 0),
+                         int(row["height"] or 0), int(item["bit_rate"]), 0,
+                         item.get("profile") or "balanced")
+        result = convert_one(library, catalog, cand, remotes,
+                             on_progress=on_progress, cancel=cancel)
+        if result == "smaller":
+            after = catalog.photo(item["id"])
+            freed = cand.bytes - int(after["bytes"] or 0) if after is not None else 0
+            # Said at once, before the turn ends: the next computer reads it
+            # and does not do this one again.
+            for backend, _turn in turns:
+                publish_ledger(library.root, backend)
+        return result, freed
+    finally:
+        for _backend, turn in turns:
+            if turn is not None:
+                turn.release()
 
 
 def measure_speed(candidate: Candidate, seconds: float = 5.0) -> float:

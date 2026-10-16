@@ -74,7 +74,15 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
     computer sent there, so this backup never overwrites it."""
     from . import videospace
     root = Path(root)
-    light = remote_mod.library_files(root, include_catalog=False)
+    # Not the large original of a video another computer made smaller: sent,
+    # it would undo that computer's work in the backup.
+    gone = videospace.superseded(root)
+
+    def kept(files):
+        # a file is a path, or a (path, name) pair for the catalog's snapshot
+        return [f for f in files
+                if Path(f[0] if isinstance(f, tuple) else f) not in gone]
+    light = kept(remote_mod.library_files(root, include_catalog=False))
     # A destination with nothing new to send may still have work waiting:
     # a converted video's original to set apart, or to let go after its days.
     behind = [r for r in remotes
@@ -82,7 +90,7 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
               or r.backend().has_local_changes(root, light)]
     if not behind:
         return Outcome(True)
-    files = remote_mod.library_files(root)          # now with the catalog
+    files = kept(remote_mod.library_files(root))          # now with the catalog
     uploaded = 0
     # Each destination on its own: a NAS left at home must not stop the
     # cloud copy made while travelling. The one that couldn't be reached
@@ -187,6 +195,9 @@ class AutoBackup:
         # sync(backend, progress): brings in another computer's changes (sync.pull)
         self._sync = sync
         self._syncing = False
+        # True once this session has read what the other computers left in
+        # the backup (see nas_read)
+        self._read_once = False
         self._timer = 0
         self._running = False
         self._again = False
@@ -233,6 +244,9 @@ class AutoBackup:
                         "videos": _("Receiving videos from {name} — {done} of {total} ({percent}%)"),
                         }.get(kind, _("Receiving from {name} — {done} of {total} ({percent}%)")).format(
                     name=name, done=f"{min(done + 1, total):,}", total=f"{total:,}", percent=percent)
+            elif stage == "replacing" and total:
+                text = _("Replacing videos with the smaller ones from {name} — {done} of {total} ({percent}%)").format(
+                    name=name, done=f"{min(done + 1, total):,}", total=f"{total:,}", percent=percent)
             elif stage == "applying":
                 text = _("Adding what came from {name}…").format(name=name)
             else:
@@ -240,9 +254,18 @@ class AutoBackup:
             GLib.idle_add(self.refresh_status, text)
         return report
 
+    @property
+    def nas_read(self) -> bool:
+        """Has everything the other computers left in the backup been read
+        yet, in this session? Anything that decides what to do from it - which
+        videos still need making smaller - waits for this, or it does work a
+        computer had already done. Always true when there is nothing to read."""
+        return self._read_once or not self.syncing_on
+
     def _before_push(self, remote, backend) -> None:
         if self.syncing_on:
             self._sync(backend, self._sync_progress(remote.name))
+            self._read_once = True
 
     def _sync_tick(self):
         """Look for another computer's changes, unless a backup is running
@@ -258,18 +281,23 @@ class AutoBackup:
             from . import system
             system.lower_thread_priority()
             changed = False
+            read_all = True
             for r in remotes:
                 backend = r.backend()
                 report = self._sync_progress(r.name)
                 report("looking")
                 try:
                     if not backend.test().ok:
+                        read_all = False
                         continue
                     result = self._sync(backend, report)
                     changed = changed or bool(getattr(result, "changed", False))
                 except Exception as exc:
+                    read_all = False
                     from . import logs
                     logs.get("backup").warning("Updating from %s failed: %s", r.name, exc)
+            if read_all:
+                self._read_once = True
             GLib.idle_add(self._sync_done, changed)
         threading.Thread(target=work, daemon=True).start()
         return GLib.SOURCE_CONTINUE

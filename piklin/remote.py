@@ -34,7 +34,9 @@ from __future__ import annotations
 import datetime
 import functools
 import hashlib
+import html
 import http.client
+import io
 import ipaddress
 import json
 import os
@@ -49,6 +51,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from base64 import b64encode
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable
@@ -434,6 +437,10 @@ class _CountingReader:
         self.report(self.sent)
         return chunk
 
+    def seek(self, pos: int, whence: int = 0) -> int:
+        self.sent = pos if whence == 0 else self.sent
+        return self.fh.seek(pos, whence)
+
 
 # A restore, like a backup, goes in three stages: how the library is arranged
 # (small, and the part nothing can regenerate), then the photos, then the
@@ -466,12 +473,58 @@ class Backend:
         self.remote = remote
         self.cancel = threading.Event()
         self._prepared = False
-        # set by push while a file uploads: bytes of it sent so far
-        self._on_bytes: Callable[[int], None] | None = None
+        # set by push while a file uploads: bytes of it sent so far. Each
+        # thread of a parallel push has its own.
+        self._local = threading.local()
         # path -> the time the destination gives the file, set before a restore
         # or a sync fetches: a file that comes back is given that time, so the
         # next backup sees it is the very file that is there
         self.remote_times: dict[str, float] = {}
+
+    # How many files go at once. A destination where every file costs a round
+    # trip (a NAS over the network) sets more than one.
+    PARALLEL = 1
+
+    @property
+    def _on_bytes(self) -> Callable[[int], None] | None:
+        return getattr(self._local, "on_bytes", None)
+
+    @_on_bytes.setter
+    def _on_bytes(self, report: Callable[[int], None] | None) -> None:
+        self._local.on_bytes = report
+
+    def _each_parallel(self, items, job, done, tick=None) -> None:
+        """Run ``job(item)`` on up to PARALLEL threads. ``done(item, result)``
+        and ``tick()`` run on the calling thread, as jobs end and about twice
+        a second, so progress and the record of what was sent need no locks.
+        After a cancel, what is running ends and nothing new starts."""
+        items = iter(items)
+        pending: dict = {}
+        workers = max(1, self.PARALLEL)
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            exhausted = False
+            while True:
+                while (not exhausted and len(pending) < workers * 2
+                       and not self.cancel.is_set()):
+                    try:
+                        item = next(items)
+                    except StopIteration:
+                        exhausted = True
+                        break
+                    pending[pool.submit(job, item)] = item
+                if not pending:
+                    break
+                finished, _still = wait(pending, timeout=0.5,
+                                        return_when=FIRST_COMPLETED)
+                for fut in finished:
+                    item = pending.pop(fut)
+                    try:
+                        result = fut.result()
+                    except Exception:
+                        result = False
+                    done(item, result)
+                if tick is not None:
+                    tick()
 
     def prepare(self) -> None:
         """Make sure the Piklin folder is there before using it. A backup
@@ -507,6 +560,22 @@ class Backend:
         """Remove one file from the destination. True once it is gone,
         also when it was gone already."""
         raise NotImplementedError
+
+    def list_files(self, folder: str) -> dict[str, tuple[int, float]]:
+        """The files directly inside ``folder`` at the destination, by name:
+        (size, mtime). Empty when there is no such folder."""
+        raise NotImplementedError
+
+    def make_exclusive(self, rel: str) -> bool | None:
+        """Make the folder ``rel`` if it is not there: True when this call made
+        it, False when it was there already, None when this destination has no
+        way to say so. Making a folder is atomic on a server or a disk, so of
+        any number of computers asking at once, exactly one is told True."""
+        return None
+
+    def remove_folder(self, rel: str) -> bool:
+        """Remove a folder made with make_exclusive, and what is in it."""
+        return self.delete(rel)
 
     def listing(self) -> dict[str, tuple[int, float]]:
         """Map of relative path -> (size, mtime) already on the remote."""
@@ -728,45 +797,61 @@ class Backend:
         if on_progress:
             on_progress(p)
 
-        for n, (f, rel, size, mtime) in enumerate(todo, 1):
+        inflight: dict[str, int] = {}      # rel -> bytes of it sent so far
+        finished_bytes = 0
+        since_saved = 0
+
+        def job(entry):
+            f, rel, size, mtime = entry
             if self.cancel.is_set():
-                p.phase = "cancelled"
-                break
+                return None                 # not started: stays to do
             p.current = rel
             if keep_versions_days and rel in remote_index and rel not in NO_VERSIONS:
                 try:
                     self._archive(rel, stamp)
                 except Exception:
                     pass        # the backup goes on; only this old copy is lost
-            # A big video takes minutes to go up: report its bytes as they
-            # go, a few times a second, so the progress never looks stuck.
-            before, last = p.done_bytes, [0.0]
-
-            def sent(n, before=before, last=last):
-                now = time.monotonic()
-                if on_progress and now - last[0] >= 0.5:
-                    last[0] = now
-                    p.done_bytes = before + n
-                    on_progress(p)
+            # A big video takes minutes to go up: its bytes are reported as
+            # they go, so the progress never looks stuck.
+            def sent(n, rel=rel):
+                inflight[rel] = n
             self._on_bytes = sent
             try:
-                ok = self.put(f, rel)
+                return bool(self.put(f, rel))
             except Exception:
-                ok = False
+                return False
             finally:
                 self._on_bytes = None
-                p.done_bytes = before
+                inflight.pop(rel, None)
+
+        def done(entry, ok):
+            nonlocal finished_bytes, since_saved
+            f, rel, size, mtime = entry
+            if ok is None:
+                return
             if ok:
                 p.uploaded += 1
                 manifest[rel] = [size, mtime]
             else:
                 p.errors += 1
             p.done_files += 1
-            p.done_bytes += size
-            if n % 50 == 0:
+            finished_bytes += size
+            p.done_bytes = finished_bytes
+            since_saved += 1
+            if since_saved >= 50:
                 self._save_manifest(root, manifest)
+                since_saved = 0
             if on_progress:
                 on_progress(p)
+
+        def tick():
+            p.done_bytes = finished_bytes + sum(inflight.values())
+            if on_progress:
+                on_progress(p)
+
+        self._each_parallel(todo, job, done, tick)
+        if self.cancel.is_set() and p.done_files < len(todo):
+            p.phase = "cancelled"
         self._save_manifest(root, manifest)
         if keep_versions_days and p.phase != "cancelled" and not p.errors:
             try:
@@ -911,20 +996,21 @@ class Backend:
                     on_progress, on_stage=None) -> None:
         told = 0
         last_saved, since_saved = time.monotonic(), 0
-        for rel, size in todo:
-            told = _announce_stages(on_stage, told, stage_of(rel), p)
+
+        def job(entry):
+            rel, size = entry
             if self.cancel.is_set():
-                p.phase = "cancelled"
-                break
+                return None                 # not started: stays to do
+            p.current = rel
             local = root / rel
             tmp = local.with_name(local.name + ".part")
-            p.current = rel
             try:
                 local.parent.mkdir(parents=True, exist_ok=True)
                 ok = (self.get(rel, tmp) and tmp.is_file()
                       and (size <= 0 or tmp.stat().st_size == size))
             except Exception:
                 ok = False
+            st = None
             if ok:
                 # One file that can't be put in place (its temporary copy
                 # vanished) is one failed file, not the end of the restore.
@@ -938,18 +1024,26 @@ class Backend:
                     st = local.stat()
                 except OSError:
                     ok = False
-            if ok:
+            if not ok:
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+            return st if ok else False
+
+        def done(entry, result):
+            nonlocal last_saved, since_saved
+            rel, size = entry
+            if result is None:
+                return
+            if result:
                 # recorded as backed up: the next backup won't send it again
-                manifest[rel] = [st.st_size, st.st_mtime]
+                manifest[rel] = [result.st_size, result.st_mtime]
                 p.restored += 1
                 if rel in STATE_FILES or rel.startswith(("Albums/", "Edits/")):
                     p.restored_state = True
             else:
                 p.errors += 1
-                try:
-                    tmp.unlink()
-                except OSError:
-                    pass
             p.done_files += 1
             p.done_bytes += max(size, 0)
             since_saved += 1
@@ -962,6 +1056,19 @@ class Backend:
                 last_saved, since_saved = time.monotonic(), 0
             if on_progress:
                 on_progress(p)
+
+        # One stage at a time, so "the arrangement is in place" is true when
+        # it is announced, however many files come at once.
+        stages: dict[int, list] = {}
+        for entry in todo:
+            stages.setdefault(stage_of(entry[0]), []).append(entry)
+        for stage in sorted(stages):
+            told = _announce_stages(on_stage, told, stage, p)
+            if self.cancel.is_set():
+                break
+            self._each_parallel(stages[stage], job, done)
+        if self.cancel.is_set() and p.done_files < len(todo):
+            p.phase = "cancelled"
         self._save_manifest(root, manifest)
         if p.phase != "cancelled":
             _announce_stages(on_stage, told, STAGE_VIDEOS, p)
@@ -1110,6 +1217,30 @@ class LocalBackend(Backend):
         except OSError:
             return False
 
+    def list_files(self, folder: str) -> dict[str, tuple[int, float]]:
+        where = self.base / folder
+        if not where.is_dir():
+            return {}
+        out = {}
+        for p in where.iterdir():
+            if p.is_file() and not p.name.startswith("."):
+                st = p.stat()
+                out[p.name] = (st.st_size, st.st_mtime)
+        return out
+
+    def make_exclusive(self, rel: str) -> bool | None:
+        try:
+            (self.base / rel).mkdir()
+            return True
+        except FileExistsError:
+            return False
+        except OSError:
+            return None
+
+    def remove_folder(self, rel: str) -> bool:
+        shutil.rmtree(self.base / rel, ignore_errors=True)
+        return not (self.base / rel).exists()
+
 
 # ==========================================================================
 # WebDAV
@@ -1129,7 +1260,12 @@ def _parse_multistatus(body: str, prefix: str) -> list[tuple[str, bool, int, flo
         href = re.search(r"<[^>]*href[^>]*>(.*?)</[^>]*href>", block, re.S | re.I)
         if not href:
             continue
-        path = urllib.parse.unquote(urllib.parse.urlparse(href.group(1).strip()).path)
+        # The name is XML ("&amp;" for an "&"), then a web address. urlparse
+        # would cut it at a ";" as a "parameter": a file called "Mom & Dad.mov"
+        # was listed as "Mom &amp" and never found, so it was sent again and
+        # again.
+        path = urllib.parse.unquote(urllib.parse.urlsplit(
+            html.unescape(href.group(1).strip())).path)
         if prefix and path.rstrip("/") == prefix:
             path = ""
         elif prefix and path.startswith(prefix + "/"):
@@ -1253,11 +1389,13 @@ class WebDavBackend(Backend):
     """Native WebDAV: QNAP, Synology, Nextcloud, ownCloud, pCloud, Box."""
 
     TIMEOUT = 60
+    # A new connection to a NAS costs 65 to 125 ms and a reused one under
+    # 8 ms, so connections stay open and four files go at once.
+    PARALLEL = 4
 
     def __init__(self, remote: Remote):
         super().__init__(remote)
         self._folders: set[str] = set()
-        self._opener = None
         self._pw: str | None = None
 
     @property
@@ -1321,20 +1459,87 @@ class WebDavBackend(Backend):
     def _full(self, rel: str = "") -> str:
         return "/".join(p for p in (self.base_path, rel.strip("/")) if p)
 
-    def _open(self, req):
-        if self._opener is None:
-            handlers = ([_PinnedHTTPSHandler(self.pin)]
-                        if self.pin and self.url.startswith("https://") else [])
-            self._opener = urllib.request.build_opener(*handlers)
-        return self._opener.open(req, timeout=self.TIMEOUT)
+    def _connection(self) -> http.client.HTTPConnection:
+        """This thread's open connection to the server, made on first use."""
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            u = urllib.parse.urlparse(self.url)
+            if u.scheme == "https" and self.pin:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE   # checked against the pin instead
+                conn = _PinnedConnection(u.hostname, u.port, timeout=self.TIMEOUT,
+                                         pin=self.pin, context=ctx)
+            elif u.scheme == "https":
+                conn = http.client.HTTPSConnection(u.hostname, u.port,
+                                                   timeout=self.TIMEOUT)
+            else:
+                conn = http.client.HTTPConnection(u.hostname, u.port,
+                                                  timeout=self.TIMEOUT)
+            self._local.conn = conn
+        return conn
+
+    def _drop_connection(self) -> None:
+        conn = getattr(self._local, "conn", None)
+        self._local.conn = None
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _stale(exc: Exception) -> bool:
+        """Could this failure just be an open connection the server closed?
+        A timeout or a changed certificate is not."""
+        return not isinstance(exc, (TimeoutError, CertificateChanged, ssl.SSLCertVerificationError))
 
     def _request_path(self, method: str, path: str, data=None,
-                      extra: dict | None = None):
+                      extra: dict | None = None, _hops: int = 0):
+        base = urllib.parse.urlparse(self.url).path.rstrip("/")
+        target = f"{base}/{urllib.parse.quote(path)}" if path else base + "/"
+        headers = {**self._auth_header(), **(extra or {})}
+        for attempt in (0, 1):
+            conn = self._connection()
+            reused = conn.sock is not None
+            try:
+                conn.request(method, target, body=data, headers=headers)
+                resp = conn.getresponse()
+                break
+            except (OSError, http.client.HTTPException) as exc:
+                # A connection left open can have been closed by the server in
+                # the meantime: say it again on a new one, once, when what was
+                # being sent can be sent again.
+                self._drop_connection()
+                again = (attempt == 0 and reused and self._stale(exc)
+                         and (data is None or isinstance(data, bytes)
+                              or hasattr(data, "seek")))
+                if not again:
+                    raise urllib.error.URLError(exc)
+                if hasattr(data, "seek"):
+                    data.seek(0)
         url = f"{self.url}/{urllib.parse.quote(path)}" if path else self.url + "/"
-        req = urllib.request.Request(url, data=data, method=method)
-        for k, v in {**self._auth_header(), **(extra or {})}.items():
-            req.add_header(k, v)
-        return self._open(req)
+        if resp.status in (301, 302, 303, 307, 308) and method in ("GET", "HEAD"):
+            resp.read()
+            where = resp.getheader("Location")
+            if where and _hops < 5:
+                target_url = urllib.parse.urljoin(url, where)
+                mine = urllib.parse.urlparse(self.url)
+                there = urllib.parse.urlparse(target_url)
+                if (there.scheme, there.netloc) == (mine.scheme, mine.netloc):
+                    rest = there.path[len(mine.path.rstrip("/")) + 1:]
+                    return self._request_path(method, urllib.parse.unquote(rest),
+                                              data, extra, _hops + 1)
+        if resp.status >= 300:
+            body = resp.read()
+            raise urllib.error.HTTPError(url, resp.status, resp.reason, resp.msg,
+                                         io.BytesIO(body))
+        if method == "GET":
+            return resp                     # streamed by the caller
+        body = resp.read()                  # the connection is free again
+        reply = io.BytesIO(body)
+        reply.status = resp.status
+        return reply
 
     def _request(self, method: str, rel: str = "", data=None,
                  extra: dict | None = None):
@@ -1612,6 +1817,38 @@ class WebDavBackend(Backend):
             return True
         except urllib.error.HTTPError as exc:
             return exc.code == 404                 # gone already
+        except Exception:
+            return False
+
+    def list_files(self, folder: str) -> dict[str, tuple[int, float]]:
+        try:
+            entries = self._entries(folder, "1")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                return {}
+            raise
+        prefix = folder.strip("/") + "/"
+        return {r[len(prefix):]: (size, ts) for r, is_dir, size, ts in entries
+                if not is_dir and r.startswith(prefix) and "/" not in r[len(prefix):]
+                and not r[len(prefix):].startswith(".")}
+
+    def make_exclusive(self, rel: str) -> bool | None:
+        try:
+            self._ensure_folder(self._full("/".join(rel.split("/")[:-1])))
+            self._request("MKCOL", rel)
+            return True
+        except urllib.error.HTTPError as exc:
+            # 405: there already, as on every WebDAV server
+            return False if exc.code in (405, 301) else None
+        except Exception:
+            return None
+
+    def remove_folder(self, rel: str) -> bool:
+        try:
+            self._request("DELETE", rel.rstrip("/") + "/")
+            return True
+        except urllib.error.HTTPError as exc:
+            return exc.code == 404
         except Exception:
             return False
 
@@ -1896,6 +2133,12 @@ class RcloneBackend(Backend):
         only += ["--include", "/*.json", "--include", "/README.txt",
                  "--include", "/catalog.db"]
         return self._lsjson(["-R", "--files-only", *only])
+
+    def list_files(self, folder: str) -> dict[str, tuple[int, float]]:
+        found = self._lsjson(["-R", "--files-only", "--include", f"/{folder}/*"])
+        prefix = folder.strip("/") + "/"
+        return {r[len(prefix):]: v for r, v in found.items()
+                if r.startswith(prefix) and "/" not in r[len(prefix):]}
 
     def top_listing(self) -> dict[str, tuple[int, float]]:
         return self._lsjson(["--files-only", "--max-depth", "1",

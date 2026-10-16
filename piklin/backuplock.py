@@ -14,6 +14,7 @@ what another computer sent is not held up by it.
 from __future__ import annotations
 
 import json
+import random
 import shutil
 import tempfile
 import threading
@@ -58,11 +59,11 @@ def me() -> tuple[str, str]:
     return ident, socket.gethostname().split(".")[0] or "another computer"
 
 
-def _read(backend) -> dict | None:
+def _read(backend, lock: str = LOCK) -> dict | None:
     folder = Path(tempfile.mkdtemp(prefix="piklin-turn-"))
     try:
         target = folder / "turn"
-        if not backend.get(LOCK, target) or not target.is_file():
+        if not backend.get(lock, target) or not target.is_file():
             return None
         data = json.loads(target.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else None
@@ -72,13 +73,13 @@ def _read(backend) -> dict | None:
         shutil.rmtree(folder, ignore_errors=True)
 
 
-def _write(backend, ident: str, name: str) -> bool:
+def _write(backend, ident: str, name: str, lock: str = LOCK) -> bool:
     folder = Path(tempfile.mkdtemp(prefix="piklin-turn-"))
     try:
         source = folder / "turn"
         source.write_text(json.dumps({"id": ident, "name": name, "at": time.time()}),
                           encoding="utf-8")
-        return bool(backend.put(source, LOCK))
+        return bool(backend.put(source, lock))
     except OSError:
         return False
     finally:
@@ -98,8 +99,10 @@ def _held_by_other(turn: dict | None, ident: str) -> bool:
 class Turn:
     """A turn taken at a destination. ``release()`` ends it."""
 
-    def __init__(self, backend, ident: str, name: str):
-        self.backend, self.ident, self.name = backend, ident, name
+    def __init__(self, backend, ident: str, name: str, lock: str = LOCK,
+                 folder: str = ""):
+        self.backend, self.ident, self.name, self.lock = backend, ident, name, lock
+        self.folder = folder                # set when the turn is a folder made exclusively
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._renew, daemon=True,
                                         name="piklin-backup-turn")
@@ -108,16 +111,19 @@ class Turn:
     def _renew(self) -> None:
         while not self._stop.wait(BEAT):
             try:
-                _write(self.backend, self.ident, self.name)
+                _write(self.backend, self.ident, self.name, self.lock)
             except Exception:
                 pass
 
     def release(self) -> None:
         self._stop.set()
         try:
-            turn = _read(self.backend)
+            turn = _read(self.backend, self.lock)
             if turn and turn.get("id") == self.ident:
-                self.backend.delete(LOCK)
+                if self.folder:
+                    self.backend.remove_folder(self.folder)
+                else:
+                    self.backend.delete(self.lock)
         except Exception:
             pass
 
@@ -128,25 +134,68 @@ class Turn:
         self.release()
 
 
-def take(backend) -> Turn | None:
+# The same kind of turn, for making videos smaller: one computer at a time does
+# it, however many share the destination, so none does what another has done.
+VIDEOS_LOCK = ".piklin-videos-lock"
+
+
+def _take_exclusive(backend, lock: str, ident: str, name: str) -> Turn | None:
+    """The turn as a folder made with one atomic call: of any number of
+    computers asking at once, exactly one makes it. None when this destination
+    cannot do that (the file turn below is used instead). Raises Busy."""
+    folder = lock + ".d"
+    owner_file = folder + "/owner"
+    made = backend.make_exclusive(folder)
+    if made is None:
+        return None
+    if not made:
+        owner = _read(backend, owner_file)
+        if owner is None:
+            time.sleep(1.0)                 # made a moment ago, not signed yet
+            owner = _read(backend, owner_file)
+        if _held_by_other(owner, ident):
+            raise Busy(str(owner.get("name") or "another computer"))
+        if owner is not None and owner.get("id") == ident:
+            _write(backend, ident, name, owner_file)      # ours, from before a crash
+            return Turn(backend, ident, name, owner_file, folder)
+        # Left behind by a computer that went to sleep or was switched off.
+        # Many may notice at once: each waits a little, looks again, and only
+        # then clears it; whoever makes the folder anew has the turn.
+        time.sleep(random.uniform(0.0, 3.0))
+        again = _read(backend, owner_file)
+        if _held_by_other(again, ident) or (again and again.get("at") != (owner or {}).get("at")):
+            raise Busy(str((again or {}).get("name") or "another computer"))
+        backend.remove_folder(folder)
+        if not backend.make_exclusive(folder):
+            raise Busy("another computer")
+    if not _write(backend, ident, name, owner_file):
+        backend.remove_folder(folder)
+        return None
+    return Turn(backend, ident, name, owner_file, folder)
+
+
+def take(backend, lock: str = LOCK) -> Turn | None:
     """Take the turn at this destination. Raises Busy when another computer
     has it. Returns None when the destination cannot keep a turn at all: a
     backup is not refused for that."""
     ident, name = me()
     try:
-        turn = _read(backend)
+        exclusive = _take_exclusive(backend, lock, ident, name)
+        if exclusive is not None:
+            return exclusive
+        turn = _read(backend, lock)
         if _held_by_other(turn, ident):
             raise Busy(str(turn.get("name") or "another computer"))
-        if not _write(backend, ident, name):
+        if not _write(backend, ident, name, lock):
             return None
         # Two computers can write within the same second: whoever's file is
         # still there after a moment has the turn, and the other steps back.
         time.sleep(SETTLE)
-        turn = _read(backend)
+        turn = _read(backend, lock)
         if _held_by_other(turn, ident):
             raise Busy(str(turn.get("name") or "another computer"))
     except Busy:
         raise
     except Exception:
         return None
-    return Turn(backend, ident, name)
+    return Turn(backend, ident, name, lock)

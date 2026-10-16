@@ -119,10 +119,16 @@ def stream_info(path: Path | str) -> dict | None:
         rotation = int(cap.get(cv2.CAP_PROP_ORIENTATION_META) or 0) % 360
         par = _cv_pixel_aspect(cap)
         ok, frame = cap.read()
-        if not ok or w <= 0 or h <= 0:
-            return None
+        unreadable = not ok or w <= 0 or h <= 0
     finally:
         cap.release()
+    if unreadable:
+        # OpenCV's FFmpeg opens the file but cannot decode it: AV1, on a
+        # system whose OpenCV has no AV1 decoder. The FFmpeg Piklin ships
+        # reads it. Taken as "no video", the check that a smaller AV1 video
+        # is the same video failed on that computer, which then never took
+        # the smaller videos another computer had made.
+        return _av_stream_info(path)
     if not (0 < fps < 1000):
         fps = 0.0
     duration = frames / fps if fps and frames > 0 else 0.0
@@ -158,10 +164,11 @@ def frame_at(path: Path | str, seconds: float = 0.0,
             # first frame is better than nothing.
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             ok, frame = cap.read()
-        if not ok:
-            raise OSError(f"no frame in {path}")
+        unreadable = not ok
     finally:
         cap.release()
+    if unreadable:
+        return _av_frame_at(path, seconds, max_side)    # see stream_info
     im = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     shown = _shown(im.width, im.height, par, rotation)
     if shown != im.size:

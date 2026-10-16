@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import threading
 import time
+from pathlib import Path
 from typing import Callable
 
 from gi.repository import Gio, GLib
@@ -39,6 +40,11 @@ class VideoWatch:
         self._done = 0
         self._last_tend = 0.0
         self._planning = False
+        self._pruned = False
+        # There is no button to pause it any more: it looks after itself. One
+        # left paused by an earlier version would stay so for good.
+        if settings.get("videos_convert_paused"):
+            settings.set("videos_convert_paused", False)
         try:
             self._power = Gio.PowerProfileMonitor.dup_default()
         except Exception:
@@ -133,6 +139,11 @@ class VideoWatch:
             return "power"
         if system.on_battery():
             return "battery"
+        # What the other computers already did is in the backup: read it all
+        # first, then decide what is left to do. Starting before that made
+        # videos smaller that another computer had made smaller already.
+        if not getattr(self.autobackup, "nas_read", True):
+            return "reading"
         ab, hw = self.autobackup, self.health_watch
         thread = getattr(self.indexer, "_thread", None)
         if (getattr(ab, "_running", False) or getattr(ab, "_syncing", False)
@@ -163,6 +174,11 @@ class VideoWatch:
                 and now - float(self.settings.get("videos_planned_at") or 0) >= PLAN_EVERY_SECONDS
                 and self.waiting_for() is None):
             self._plan_new()
+        if (not self._pruned and not self._running
+                and getattr(self.autobackup, "nas_read", True)
+                and not getattr(self.autobackup, "_syncing", False)):
+            self._pruned = True
+            self._prune_queue()
         if self._running or not self.queue:
             return GLib.SOURCE_CONTINUE
         why = self.waiting_for()
@@ -171,38 +187,62 @@ class VideoWatch:
             return GLib.SOURCE_CONTINUE
         self._running = True
         self._cancel.clear()
-        item = self.queue[0]
+        item = self._next_item()
         remotes = list(getattr(self.autobackup, "remotes", []) or [])
         total = self._done + len(self.queue)
 
         def work():
             from . import logs, system
             system.lower_thread_priority()
-            vlog = logs.get("videos")
-            result, freed = "gone", 0
-            try:
-                row = self.catalog.photo(item["id"])
-                if row is not None:
-                    cand = videospace.Candidate(
-                        row["id"], row["path"], int(row["bytes"] or 0), float(row["duration"] or 0),
-                        int(row["width"] or 0), int(row["height"] or 0), int(item["bit_rate"]), 0,
-                        item.get("profile") or "balanced")
 
-                    def progress(fraction, d=self._done, t=total):
-                        GLib.idle_add(self.on_status, {"state": "converting", "done": d + 1,
-                                                       "total": t, "fraction": fraction})
-                    result = videospace.convert_one(self.library, self.catalog, cand, remotes,
-                                                    on_progress=progress, cancel=self._cancel)
-                    if result == "smaller":
-                        after = self.catalog.photo(item["id"])
-                        freed = cand.bytes - int(after["bytes"] or 0) if after is not None else 0
+            def progress(fraction, d=self._done, t=total):
+                GLib.idle_add(self.on_status, {"state": "converting", "done": d + 1,
+                                               "total": t, "fraction": fraction})
+            try:
+                result, freed = videospace.make_smaller(
+                    self.library, self.catalog, remotes, item,
+                    cancel=self._cancel, on_progress=progress)
             except Exception as exc:
-                vlog.warning("A video was not made smaller: %s", exc)
-                result = "failed"
+                logs.get("videos").warning("A video was not made smaller: %s", exc)
+                result, freed = "failed", 0
             GLib.idle_add(self._finished, item, result, freed)
 
         threading.Thread(target=work, name="videos", daemon=True).start()
         return GLib.SOURCE_CONTINUE
+
+    def _prune_queue(self) -> None:
+        """Once the backup has been read: forget the waiting videos that are
+        already the smaller one, or that another computer has made smaller, so
+        the count is true and nothing is looked at twice."""
+        queue = self.queue
+        keep = []
+        try:
+            elsewhere = {str((Path(self.library.root) / rel).resolve())
+                         for rel in videospace.incoming(self.library.root)}
+        except Exception:
+            elsewhere = set()
+        for item in queue:
+            row = self.catalog.photo(item["id"])
+            if row is None:
+                continue
+            path = row["path"]
+            if (videospace.already_smaller(self.library.root, path, int(row["bytes"] or 0))
+                    or str(Path(path).resolve()) in elsewhere):
+                continue
+            keep.append(item)
+        if len(keep) != len(queue):
+            self.settings.set("videos_to_convert", keep)
+
+    def _next_item(self) -> dict:
+        """The next video to make smaller. Every computer sees the same list
+        in the same order, so each one began with the same video at the same
+        time and they did the same work side by side; each takes them in an
+        order of its own instead, and the work divides itself."""
+        import hashlib
+        from .backuplock import me
+        ident = me()[0]
+        return min(self.queue, key=lambda q: hashlib.sha1(
+            f"{ident}:{q['id']}".encode()).digest())
 
     def _tend_local(self):
         try:
@@ -213,6 +253,11 @@ class VideoWatch:
     def _finished(self, item, result, freed):
         from . import logs
         self._running = False
+        if result in ("busy", "unread"):
+            # Not this computer's turn, or the destination could not be read:
+            # the video stays where it is and it asks again in a minute.
+            self.on_status({"state": "waiting", "why": "others", "left": len(self.queue)})
+            return False
         if result == "cancelled":
             self.on_status({"state": "waiting", "why": "paused", "left": len(self.queue)})
             return False

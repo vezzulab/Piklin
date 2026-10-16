@@ -329,12 +329,21 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
     except Exception as exc:
         return SyncResult(False, str(exc), unreachable=True)
     if same:
-        # Nothing new at the backup, but a video another computer made smaller
-        # may still be waiting here (its record came before this version could
-        # act on it).
+        # Nothing new at the top of the backup, which says nothing about what is
+        # inside it. What the other computers made smaller is read, what this
+        # one made is said, and this one's smaller videos are looked for there:
+        # none of that waits for something to change at the top.
         from . import videospace
+        result = SyncResult()
+        try:
+            videospace.refresh_ledger(root, backend)
+            videospace.publish_if_new(root, backend)
+            if videospace.recheck_products(root, backend):
+                result.changed = True       # they go up again
+        except Exception:
+            pass
         if not videospace.incoming(root):
-            return SyncResult()
+            return result
     try:
         index = backend.listing()
     except Exception as exc:
@@ -424,6 +433,15 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
     backend.remote_times = {rel: v[1] for rel, v in index.items()}
     if backend.adopt_present(root, index, manifest):
         backend._save_manifest(root, manifest)
+    # A smaller video of this computer's that the backup lost (another computer
+    # sent its large original over it) goes up again.
+    from . import videospace
+    repaired = videospace.repair_backup(root, index, manifest)
+    if repaired:
+        backend._save_manifest(root, manifest)
+        result.changed = True
+        from . import logs
+        logs.get("backup").info("%d smaller video(s) are missing from the backup, sent again", repaired)
     todo = []
     edits = []
     for rel in sorted(index):
@@ -446,6 +464,12 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
     # A video another computer made smaller, that this one still has at full
     # size, is not a new photo: it replaces this computer's copy (below).
     from . import videospace
+    # What the other computers made smaller is read before anything is decided.
+    try:
+        videospace.refresh_ledger(root, backend)
+        videospace.publish_if_new(root, backend)
+    except Exception:
+        pass
     replacing = {e["new"] for e in videospace.incoming(root).values()}
     originals = [(rel, index[rel][0]) for rel in sorted(index)
                  if rel.startswith("Originals/") and not (root / rel).exists()
@@ -482,8 +506,16 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
         if p.phase == "cancelled":
             result.ok, result.message = False, "cancelled"
     if replacing and result.ok:
-        converted = videospace.apply_incoming(library, catalog, backend, index)
+        converted = videospace.apply_incoming(
+            library, catalog, backend, index,
+            on_progress=(lambda d, t: progress("replacing", d, t, int(100 * d / max(t, 1))))
+            if progress else None)
         result.changed = result.changed or bool(converted["replaced"])
+        from . import logs
+        logs.get("backup").info(
+            "Videos another computer made smaller: %d replaced here, %d could not be "
+            "checked, %d not in the backup yet",
+            converted["replaced"], converted["problems"], converted["waiting"])
     brought = [rel for rel, _s in originals if (root / rel).exists()]
     fresh_edits = [root / rel for rel in edits if (root / rel).exists()]
     for rel in edits:
