@@ -1692,6 +1692,157 @@ check("when it passes, the smaller copy takes the original's place",
       _vs_res == "smaller" and _vs_new.exists() and not _vs_in.exists()
       and _vs_new.stat().st_size < os.path.getsize(_camclip), (_vs_res, _vs_new))
 
+# A video that is already the smaller one is not made smaller again, here or
+# on another computer: the queue of a computer that had not yet seen the other
+# one's work used to make the same videos smaller a second time.
+_vs.record_conversion(_vs_lib.root, _vs_in, _vs_new, os.path.getsize(_camclip), _vs_dur)
+check("a video that is the smaller one already is known as such",
+      _vs.already_smaller(_vs_lib.root, _vs_new) and not _vs.already_smaller(_vs_lib.root, _vs_out))
+check("it is left out of what is planned",
+      not [c for c in _vs.plan(_vs_cat, _vs_lib.originals, min_saving=0, min_share=0)
+           if Path(c.path).resolve() == _vs_new.resolve()])
+_vs_cand = _vs.Candidate(_vs_row["id"], str(_vs_new), _vs_new.stat().st_size, _vs_dur, 640, 360, 800_000, 0, "compressed")
+check("and a queue made before it was known skips it without encoding anything",
+      _vs.convert_one(_vs_lib, _vs_cat, _vs_cand, []) == "gone")
+
+# Nothing is made smaller until what the other computers left in the backup has
+# been read: the videos waiting were chosen before that was known.
+from piklin import videowatch as _vw
+class _FakeBackup:
+    def __init__(self, read): self.nas_read = read; self._running = self._syncing = False
+_fw = object.__new__(_vw.VideoWatch)
+_fw.settings = {"videos_convert_paused": False}
+class _FakeSettings(dict):
+    def get(self, k, d=None): return dict.get(self, k, d)
+_fw.settings = _FakeSettings(); _fw._power = None; _fw.health_watch = _FakeBackup(True); _fw.indexer = None
+from piklin import system as _sysm
+_orig_batt = _sysm.on_battery; _sysm.on_battery = lambda: False
+try:
+    _fw.autobackup = _FakeBackup(False)
+    check("videos are not made smaller before the backup has been read", _fw.waiting_for() == "reading", _fw.waiting_for())
+    _fw.autobackup = _FakeBackup(True)
+    check("and may be once it has", _fw.waiting_for() is None, _fw.waiting_for())
+finally:
+    _sysm.on_battery = _orig_batt
+
+# A video OpenCV opens but cannot decode (AV1, on a system whose OpenCV has no
+# decoder for it) is read by PyAV instead of being taken for no video at all.
+from piklin import video as _vid
+class _NoFrames:
+    def isOpened(self): return True
+    def get(self, *a): return 0
+    def set(self, *a): return True
+    def read(self): return False, None
+    def release(self): pass
+_vid_ok = _vid.stream_info(_vs_new)
+_vid_cap = _vid._capture
+_vid._capture = lambda path: _NoFrames()
+try:
+    _vid_fb = _vid.stream_info(_vs_new)
+    _vid_im = _vid.frame_at(_vs_new, 0.0, 120)
+finally:
+    _vid._capture = _vid_cap
+check("a video OpenCV cannot decode is still measured and shown, through PyAV",
+      bool(_vid_ok) and bool(_vid_fb) and _vid_fb["width"] == _vid_ok["width"]
+      and abs(_vid_fb["duration"] - _vid_ok["duration"]) < 0.2 and max(_vid_im.size) <= 120,
+      (_vid_ok, _vid_fb))
+
+# The frames compared to tell two videos are the same are the ones nearest the
+# moment asked for: taking the first one from 50 ms before it put the original
+# and its smaller copy three frames apart, and a scene with movement failed.
+import av as _av, numpy as _np
+_fr_path = Path(TMP) / "frames.mp4"
+with _av.open(str(_fr_path), "w") as _oc:
+    _st = _oc.add_stream("mpeg4", rate=25); _st.width, _st.height = 64, 48; _st.pix_fmt = "yuv420p"
+    _st.options = {"g": "1"}
+    for _i in range(75):
+        _f = _av.VideoFrame.from_ndarray(_np.full((48, 64, 3), min(255, _i * 3), dtype=_np.uint8), format="rgb24")
+        for _pk in _st.encode(_f): _oc.mux(_pk)
+    for _pk in _st.encode(None): _oc.mux(_pk)
+_fr = _vs._frames(_fr_path, [1.0, 2.0])
+check("the frame taken is the one nearest the moment asked for",
+      _fr is not None and abs(float(_fr[0].mean()) * 255 - 75) < 4 and abs(float(_fr[1].mean()) * 255 - 150) < 4,
+      [round(float(x.mean()) * 255) for x in _fr or []])
+
+# Two computers sharing a backup: one made a video smaller and sent it, the other
+# still held the large original and sent that over it. The first never looked
+# again, and the second waited for ever for a smaller video that was not there.
+_rb_root = _vs_lib.root
+_rb_rel = _vs_new.resolve().relative_to(Path(_rb_root).resolve()).as_posix()
+_rb_size = _vs_new.stat().st_size
+_rb_man = {_rb_rel: [_rb_size, 1.0]}
+check("a smaller video the backup has at another size is found, and sent again",
+      _vs.repair_backup(_rb_root, {_rb_rel: [_rb_size * 3, 1.0]}, _rb_man) == 1 and _rb_rel not in _rb_man)
+check("one the backup has at the right size is left alone",
+      _vs.repair_backup(_rb_root, {_rb_rel: [_rb_size, 1.0]}, {_rb_rel: [_rb_size, 1.0]}) == 0)
+check("one the backup does not have at all is found too",
+      _vs.repair_backup(_rb_root, {}, {_rb_rel: [_rb_size, 1.0]}) == 1)
+
+# Looking at the smaller videos at a destination, folder by folder
+_rc_dest = Path(TMP) / "recheck-nas"; _rc_dest.mkdir()
+_rc_back = rem.Remote(id="rc", name="rc", kind="local", config={"path": str(_rc_dest)}).backend()
+_rc_back.prepare()
+(_rc_back.base / "Originals" / "2024" / "2024-05-01").mkdir(parents=True, exist_ok=True)
+(_rc_back.base / _rb_rel).write_bytes(b"x" * (_rb_size * 3))      # the large original, over it
+_rc_man = {_rb_rel: [_rb_size, 1.0]}
+_rc_back._save_manifest(_rb_root, _rc_man)
+check("a smaller video that is not at the destination is found by looking in its folder",
+      _vs.recheck_products(_rb_root, _rc_back, every=0) == 1 and _rb_rel not in _rc_back._load_manifest(_rb_root))
+(_rc_back.base / _rb_rel).write_bytes(b"x" * _rb_size)
+_rc_back._save_manifest(_rb_root, {_rb_rel: [_rb_size, 1.0]})
+check("one that is there at the right size is left alone",
+      _vs.recheck_products(_rb_root, _rc_back, every=0) == 0 and _rb_rel in _rc_back._load_manifest(_rb_root))
+
+# A file with "&" or ";" in its name is listed under its own name
+_ms = rem._parse_multistatus(
+    '<d:multistatus xmlns:d="DAV:"><d:response><d:href>/Piklin/Originals/2024/Embarazo%20-%20Mom%20&amp;%20Dad.m4v</d:href>'
+    '<d:propstat><d:prop><d:getcontentlength>12</d:getcontentlength></d:prop></d:propstat></d:response>'
+    '<d:response><d:href>/Piklin/Originals/2024/a;b%20c.mov</d:href><d:propstat><d:prop>'
+    '<d:getcontentlength>7</d:getcontentlength></d:prop></d:propstat></d:response></d:multistatus>', "/Piklin")
+check("a file with & or ; in its name is listed under that name",
+      [e[0] for e in _ms] == ["Originals/2024/Embarazo - Mom & Dad.m4v", "Originals/2024/a;b c.mov"],
+      [e[0] for e in _ms])
+
+# A video stored sideways and the same video turned upright are the same video:
+# the picture is made smaller by averaging, so the grid of its pixels, which
+# the turn moves, does not matter.
+import cv2 as _cv2
+_rot_base = _np.random.default_rng(3).integers(0, 255, (1080, 1920), dtype=_np.uint8)
+_rot_base = _cv2.GaussianBlur(_rot_base, (0, 0), 1.2)
+def _rot_clip(path, img):
+    with _av.open(str(path), "w") as _oc:
+        _st = _oc.add_stream("mpeg4", rate=25); _st.height, _st.width = img.shape; _st.pix_fmt = "yuv420p"
+        _st.options = {"b": "6000000"}
+        for _i in range(40):
+            for _pk in _st.encode(_av.VideoFrame.from_ndarray(img, format="gray").reformat(format="yuv420p")): _oc.mux(_pk)
+        for _pk in _st.encode(None): _oc.mux(_pk)
+    return path
+_rc_a = _rot_clip(Path(TMP) / "rot-a.mp4", _rot_base)
+_rc_b = _rot_clip(Path(TMP) / "rot-b.mp4", _np.ascontiguousarray(_np.rot90(_rot_base, 1)))
+check("the same picture turned a quarter is still the same video",
+      _vs.verify(_rc_a, _rc_b))
+_rc_c = _rot_clip(Path(TMP) / "rot-c.mp4", _np.random.default_rng(9).integers(0, 255, (1080, 1920), dtype=_np.uint8))
+check("and another picture is not", not _vs.verify(_rc_a, _rc_c))
+
+check("how long a video is, is what the file says",
+      abs(_vs._container_duration(_vs_new) - _vs_dur) < 0.3 and _vs._container_duration(Path(TMP) / "nothing.mp4") == 0.0,
+      _vs._container_duration(_vs_new))
+
+# The dark look is the light stylesheet turned over, once
+from piklin.ui import darkcss as _dk
+check("white is a deep grey and black a soft white; a colour stays",
+      _dk.turn("#ffffff") == "#1c1c1e" and _dk.turn("#000000") == "#f5f5f7" and _dk.turn("#1e9e63") == "#1e9e63")
+_dk_css = _dk.to_dark(".pika-a { background: alpha(#000000, 0.07); color: #000000; box-shadow: 0 1px 3px alpha(#000000, 0.22); }"
+                      " .pika-player { background: #1c1c1e; color: #ffffff; }")
+check("a tint inside alpha() is turned once, not twice",
+      "alpha(#f5f5f7, 0.07)" in _dk_css, _dk_css)
+check("a shadow stays black, and a surface on photos or video keeps its colours",
+      "alpha(#000000, 0.40)" in _dk_css and ".pika-player { background: #1c1c1e; color: #ffffff; }" in _dk_css.replace("\n", " ").replace("  ", " "),
+      _dk_css)
+_dk_all = _dk.to_dark(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "piklin", "ui", "style.css")).read())
+check("the whole stylesheet turns over: the wall is no longer white",
+      "@define-color pika_wall #1c1c1e;" in _dk_all and "@define-color pika_text #f5f5f7;" in _dk_all)
+
 # The Compressed choice: nothing wider than 1080p, a lower rate, still checked
 _vc_lib = _L(os.path.join(TMP, "CompressedLib.piklin")).ensure()
 _vc_in = _vc_lib.originals / "2024" / "2024-06-01" / "clip.MOV"

@@ -2267,3 +2267,8 @@ dialog label.pika-place-where {
 /* Whether an album has been given its place on the map. */
 window.piklin image.pika-map-dot { color: @pika_accent; }
 window.piklin image.pika-map-dot-part { color: alpha(@pika_accent, 0.42); }
+
+/* Recently Deleted with something in it: the bin is full */
+window.piklin .pika-sidebar row image.pika-trash-full,
+window.piklin .pika-sidebar row:selected image.pika-trash-full,
+.pika-trash-full { color: #d93025; -gtk-icon-style: symbolic; }

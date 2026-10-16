@@ -1,5 +1,46 @@
 # Changelog
 
+## 2.0.5
+
+### Mac
+- A click that moved even a pixel between pressing and letting go was lost, and had to be made two or three times. Piklin looked at which buttons were held when it handled the movement, not when it happened, so a mouse or a trackpad on a high-resolution screen, which slip a little, made buttons, albums, sidebar rows and photos ignore the click. It is fixed in the GTK that Piklin carries on a Mac
+
+### Dark mode
+- Piklin now follows the computer: dark when the computer is, light when it is not. The Theme setting offered "Match the computer", but the app stayed light unless it was changed by hand, and its colours were written for the light look only, so a dark computer made nothing dark
+- A full dark look, made from the light one so that every screen has it, and so does every one added later: the library, the sidebar, the editor, the viewer, the settings and every dialog and menu. White becomes a deep grey and black a soft white; the photographs stay the brightest thing on the screen. The photo stage and the video controls stay dark in both looks, and the shadows and the dimming behind a dialog stay black
+- What Piklin draws itself follows too: the camera at the top of the sidebar, the histogram and the curves of the editor, the grey blocks a photo shows while it loads, the box dragged to select photos. The map stays light in both looks
+- Changing between the two takes effect at once, without closing Piklin
+
+### Photo editor
+- New icons in the editor, drawn for photo editing instead of the generic ones of the system: one for every tool, and for Back, Undo, Redo, Compare, Remove all edits and the three tabs
+- **Copy Adjustments and Paste Adjustments.** Copy the edits of a photo from the editor, or from its right-click menu in the library, and choose what to copy: light and colour (the default), looks and effects, crop and rotate, portrait, text and frames, or local retouching. Right-click one photo or a whole selection and paste. The edits are added to what each photo already has, or replace the same tools if you choose Paste and Replace the Same Edits. Every photo keeps its own edits, the pasting happens in the background, and Undo in the message that follows puts every photo back as it was
+
+### Videos
+- A video that is already the smaller one is no longer made smaller a second time. A computer that had been waiting on a long list of videos made smaller again those the other computer had already finished, or ones that had been made smaller before: on one library more than half of the waiting list was work already done
+- Two computers no longer start with the same video at the same time. Each takes the waiting videos in an order of its own, so the work divides between them instead of being done twice side by side
+
+- Making videos smaller no longer starts until Piklin has read what the other computers left in the backup. It used to begin about twenty seconds after opening, before that was known, and redo work another computer had finished. Once it has read the backup, the waiting list is cleared of videos that are already the smaller one or that another computer has done
+- The Pause and Resume button in Preferences is gone: making videos smaller looks after itself. A pause left by an earlier version is lifted
+
+- The check that a smaller video is the same video as its original rejected good videos. It compared the frame at five moments of each, but took for each video the first frame from 50 ms before the moment, which is three frames apart when one video has a key frame exactly there and the other does not; in a scene with movement the same video no longer looked the same. A computer took the smaller video from the backup, found it different, threw it away and made the video smaller itself. The nearest frame to the moment is now taken in both
+- The same check also rejected phone videos that are stored sideways and turned for showing, nearly all of those a phone records: the picture was made smaller by taking one pixel in six, and turned a quarter its grid starts a few pixels off, which made the same picture look different. It is now made smaller by averaging, and the frame is compared with the ones just before and after it, since two videos of the same thing do not put a frame at the very same instant. All the videos that had been rejected on one library now pass, and different videos still do not
+- The same check took how long a video is from its frames divided by its frame rate, which is wrong for a screen recording, whose rate varies: it made one two percent longer than the identical one. It now takes the length the file states
+- A computer whose OpenCV cannot decode AV1 (the Linux AppImage) took the videos another computer had made smaller from the backup, found them to be no video at all, and threw them away: the check that a smaller video is the same video always failed. It then made the videos smaller itself. The check, and the thumbnails of those videos, now read them with PyAV when OpenCV cannot
+
+### Sidebar
+- The numbers beside Favourites, Recently Deleted, the albums and the rest of the sidebar are gone. Recently Deleted shows its bin full - filled in, red and a little larger - when it holds something, and empty when it does not
+
+- Two computers no longer undo each other's work in the backup. A computer that still held the large original of a video another computer had made smaller sent it to the backup over the smaller one, and the computer that had made it never noticed: it believed the smaller video was there. Now a large original that another computer has made smaller is not sent, and a computer that finds one of its smaller videos missing from the backup, or there at another size, sends it again
+
+- However many computers share a backup, only one at a time makes videos smaller, and each reads first what the others did there: it takes a turn kept at the destination (made with a single call that exactly one of any number of computers wins, so two cannot both believe it is theirs), reads the record of the other computers, decides from it, makes one video smaller, says so, and lets the turn go. A computer that finds the turn held waits and asks again
+- Each computer now keeps its own record, at the destination, of the videos it made smaller, and no other computer writes to it. Before, it was one file that any computer sent in its backup, and one that had an older copy wrote over what another had just said; the second computer then did the same video again. When two computers do make the same video smaller, the record keeps both versions as sizes of the one that replaces them, and each ends with the later
+- The check for what another computer changed in the backup no longer stops at the top of it. Piklin looked at a few files at the top of the backup and, if they were as it had left them, read nothing more; a video overwritten inside a folder changes nothing at the top. It now always reads the other computers' records, says what it has made smaller, and looks, folder by folder and at most every ten minutes, that its own smaller videos are still in the backup
+- A file with an "&" or a ";" in its name was listed at the backup under a cut-off name ("Mom &amp" for "Mom & Dad.mov"), so Piklin never found it there and sent it again at every backup. The names are now read as they are
+- Tested with a simulation of many computers at once against a backup: 12 computers and 30 videos make 30 videos smaller, no more, in under 20 seconds; 30 computers and 40 videos the same; also when half of them join later with every large original, and when the backup has the large originals while one computer has the smaller ones and believes it sent them. In every case every computer and the backup end with the smaller videos
+
+### NAS and backups
+- Backing up to, restoring from and syncing through a NAS or a WebDAV server is faster. Piklin used to open a new connection for every file and send one file at a time; it now keeps the connection open and sends four files at once, up and down. What is saved on the NAS does not change, so what is already backed up stays as it is
+
 ## 2.0.4
 
 ### Videos: Original or Compressed

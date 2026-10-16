@@ -22,7 +22,28 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from .paths import APP_ID, LIBRARY_EXT, Library, remember_library
 
-VERSION = "2.0.4"
+VERSION = "2.0.5"
+
+
+def _load_bundled_icons():
+    """Let GTK find the icons Piklin carries (Phosphor, MIT) by name.
+
+    They sit in data/icons/hicolor/scalable/actions as ``pk-*-symbolic.svg``,
+    so GTK recolours them like any symbolic icon, light or dark.
+    """
+    from pathlib import Path as _P
+
+    candidates = []
+    if os.environ.get("APPDIR"):
+        candidates.append(_P(os.environ["APPDIR"]) / "usr/share/piklin/data/icons")
+    candidates.append(_P(__file__).resolve().parent.parent / "data" / "icons")
+    candidates.append(_P("/usr/share/piklin/icons"))
+    if os.name == "nt":
+        candidates.append(_P(__file__).resolve().parents[2] / "data" / "icons")
+    icon_dir = next((c for c in candidates if (c / "hicolor").is_dir()), None)
+    display = Gdk.Display.get_default()
+    if icon_dir is not None and display is not None:
+        Gtk.IconTheme.get_for_display(display).add_search_path(str(icon_dir))
 
 
 def _load_bundled_fonts():
@@ -108,22 +129,48 @@ def _announce_class():
         pass
 
 
+_CSS: list = []          # (provider, file, extra) of the stylesheets loaded
+
+
 def _load_css():
-    _add_css(Path(__file__).parent / "ui" / "style.css")
+    _add_css(Path(__file__).parent / "ui" / "style.css", dark_too=True)
     if sys.platform == "darwin":
         # Window buttons drawn as a Mac draws them; one step above
         # style.css so these rules win where both set a property.
         _add_css(Path(__file__).parent / "ui" / "style-macos.css", extra=1)
+    # The dark look is the light one turned over (ui/darkcss.py), made again
+    # whenever the computer, or the Theme setting, changes between the two.
+    try:
+        Adw.StyleManager.get_default().connect("notify::dark", lambda *_: _restyle())
+    except Exception:
+        pass
 
 
-def _add_css(css: Path, extra: int = 0):
+def _css_text(css: Path, dark_too: bool) -> str:
+    text = css.read_text(encoding="utf-8")
+    if dark_too and Adw.StyleManager.get_default().get_dark():
+        from .ui.darkcss import to_dark
+        text = to_dark(text)
+    return text
+
+
+def _restyle():
+    for provider, css, dark_too in _CSS:
+        try:
+            provider.load_from_string(_css_text(css, dark_too))
+        except Exception:
+            pass
+
+
+def _add_css(css: Path, extra: int = 0, dark_too: bool = False):
     if not css.is_file():
         return
     provider = Gtk.CssProvider()
     try:
-        provider.load_from_path(str(css))
+        provider.load_from_string(_css_text(css, dark_too))
     except Exception:
         return
+    _CSS.append((provider, css, dark_too))
     display = Gdk.Display.get_default()
     if display is not None:
         # USER priority, not APPLICATION.  libadwaita resolves its named
@@ -186,6 +233,7 @@ class PikaliciousApp(Adw.Application):
         # Piklin's logo on every window, however Piklin was started.
         Gtk.Window.set_default_icon_name("piklin")
         _load_bundled_fonts()
+        _load_bundled_icons()
         _announce_class()
         _load_css()
         _forgiving_clicks()
@@ -242,12 +290,12 @@ class PikaliciousApp(Adw.Application):
         # Light by default: a photo library is a white gallery wall, and
         # dark chrome around a bright photograph makes the photo look
         # washed out by comparison.
-        theme = Settings(library.settings).get("theme", "light")
+        theme = Settings(library.settings).get("theme", "auto")
         mgr = Adw.StyleManager.get_default()
         mgr.set_color_scheme({
             "light": Adw.ColorScheme.FORCE_LIGHT,
             "dark": Adw.ColorScheme.FORCE_DARK,
-        }.get(theme, Adw.ColorScheme.PREFER_LIGHT))
+        }.get(theme, Adw.ColorScheme.DEFAULT))
 
 
 def rebuild_index(library: Library, on_progress=None) -> int:

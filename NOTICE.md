@@ -21,6 +21,7 @@ The Piklin packages include the software below. Each part keeps its own licence,
 | [pi-heif](https://github.com/bigcat88/pillow_heif) with libheif and libde265 | HEIC and HEIF photos | BSD-3-Clause; LGPL-3.0 |
 | [rawpy](https://github.com/letmaik/rawpy) with LibRaw | Camera RAW photos | MIT; LGPL-2.1 or CDDL-1.0 |
 | [Inter](https://rsms.me/inter/) | Typeface | SIL Open Font License 1.1 |
+| [Phosphor Icons](https://phosphoricons.com) | Icons in the photo editor | MIT |
 | [cffi](https://cffi.readthedocs.io) | Sound output (on a Mac; Linux provides it) | MIT |
 | [rclone](https://rclone.org) | Backups to cloud services (Google Drive, OneDrive, Dropbox, pCloud and more) | MIT |
 

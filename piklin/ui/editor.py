@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 import gi
-from ..i18n import _
+from ..i18n import _, N_
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -27,7 +27,7 @@ import numpy as np
 
 from .. import imageio as iio
 from ..engine import looks as looks_mod
-from ..engine import ops, tools
+from ..engine import autoimprove, ops, tools
 from ..engine.stack import EditStack, Renderer
 from ..engine.tools import (CHOICE, COLOR, CURVE, IMAGE, POINT, SLIDER,
                             STROKES, TEXT, TOGGLE)
@@ -45,6 +45,8 @@ class EditorView(Gtk.Box):
     __gsignals__ = {
         "closed": (GObject.SignalFlags.RUN_FIRST, None, ()),
         "saved": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
+        "copy-adjustments": (GObject.SignalFlags.RUN_FIRST, None, ()),
+        "hint": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
     }
 
     def __init__(self, library, catalog, settings, thumbs=None):
@@ -117,7 +119,7 @@ class EditorView(Gtk.Box):
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6,
                       margin_top=6, margin_bottom=6, margin_start=10,
                       margin_end=10)
-        back = Gtk.Button(icon_name="go-previous-symbolic",
+        back = Gtk.Button(icon_name="pk-arrow-left-symbolic",
                           tooltip_text=_("Back to library"))
         back.connect("clicked", lambda *_: (self.flush(), self.emit("closed")))
         bar.append(back)
@@ -126,23 +128,28 @@ class EditorView(Gtk.Box):
         self.title_label.add_css_class("pika-dim")
         bar.append(self.title_label)
 
-        self.undo_btn = Gtk.Button(icon_name="edit-undo-symbolic",
+        self.undo_btn = Gtk.Button(icon_name="pk-arrow-counter-clockwise-symbolic",
                                    tooltip_text=_("Undo (Ctrl+Z)"), sensitive=False)
         self.undo_btn.connect("clicked", lambda *_: self.undo())
-        self.redo_btn = Gtk.Button(icon_name="edit-redo-symbolic",
+        self.redo_btn = Gtk.Button(icon_name="pk-arrow-clockwise-symbolic",
                                    tooltip_text=_("Redo (Ctrl+Shift+Z)"),
                                    sensitive=False)
         self.redo_btn.connect("clicked", lambda *_: self.redo())
         bar.append(self.undo_btn)
         bar.append(self.redo_btn)
 
-        compare = Gtk.ToggleButton(icon_name="view-reveal-symbolic",
+        compare = Gtk.ToggleButton(icon_name="pk-eye-symbolic",
                                    tooltip_text=_("Hold to compare with original (M)"))
         compare.connect("toggled", self._on_compare)
         bar.append(compare)
         self.compare_btn = compare
 
-        revert = Gtk.Button(icon_name="edit-clear-all-symbolic",
+        copy = Gtk.Button(icon_name="pk-copy-symbolic",
+                          tooltip_text=_("Copy adjustments to paste on other photos"))
+        copy.connect("clicked", lambda *_: (self.flush(), self.emit("copy-adjustments")))
+        bar.append(copy)
+
+        revert = Gtk.Button(icon_name="pk-eraser-symbolic",
                             tooltip_text=_("Remove all edits"))
         revert.connect("clicked", self._on_revert)
         bar.append(revert)
@@ -182,13 +189,13 @@ class EditorView(Gtk.Box):
 
         self.switcher.add_titled_with_icon(
             self._build_tools_page(), "tools", _("Tools"),
-            "applications-graphics-symbolic")
+            "pk-sliders-horizontal-symbolic")
         self.switcher.add_titled_with_icon(
             self._build_looks_page(), "looks", _("Looks"),
-            "image-filter-symbolic")
+            "pk-magic-wand-symbolic")
         self.switcher.add_titled_with_icon(
             self._build_layers_page(), "layers", _("Edits"),
-            "view-list-symbolic")
+            "pk-list-bullets-symbolic")
 
         bar = Adw.ViewSwitcherBar(stack=self.switcher)
         bar.set_reveal(True)
@@ -205,26 +212,137 @@ class EditorView(Gtk.Box):
         self.panel.append(self.panel_stack)
         self.append(self.panel)
 
+    # What Simple mode offers, in plain words: (tool, name, icon)
+    SIMPLE_TOOLS = (
+        ("tune", N_("Light and colour"), "sliders-horizontal"),
+        ("crop", N_("Crop"), "crop"),
+        ("rotate", N_("Rotate"), "arrow-clockwise"),
+        ("details", N_("Sharper"), "magnifying-glass-plus"),
+        ("white_balance", N_("Warmer or cooler"), "thermometer"),
+        ("black_white", N_("Black and white"), "circle-half-tilt"),
+    )
+
     def _build_tools_page(self):
+        """Tools come in two layers over the same edits: Simple, a few things
+        in plain words with a one-click Improve, and Advanced, every tool."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        modes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0,
+                        halign=Gtk.Align.CENTER, margin_top=8, margin_bottom=4)
+        modes.add_css_class("linked")
+        self.mode_simple = Gtk.ToggleButton(label=_("Simple"))
+        self.mode_advanced = Gtk.ToggleButton(label=_("Advanced"),
+                                              group=self.mode_simple)
+        modes.append(self.mode_simple)
+        modes.append(self.mode_advanced)
+        box.append(modes)
+        self.mode_stack = Gtk.Stack(vexpand=True)
+        self.mode_stack.add_named(self._build_simple_page(), "simple")
+        self.mode_stack.add_named(self._build_advanced_tools_page(), "advanced")
+        box.append(self.mode_stack)
+        advanced = self.settings.get("editor_mode", "simple") == "advanced"
+        self.mode_advanced.set_active(advanced)
+        self.mode_simple.set_active(not advanced)
+        self.mode_stack.set_visible_child_name("advanced" if advanced else "simple")
+        self.mode_advanced.connect("toggled", self._on_mode_toggled)
+        return box
+
+    def _on_mode_toggled(self, btn):
+        mode = "advanced" if btn.get_active() else "simple"
+        self.mode_stack.set_visible_child_name(mode)
+        self.settings.set("editor_mode", mode)
+
+    def _build_simple_page(self):
+        scroller = Gtk.ScrolledWindow(
+            hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6,
+                      margin_top=8, margin_bottom=12, margin_start=10,
+                      margin_end=10)
+        improve = Gtk.Button()
+        improve.add_css_class("suggested-action")
+        row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER, margin_top=6,
+                      margin_bottom=6)
+        row.append(Gtk.Image(icon_name="pk-sparkle-symbolic", pixel_size=18))
+        row.append(Gtk.Label(label=_("Improve")))
+        improve.set_child(row)
+        improve.set_tooltip_text(_("Fixes the light and colour with one click"))
+        improve.connect("clicked", self._on_improve)
+        box.append(improve)
+        hint = Gtk.Label(label=_("One click. You can change or undo it after."),
+                         wrap=True, xalign=0.0)
+        hint.add_css_class("pika-dim")
+        box.append(hint)
+        header = Gtk.Label(label=_("Quick fixes"), xalign=0.0)
+        header.add_css_class("pika-tool-group")
+        box.append(header)
+        flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE,
+                           max_children_per_line=3, min_children_per_line=3,
+                           homogeneous=True, row_spacing=2, column_spacing=2)
+        for tool_id, name, icon in self.SIMPLE_TOOLS:
+            btn = Gtk.Button()
+            btn.add_css_class("flat")
+            btn.add_css_class("pika-tool-tile")
+            inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            inner.append(Gtk.Image(icon_name=f"pk-{icon}-symbolic", pixel_size=22))
+            label = Gtk.Label(label=_(name), wrap=True, justify=2,
+                              max_width_chars=11)
+            label.add_css_class("pika-tool-name")
+            inner.append(label)
+            btn.set_child(inner)
+            spec = tools.REGISTRY.get(tool_id)
+            btn.set_tooltip_text(_(spec.description) if spec and spec.description
+                                 else _(name))
+            btn.connect("clicked", self._on_pick_tool, tool_id)
+            flow.append(btn)
+        box.append(flow)
+        more = Gtk.Button(label=_("All tools"))
+        more.add_css_class("flat")
+        more.set_margin_top(10)
+        more.connect("clicked", lambda *_a: self.mode_advanced.set_active(True))
+        box.append(more)
+        scroller.set_child(box)
+        return scroller
+
+    def _on_improve(self, _btn):
+        if self.source is None:
+            return
+        self.stack.snapshot()
+        for tool_id, params in autoimprove.suggest(self.source):
+            # An Improve already made is replaced, not piled on.
+            old = next((i for i, l in enumerate(self.stack.layers)
+                        if l.tool == tool_id and l.params.get("_improve")), None)
+            params = dict(params, _improve=True)
+            if old is not None:
+                self.stack.layers.pop(old)
+            self.stack.add(tool_id, params, record=False)
+        self._refresh_layers()
+        self._request_render(draft=False)
+        self._autosave()
+        self._update_history_buttons()
+        self._show_toast_hint(_("Improved. Open Edits to change or remove it."))
+
+    def _show_toast_hint(self, text):
+        self.emit("hint", text)
+
+    def _build_advanced_tools_page(self):
         scroller = Gtk.ScrolledWindow(
             hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2,
                       margin_top=8, margin_bottom=12, margin_start=10,
                       margin_end=10)
         icons = {
-            "tune": "preferences-color-symbolic",
-            "details": "zoom-in-symbolic",
-            "curves": "view-continuous-symbolic",
-            "white_balance": "weather-clear-symbolic",
-            "crop": "view-fullscreen-symbolic",
-            "rotate": "object-rotate-right-symbolic",
-            "perspective": "view-paged-symbolic",
-            "expand": "zoom-fit-best-symbolic",
-            "selective": "find-location-symbolic",
-            "brush": "document-edit-symbolic",
-            "healing": "edit-paste-symbolic",
-            "portrait": "avatar-default-symbolic",
-            "head_pose": "face-smile-symbolic",
+            "tune": "sliders-horizontal", "details": "magnifying-glass-plus",
+            "curves": "wave-sine", "white_balance": "thermometer",
+            "tonal_contrast": "circle-half", "hdr": "mountains",
+            "glamour": "sparkle", "drama": "lightning",
+            "vignette": "selection-background", "vintage": "film-strip",
+            "grainy_film": "dots-nine", "retrolux": "camera",
+            "grunge": "scribble", "black_white": "circle-half-tilt",
+            "noir": "moon", "lens_blur": "aperture", "crop": "crop",
+            "rotate": "arrow-clockwise", "perspective": "perspective",
+            "expand": "arrows-out", "selective": "circle-dashed",
+            "brush": "paint-brush", "healing": "bandaids", "portrait": "user",
+            "head_pose": "smiley", "double_exposure": "stack",
+            "text": "text-t", "frames": "frame-corners",
         }
         for group, tool_list in tools.groups().items():
             header = Gtk.Label(label=_(group), xalign=0.0)
@@ -240,8 +358,8 @@ class EditorView(Gtk.Box):
                 btn.add_css_class("flat")
                 btn.add_css_class("pika-tool-tile")
                 inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-                img = Gtk.Image(icon_name=icons.get(tool.id,
-                                                    "image-filter-symbolic"),
+                img = Gtk.Image(icon_name="pk-%s-symbolic" % icons.get(
+                                    tool.id, "sliders-horizontal"),
                                 pixel_size=22)
                 name = Gtk.Label(label=_(tool.name), wrap=True, justify=2,
                                  max_width_chars=11)
@@ -307,14 +425,14 @@ class EditorView(Gtk.Box):
         head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6,
                        margin_top=8, margin_bottom=4, margin_start=8,
                        margin_end=8)
-        back = Gtk.Button(icon_name="go-previous-symbolic")
+        back = Gtk.Button(icon_name="pk-arrow-left-symbolic")
         back.add_css_class("flat")
         back.connect("clicked", lambda *_: self._close_params())
         head.append(back)
         self.param_title = Gtk.Label(xalign=0.0, hexpand=True)
         self.param_title.add_css_class("heading")
         head.append(self.param_title)
-        drop = Gtk.Button(icon_name="user-trash-symbolic",
+        drop = Gtk.Button(icon_name="pk-trash-symbolic",
                           tooltip_text=_("Remove this edit"))
         drop.add_css_class("flat")
         drop.connect("clicked", lambda *_: self._delete_active())
@@ -779,7 +897,7 @@ class EditorView(Gtk.Box):
             toggle = Gtk.Switch(active=layer.enabled, valign=Gtk.Align.CENTER)
             toggle.connect("notify::active", self._on_layer_toggle, i)
             row.add_suffix(toggle)
-            delete = Gtk.Button(icon_name="user-trash-symbolic",
+            delete = Gtk.Button(icon_name="pk-trash-symbolic",
                                 valign=Gtk.Align.CENTER)
             delete.add_css_class("flat")
             delete.connect("clicked", self._on_layer_delete, i)

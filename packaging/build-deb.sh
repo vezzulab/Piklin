@@ -248,6 +248,10 @@ Comment: Inter typeface, SIL Open Font License.
 Files: usr/share/piklin/data/models/*
 License: MIT
 Comment: YuNet face detector, from the OpenCV model zoo.
+
+Files: usr/share/piklin/data/icons/hicolor/*
+License: MIT
+Comment: Phosphor Icons (https://phosphoricons.com), MIT licence in data/icons/PHOSPHOR-LICENSE.txt.
 COPY
 
 printf '%s (%s) stable; urgency=medium\n\n  * Release %s.\n\n -- %s  %s\n' \

@@ -20,7 +20,7 @@ from ..catalog import Catalog
 from ..indexer import Indexer
 from ..paths import Library
 from ..settings import Settings
-from ..thumbs import ThumbCache
+from ..thumbs import SIZES as THUMB_SIZES, ThumbCache
 from .editor import EditorView
 from .grid import PhotoGrid
 from .viewer import ViewerView
@@ -116,6 +116,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.editor = EditorView(library, self.catalog, self.settings,
                                  self.thumbs)
         self.editor.connect("closed", self._on_editor_closed)
+        self.editor.connect("hint", lambda _ed, text: self._show_toast(text))
+        self.editor.connect("copy-adjustments", lambda ed: self._copy_adjustments(
+            ed.photo_path))
         from .video_editor import VideoEditorView
         self.video_editor = VideoEditorView(library, self.catalog, self.settings,
                                             self.thumbs)
@@ -725,6 +728,11 @@ class MainWindow(Adw.ApplicationWindow):
             if cover:
                 # An album shows a small picture of its cover, not an icon.
                 box.append(self._sidebar_thumb(cover))
+            elif key == "trash":
+                # No number: the bin is simply full or empty.
+                self._trash_icon = Gtk.Image()
+                self._style_trash(count)
+                box.append(self._trash_icon)
             else:
                 box.append(Gtk.Image(icon_name=icon))
             box.append(Gtk.Label(label=label, xalign=0.0, hexpand=True,
@@ -734,16 +742,6 @@ class MainWindow(Adw.ApplicationWindow):
             if placed is not None:
                 from .folder_view import FolderView
                 box.append(FolderView._map_dot(placed, ""))
-            if count_key is not None:
-                c = Gtk.Label(label=f"{count:,}" if count else "")
-                c.add_css_class("pika-count")
-                c.set_visible(bool(count))
-                box.append(c)
-                self._count_labels[count_key] = c
-            elif count:
-                c = Gtk.Label(label=f"{count:,}")
-                c.add_css_class("pika-count")
-                box.append(c)
             row.set_child(box)
             row._key = key
             row._album_id = album_id
@@ -2558,6 +2556,105 @@ class MainWindow(Adw.ApplicationWindow):
             return False
         threading.Thread(target=work, daemon=True).start()
 
+    # -- copy and paste adjustments ------------------------------------------
+    def _copy_adjustments(self, photo_path):
+        """Ask which of a photo's edits to copy, and keep them for pasting."""
+        from .. import adjustments
+        layers = adjustments.read(self.library, photo_path)
+        present = adjustments.categories_in(layers)
+        if not present:
+            self._show_toast(_("This photo has no edits to copy."))
+            return
+        dialog = Adw.AlertDialog(
+            heading=_("Copy Adjustments"),
+            body=_("Choose what to paste on other photos. Crop and rotation "
+                   "fit one photo’s size and local retouching belongs to the "
+                   "spots it was made on, so they are left out unless you "
+                   "tick them."))
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        checks = {}
+        for cid, label, _groups, default in adjustments.CATEGORIES:
+            if cid not in present:
+                continue
+            check = Gtk.CheckButton(label=_(label), active=default)
+            checks[cid] = check
+            box.append(check)
+        dialog.set_extra_child(box)
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("copy", _("Copy"))
+        dialog.set_response_appearance("copy", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("copy")
+        dialog.set_close_response("cancel")
+
+        def answered(_dialog, response):
+            if response != "copy":
+                return
+            chosen = adjustments.pick(layers, {c for c, b in checks.items()
+                                               if b.get_active()})
+            if not chosen:
+                self._show_toast(_("Nothing was chosen to copy."))
+                return
+            self._copied_adjustments = chosen
+            self._show_toast(_("Adjustments copied. Right-click other photos to paste them."))
+        dialog.connect("response", answered)
+        dialog.present(self)
+
+    def _paste_adjustments(self, ids, replace=False):
+        from .. import adjustments
+        layers = getattr(self, "_copied_adjustments", None)
+        by_id = getattr(self.grid, "_by_id", {})
+        items = [by_id[i] for i in ids if i in by_id
+                 and not getattr(by_id[i], "is_video", False)]
+        if not layers or not items:
+            return
+        thumbs, grid, library, catalog = self.thumbs, self.grid, self.library, self.catalog
+        before = {}
+
+        def work():
+            for it in items:
+                try:
+                    before[it.id] = (it, adjustments.paste(
+                        library, catalog, it.id, it.path, layers, replace=replace))
+                except Exception:
+                    continue
+            GLib.idle_add(finished)
+            for it, _old in list(before.values()):
+                for size in THUMB_SIZES:
+                    thumbs.generate(it.path, size, force=True)
+                GLib.idle_add(grid.repaint_items, [it.id])
+
+        def finished():
+            for it, _old in before.values():
+                row = catalog.photo(it.id)
+                if row is not None:
+                    it.edited = bool(row["edit_version"])
+            toast = Adw.Toast(
+                title=ngettext("Adjustments pasted on {count} photo.",
+                               "Adjustments pasted on {count} photos.",
+                               len(before)).format(count=len(before)),
+                button_label=_("Undo"), timeout=8)
+            toast.connect("button-clicked", lambda *_a: self._undo_paste(before))
+            self.toasts.add_toast(toast)
+            self.refresh_sidebar()
+            return False
+        threading.Thread(target=work, daemon=True).start()
+
+    def _undo_paste(self, before):
+        from .. import adjustments
+        thumbs, grid, library, catalog = self.thumbs, self.grid, self.library, self.catalog
+
+        def work():
+            for it, old in before.values():
+                try:
+                    adjustments.restore(library, catalog, it.id, it.path, old)
+                except Exception:
+                    continue
+                for size in THUMB_SIZES:
+                    thumbs.generate(it.path, size, force=True)
+                GLib.idle_add(grid.repaint_items, [it.id])
+            GLib.idle_add(self.refresh_sidebar)
+        threading.Thread(target=work, daemon=True).start()
+
     def _on_editor_closed(self, _editor):
         # Whatever way the editor was left - Back, Esc, Return - the last
         # change is saved before the photo is shown again.
@@ -3623,6 +3720,14 @@ class MainWindow(Adw.ApplicationWindow):
               lambda: self._on_rotate(-1, ids)),
              ("rotate-cw", _("Rotate Right"), "<Primary>r",
               lambda: self._on_rotate(1, ids))],
+            [("copy-adjust", _("Copy Adjustments…"), None,
+              lambda: self._copy_adjustments(item.path))] if single and getattr(item, "edited", False) else [],
+            [("paste-adjust", _("Paste Adjustments") if single
+              else _("Paste Adjustments on {count} Photos").format(count=n_sel), None,
+              lambda: self._paste_adjustments(ids)),
+             ("paste-replace", _("Paste and Replace the Same Edits"), None,
+              lambda: self._paste_adjustments(ids, replace=True))]
+            if getattr(self, "_copied_adjustments", None) else [],
             [("place", _("Place on Map…") if single
               else _("Place {count} Photos on Map…").format(count=n_sel), None,
               lambda: self._place_photos(ids))]
@@ -3641,6 +3746,20 @@ class MainWindow(Adw.ApplicationWindow):
             [("delete", delete_label, "Delete",
               lambda: self._on_bulk_trash(None))],
         ])
+
+    def _style_trash(self, count) -> None:
+        """Recently Deleted shows no number: with something in it the bin is
+        full - filled in, red and a little larger - and empty otherwise."""
+        image = getattr(self, "_trash_icon", None)
+        if image is None:
+            return
+        full = bool(count)
+        image.set_from_icon_name("pk-trash-fill-symbolic" if full else "pk-trash-symbolic")
+        image.set_pixel_size(19 if full else 16)
+        if full:
+            image.add_css_class("pika-trash-full")
+        else:
+            image.remove_css_class("pika-trash-full")
 
     def _recount(self):
         """Count the library away from the interface, then fill in what
@@ -3666,10 +3785,7 @@ class MainWindow(Adw.ApplicationWindow):
             had_creations = bool(self._counts.get("creations"))
             self._counts = counts
             self._update_footer(counts)
-            for key, label in self._count_labels.items():
-                n = int(counts.get(key) or 0)
-                label.set_text(f"{n:,}" if n else "")
-                label.set_visible(bool(n))
+            self._style_trash(counts.get("trash"))
             # Creations is a row that only exists once there is something
             # in it, so its arrival needs the sidebar built again.
             if bool(counts.get("creations")) != had_creations:
@@ -3930,7 +4046,9 @@ class MainWindow(Adw.ApplicationWindow):
         elif state == "waiting":
             text = {"battery": _("Optimizing videos waits until the computer is plugged in"),
                     "power": _("Optimizing videos waits until battery saver is off"),
-                    "paused": _("Optimizing videos is paused")}.get(st.get("why"))
+                    "paused": _("Optimizing videos is paused"),
+                    "reading": _("Optimizing videos waits until the backup has been read"),
+                    "others": _("Optimizing videos waits for its turn: another computer is doing it")}.get(st.get("why"))
             self.footer_videos.set_text(text or "")
             self.footer_videos.set_visible(bool(text))
         elif state == "converted":

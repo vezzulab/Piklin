@@ -7,6 +7,42 @@ Favoritos, Eliminados recientemente, Copia de seguridad, Estilos.
 A plural entry is a tuple (singular, plural).
 """
 ES = {
+    "Optimizing videos waits for its turn: another computer is doing it": "Optimizar videos espera su turno: otra computadora lo está haciendo",
+    "Replacing videos with the smaller ones from {name} — {done} of {total} ({percent}%)": "Cambiando videos por los pequeños de {name} — {done} de {total} ({percent}%)",
+    "waiting until the backup has been read": "esperando a haber leído la copia de seguridad",
+    "Optimizing videos waits until the backup has been read": "Optimizar videos espera a haber leído la copia de seguridad",
+    # -- editor: Simple and Advanced, Improve (2.0.5) -----------------------------
+    "Simple": "Sencillo",
+    "Advanced": "Avanzado",
+    "Improve": "Mejorar",
+    "Fixes the light and colour with one click": "Arregla la luz y el color con un clic",
+    "One click. You can change or undo it after.": "Un clic. Después puedes cambiarlo o deshacerlo.",
+    "Quick fixes": "Arreglos rápidos",
+    "Light and colour": "Luz y color",
+    "Sharper": "Más nítida",
+    "Warmer or cooler": "Más cálida o más fría",
+    "Black and white": "Blanco y negro",
+    "All tools": "Todas las herramientas",
+    "Improved. Open Edits to change or remove it.": "Mejorada. Abre Cambios para ajustarlo o quitarlo.",
+    # -- copy and paste adjustments (2.0.5) --------------------------------------
+    "Copy Adjustments": "Copiar ajustes",
+    "Copy Adjustments…": "Copiar ajustes…",
+    "Copy adjustments to paste on other photos": "Copiar los ajustes para pegarlos en otras fotos",
+    "Choose what to paste on other photos. Crop and rotation fit one photo’s size and local retouching belongs to the spots it was made on, so they are left out unless you tick them.":
+        "Elige qué pegar en otras fotos. El recorte y el giro son del tamaño de una foto y el retoque local es de los puntos donde se hizo, así que no se copian si no los marcas.",
+    "Adjustments copied. Right-click other photos to paste them.": "Ajustes copiados. Haz clic derecho en otras fotos para pegarlos.",
+    "Nothing was chosen to copy.": "No elegiste nada para copiar.",
+    "This photo has no edits to copy.": "Esta foto no tiene cambios que copiar.",
+    "Paste Adjustments": "Pegar ajustes",
+    "Paste Adjustments on {count} Photos": "Pegar ajustes en {count} fotos",
+    "Paste and Replace the Same Edits": "Pegar y reemplazar los mismos cambios",
+    "Adjustments pasted on {count} photo.": ("Ajustes pegados en {count} foto.", "Ajustes pegados en {count} fotos."),
+    "Undo": "Deshacer",
+    "Looks and effects": "Estilos y efectos",
+    "Crop and rotate": "Recorte y giro",
+    "Text and frames": "Texto y marcos",
+    "Local retouching": "Retoque local",
+
     # -- preferences tabs: kept short so they fit side by side ------------------
     "preferences tab\x04General": "General",
     "preferences tab\x04Storage": "Espacio",

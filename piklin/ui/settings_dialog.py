@@ -383,10 +383,8 @@ class SettingsDialog(Adw.PreferencesDialog):
         group.add(elsewhere)
 
         status = Adw.ActionRow(title=_("Videos"))
-        pause = Gtk.Button(valign=Gtk.Align.CENTER)
         review = Gtk.Button(label=_("Review…"), valign=Gtk.Align.CENTER)
         status.add_suffix(review)
-        status.add_suffix(pause)
         group.add(status)
         found = {"videos": [], "asked": False}
 
@@ -406,7 +404,6 @@ class SettingsDialog(Adw.PreferencesDialog):
             return False
 
         def refresh():
-            pause.set_visible(False)
             review.set_visible(False)
             if watch.mode == "original":
                 status.set_subtitle(_("Your videos are kept as they are."))
@@ -415,9 +412,9 @@ class SettingsDialog(Adw.PreferencesDialog):
                 left = len(watch.queue)
                 status.set_subtitle(ngettext(
                     "{count} video left to compress", "{count} videos left to compress",
-                    left).format(count=left) + ("  ·  " + _("Paused") if watch.paused else ""))
-                pause.set_label(_("Resume") if watch.paused else _("Pause"))
-                pause.set_visible(True)
+                    left).format(count=left)
+                    + ("  ·  " + _("waiting until the backup has been read")
+                       if watch.waiting_for() == "reading" else ""))
             elif found["videos"]:
                 videos = found["videos"]
                 status.set_subtitle(ngettext(
@@ -430,11 +427,6 @@ class SettingsDialog(Adw.PreferencesDialog):
                 status.set_subtitle(_("Your videos already take little room"))
             else:
                 status.set_subtitle(_("Looking through your videos…"))
-
-        def toggle_pause(btn):
-            watch.pause(not watch.paused)
-            refresh()
-        pause.connect("clicked", toggle_pause)
 
         def open_review(_b):
             from .videospace_dialog import VideoSpaceDialog
