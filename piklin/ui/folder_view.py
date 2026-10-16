@@ -353,10 +353,11 @@ class FolderView(Gtk.ScrolledWindow):
         if not b or not b.get("moved") or "rect" not in b:
             return
         x, y, bw, bh = b["rect"]
-        cr.set_source_rgba(0.114, 0.114, 0.122, 0.10)
+        from .theme import ink
+        cr.set_source_rgba(*ink(), 0.10)
         cr.rectangle(x, y, bw, bh)
         cr.fill()
-        cr.set_source_rgba(0.114, 0.114, 0.122, 0.55)
+        cr.set_source_rgba(*ink(), 0.55)
         cr.set_line_width(1.0)
         cr.rectangle(x + 0.5, y + 0.5, max(0.0, bw - 1), max(0.0, bh - 1))
         cr.stroke()

@@ -21,6 +21,8 @@ from gi.repository import Gdk, Graphene, Gsk, Gtk  # noqa: E402
 # hands back a transparent colour, so the shade is parsed instead.
 _PLACEHOLDER = Gdk.RGBA()
 _PLACEHOLDER.parse("#e9e9ee")
+_PLACEHOLDER_DARK = Gdk.RGBA()
+_PLACEHOLDER_DARK.parse("#2c2c30")
 
 
 class PhotoTile(Gtk.Widget):
@@ -74,7 +76,8 @@ class PhotoTile(Gtk.Widget):
         if self._paintable is None:
             # placeholder block, so the grid keeps its shape while
             # thumbnails are still decoding
-            snapshot.append_color(_PLACEHOLDER, rect)
+            from .theme import is_dark
+            snapshot.append_color(_PLACEHOLDER_DARK if is_dark() else _PLACEHOLDER, rect)
             snapshot.pop()
             return
 

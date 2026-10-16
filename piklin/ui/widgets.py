@@ -139,6 +139,8 @@ class CurveEditor(Gtk.DrawingArea):
         self.histogram = None
         self._drag = None
         self.set_draw_func(self._draw)
+        from .theme import redraw_on_change
+        redraw_on_change(self)
 
         click = Gtk.GestureClick()
         click.connect("pressed", self._on_press)
@@ -222,7 +224,9 @@ class CurveEditor(Gtk.DrawingArea):
         self.emit("curve-changed", list(self.points))
 
     def _draw(self, area, cr, w, h):
-        cr.set_source_rgba(0, 0, 0, 0.20)
+        from .theme import ink, is_dark, paper
+        dark = is_dark()
+        cr.set_source_rgba(*((1, 1, 1, 0.07) if dark else (0, 0, 0, 0.20)))
         cr.rectangle(0, 0, w, h)
         cr.fill()
 
@@ -251,7 +255,7 @@ class CurveEditor(Gtk.DrawingArea):
             lut = np.linspace(0, 1, 128, dtype=np.float32)
         # Black on the light panel, like the rest of the interface: the app
         # has no colour accent.
-        cr.set_source_rgb(0.114, 0.114, 0.122)
+        cr.set_source_rgb(*ink())
         cr.set_line_width(2)
         for i, v in enumerate(lut):
             x = i / (len(lut) - 1) * w
@@ -260,10 +264,10 @@ class CurveEditor(Gtk.DrawingArea):
         cr.stroke()
 
         for (x, y) in self.points:
-            cr.set_source_rgb(1, 1, 1)
+            cr.set_source_rgb(*paper())
             cr.arc(x * w, h - y * h, 5, 0, 2 * math.pi)
             cr.fill()
-            cr.set_source_rgb(0.114, 0.114, 0.122)
+            cr.set_source_rgb(*ink())
             cr.arc(x * w, h - y * h, 3, 0, 2 * math.pi)
             cr.fill()
 
@@ -276,13 +280,16 @@ class Histogram(Gtk.DrawingArea):
         self.set_content_height(72)
         self.data = None
         self.set_draw_func(self._draw)
+        from .theme import redraw_on_change
+        redraw_on_change(self)
 
     def set_data(self, hist: dict | None):
         self.data = hist
         self.queue_draw()
 
     def _draw(self, area, cr, w, h):
-        cr.set_source_rgba(0, 0, 0, 0.22)
+        from .theme import is_dark
+        cr.set_source_rgba(*((1, 1, 1, 0.07) if is_dark() else (0, 0, 0, 0.22)))
         cr.rectangle(0, 0, w, h)
         cr.fill()
         if not self.data:

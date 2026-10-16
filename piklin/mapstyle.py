@@ -96,48 +96,66 @@ _NOISE = ["all"] + [["!=", ["get", "class"], c] for c in
                     ("bus", "railway", "parking", "information", "gate", "fence")]
 
 
+# The colours of the map: the same in the light look and in the dark one. A map
+# is read as a light page, and the pins stand out on it.
+C = {
+    "background": "#f3f3f1", "wood": "#e6ebe1", "grass": "#ecefe6", "park": "#e3eadb",
+    "water": "#cddfea", "building": "#e8e8e5", "minor_casing": "#dcdcd8",
+    "minor": "#ffffff", "major_casing": "#cfcfca", "major": "#ffffff",
+    "country": "#aeaeaa", "halo": "#ffffff", "country_name": "#555555",
+    "state_name": "#77777c", "city_name": "#3b3b3b", "town_name": "#555555",
+    "water_name": "#7f95a3", "street_name": "#66666b", "park_name": "#5f6b58",
+    "poi_major": "#5c5c61", "poi_more": "#66666b", "poi_all": "#75757a",
+}
+
+
 def style(tiles: list[str], maxzoom: int = 14, language: str = "en") -> dict:
     """The map's style for tiles served from ``tiles``, its names in ``language``."""
+    c = C
     named = ["has", "name"]
-    label = lambda *a, **k: _label(*a, language=language, **k)
+
+    def label(*a, **k):
+        layer_ = _label(*a, language=language, **k)
+        layer_["paint"]["text-halo-color"] = c["halo"]
+        return layer_
     layers = [
         {"id": "background", "type": "background",
-         "paint": {"background-color": "#f3f3f1"}},
-        _fill("wood", "landcover", "#e6ebe1", _match("class", "wood")),
-        _fill("grass", "landcover", "#ecefe6", _match("class", "grass", "farmland")),
-        _fill("park", "park", "#e3eadb"),
-        _fill("water", "water", "#cddfea"),
-        _line("waterway", "waterway", "#cddfea", 1),
-        _fill("building", "building", "#e8e8e5", None, 14),
-        _line("road_minor_casing", "transportation", "#dcdcd8", 3,
+         "paint": {"background-color": c["background"]}},
+        _fill("wood", "landcover", c["wood"], _match("class", "wood")),
+        _fill("grass", "landcover", c["grass"], _match("class", "grass", "farmland")),
+        _fill("park", "park", c["park"]),
+        _fill("water", "water", c["water"]),
+        _line("waterway", "waterway", c["water"], 1),
+        _fill("building", "building", c["building"], None, 14),
+        _line("road_minor_casing", "transportation", c["minor_casing"], 3,
               _match("class", "minor", "service", "tertiary"), 13),
-        _line("road_minor", "transportation", "#ffffff", 2,
+        _line("road_minor", "transportation", c["minor"], 2,
               _match("class", "minor", "service", "tertiary"), 13),
-        _line("road_major_casing", "transportation", "#cfcfca", 5,
+        _line("road_major_casing", "transportation", c["major_casing"], 5,
               _match("class", "primary", "secondary", "trunk", "motorway"), 8),
-        _line("road_major", "transportation", "#ffffff", 3.5,
+        _line("road_major", "transportation", c["major"], 3.5,
               _match("class", "primary", "secondary", "trunk", "motorway"), 8),
-        _line("country", "boundary", "#aeaeaa", 1, ["==", ["get", "admin_level"], 2],
+        _line("country", "boundary", c["country"], 1, ["==", ["get", "admin_level"], 2],
               None, [4, 2]),
         # Names, from the biggest down; more of them the closer the map is.
-        label("place_country", "place", 14, "#555555", _match("class", "country"),
+        label("place_country", "place", 14, c["country_name"], _match("class", "country"),
                None, 6),
-        label("place_state", "place", 12, "#77777c", _match("class", "state"), 4, 7),
-        label("place_city", "place", 13, "#3b3b3b", _match("class", "city"), 4),
-        label("place_town", "place", 11.5, "#555555",
+        label("place_state", "place", 12, c["state_name"], _match("class", "state"), 4, 7),
+        label("place_city", "place", 13, c["city_name"], _match("class", "city"), 4),
+        label("place_town", "place", 11.5, c["town_name"],
                _match("class", "town", "village", "suburb", "neighbourhood",
                       "quarter"), 9),
-        label("water_names", "water_name", 11, "#7f95a3", named, 8),
-        label("street_names", "transportation_name", 11, "#66666b", named, 14,
+        label("water_names", "water_name", 11, c["water_name"], named, 8),
+        label("street_names", "transportation_name", 11, c["street_name"], named, 14,
                None, along_line=True),
-        label("park_names", "park", 11, "#5f6b58", named, 14),
+        label("park_names", "park", 11, c["park_name"], named, 14),
         # Places to go, in grey: the important ones first, the rest as the
         # map is brought closer.
-        label("poi_major", "poi", 11, "#5c5c61",
+        label("poi_major", "poi", 11, c["poi_major"],
                ["all", named, ["<=", ["get", "rank"], 6], _NOISE], 14),
-        label("poi_more", "poi", 11, "#66666b",
+        label("poi_more", "poi", 11, c["poi_more"],
                ["all", named, ["<=", ["get", "rank"], 20], _NOISE], 16),
-        label("poi_all", "poi", 10.5, "#75757a", ["all", named, _NOISE], 17),
+        label("poi_all", "poi", 10.5, c["poi_all"], ["all", named, _NOISE], 17),
     ]
     return {"version": 8, "name": "Piklin",
             "sources": {_SOURCE: {"type": "vector", "tiles": tiles,

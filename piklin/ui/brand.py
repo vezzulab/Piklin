@@ -38,12 +38,15 @@ def _rounded(cr, x, y, w, h, r):
     cr.close_path()
 
 
-def draw_camera(cr, x, y, size, burst=0.0, lit=0.0, blink=0.0):
+def draw_camera(cr, x, y, size, burst=0.0, lit=0.0, blink=0.0, dark=False):
     """The camera in a ``size`` square at (x, y).
 
     ``burst`` is the flash glow and rays, ``lit`` the flash window, and
-    ``blink`` how far the iris has closed, each 0..1.
+    ``blink`` how far the iris has closed, each 0..1. ``dark``: for a dark
+    window, the body light and the lens ring dark.
     """
+    ink = (0.96, 0.96, 0.97) if dark else _INK
+    ring = _INK if dark else (1, 1, 1)
     cr.save()
     cr.translate(x, y)
     cr.scale(size / 26.0, size / 26.0)
@@ -70,27 +73,31 @@ def draw_camera(cr, x, y, size, burst=0.0, lit=0.0, blink=0.0):
         cr.stroke()
 
     # body, with the viewfinder hump
-    cr.set_source_rgb(*_INK)
+    cr.set_source_rgb(*ink)
     _rounded(cr, 3, 9, 20, 13, 3.2)
     cr.fill()
     _rounded(cr, 10, 6.5, 7, 4, 1.4)
     cr.fill()
 
     # flash window: lit while the flash fires
-    cr.set_source_rgb(_lerp(0.62, 1.0, lit), _lerp(0.62, 1.0, lit),
-                      _lerp(0.66, 1.0, lit))
+    if dark:
+        cr.set_source_rgb(_lerp(0.40, 1.0, lit), _lerp(0.40, 1.0, lit),
+                          _lerp(0.44, 1.0, lit))
+    else:
+        cr.set_source_rgb(_lerp(0.62, 1.0, lit), _lerp(0.62, 1.0, lit),
+                          _lerp(0.66, 1.0, lit))
     _rounded(cr, 5.2, 7.2, 4, 2.4, 0.9)
     cr.fill()
 
     # lens: a white ring, and an iris that blinks shut and opens again
-    cr.set_source_rgb(1, 1, 1)
+    cr.set_source_rgb(*ring)
     cr.arc(13, 15.5, 4.6, 0, 2 * math.pi)
     cr.fill()
-    cr.set_source_rgb(*_INK)
+    cr.set_source_rgb(*ink)
     cr.arc(13, 15.5, 3.2 * (1 - 0.8 * blink), 0, 2 * math.pi)
     cr.fill()
     # a glint on the lens
-    cr.set_source_rgba(1, 1, 1, 0.9 if blink < 0.5 else 0.2)
+    cr.set_source_rgba(*(ring if dark else (1, 1, 1)), 0.9 if blink < 0.5 else 0.2)
     cr.arc(11.9, 14.4, 0.9, 0, 2 * math.pi)
     cr.fill()
     cr.restore()
@@ -110,6 +117,8 @@ class CameraMark(Gtk.DrawingArea):
         self._start = 0
         self._tick = 0
         self._timer = 0
+        from .theme import redraw_on_change
+        redraw_on_change(self)
         self.connect("map", lambda *_: self._schedule(1.6))
         self.connect("unmap", lambda *_: self._stop())
 
@@ -165,7 +174,8 @@ class CameraMark(Gtk.DrawingArea):
             if 0.08 < p < 0.5:
                 blink = math.sin((p - 0.08) / 0.42 * math.pi)
         size = min(w, h)
-        draw_camera(cr, (w - size) / 2, (h - size) / 2, size, burst, lit, blink)
+        from .theme import is_dark
+        draw_camera(cr, (w - size) / 2, (h - size) / 2, size, burst, lit, blink, dark=is_dark())
 
 
 class BrandMark(Gtk.Box):
