@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.5
+## 2.0.6
 
 ### Search
 - The suggestions understand several words ("viaje disney" offers the folder "Viaje Disney 2018"), list the folders first and then the albums, and a choice replaces all the words typed
@@ -42,6 +42,13 @@
 - "Is this the same person?" is a big card with eight faces of each group: click the faces that are the same person, then click Yes (Select All takes every face). Only a face of each group joined together moves them, and what you did not pick stays where it was
 - The groups are suggestions, and Piklin would rather split one person in two than mix two people. A person's menu names them, joins them with another or puts them away; on a person's photos, Not This Person takes a photo out of them, and it is never put back by itself. Babies and small children are the hardest to tell apart, and the same child at two ages often is two people, so joining them is one click
 
+### Viewer
+- Zoom out, zoom in and fit-to-window buttons in the bar of an open photo, and the + - 0 keys; zooming in no longer stretches the photo
+- A person with thousands of photos scrolls without flicker: from 1,500 photos their list is one run of rows of the same height, without day headings (the list could not tell how long it was until it had seen every row, and the view jumped back and forth by whole screens)
+- Going back from a photo returns to that photo in the list (in a person's photos too), not to the top; and a refresh in the background (a scan ending) no longer sends a long list back to the top
+
+## 2.0.5
+
 ### Mac
 - A click that moved even a pixel between pressing and letting go was lost, and had to be made two or three times. Piklin looked at which buttons were held when it handled the movement, not when it happened, so a mouse or a trackpad on a high-resolution screen, which slip a little, made buttons, albums, sidebar rows and photos ignore the click. It is fixed in the GTK that Piklin carries on a Mac
 
@@ -50,11 +57,6 @@
 - A full dark look, made from the light one so that every screen has it, and so does every one added later: the library, the sidebar, the editor, the viewer, the settings and every dialog and menu. White becomes a deep grey and black a soft white; the photographs stay the brightest thing on the screen. The photo stage and the video controls stay dark in both looks, and the shadows and the dimming behind a dialog stay black
 - What Piklin draws itself follows too: the camera at the top of the sidebar, the histogram and the curves of the editor, the grey blocks a photo shows while it loads, the box dragged to select photos. The map stays light in both looks
 - Changing between the two takes effect at once, without closing Piklin
-
-### Viewer
-- Zoom out, zoom in and fit-to-window buttons in the bar of an open photo, and the + - 0 keys; zooming in no longer stretches the photo
-- A person with thousands of photos scrolls without flicker: from 1,500 photos their list is one run of rows of the same height, without day headings (the list could not tell how long it was until it had seen every row, and the view jumped back and forth by whole screens)
-- Going back from a photo returns to that photo in the list (in a person's photos too), not to the top; and a refresh in the background (a scan ending) no longer sends a long list back to the top
 
 ### Photo editor
 - New icons in the editor, drawn for photo editing instead of the generic ones of the system: one for every tool, and for Back, Undo, Redo, Compare, Remove all edits and the three tabs
