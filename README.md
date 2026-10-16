@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/screenshots/hero.png" alt="Piklin 2.0" width="900">
+  <img src="docs/screenshots/hero.png" alt="Piklin 2.0.6: your photos, understood" width="900">
 </p>
 
 <p align="center">
@@ -14,12 +14,16 @@
   <a href="https://ko-fi.com/vezzustudio"><img src="https://img.shields.io/badge/support-Ko--fi-0b0b0b?style=flat-square" alt="Support on Ko-fi"></a>
 </p>
 
-> **Piklin 2.0.1: install it by hand, once.** We replaced the key that signs updates, so installed copies cannot update to it by themselves. [Download 2.0.1](https://github.com/vezzulab/Piklin/releases/latest); your library, albums, edits and backups stay as they are, and updates install themselves again from there.
->
-> **Piklin 2.0.1: instálalo a mano, una sola vez.** Reemplazamos la clave que firma las actualizaciones, así que las copias instaladas no pueden actualizarse solas a esta versión. [Descarga la 2.0.1](https://github.com/vezzulab/Piklin/releases/latest); tu biblioteca, álbumes, cambios y copias se quedan como están, y desde ahí las actualizaciones vuelven a instalarse solas.
+## New in 2.0.6
+
+- **People, with no cloud.** Piklin finds the faces in your photos on your own computer and groups them by person. Name someone once and it keeps learning from your answers. It finds faces lying on their side, lets you frame each person's picture, and shares one list of people across all your computers through your backup. Photos only, never videos.
+- **A search that understands you.** Type what you remember, in any order: people, places, dates written out (`15/07/2019`, `antes de 2012`, `entre 2015 y 2017`), albums, folders, kinds, cameras. `-Ana` leaves someone out. Type a folder and see it with its albums, as clicking it does.
+- **Photos on a drive.** Keep your photos on an external drive without copying them. Browse, search and use the map with the drive unplugged.
+- **A simpler editor.** Simple shows one-click **Improve** and six quick fixes in plain words; Advanced is every tool. Copy adjustments from one photo and paste them on many.
+- **A better viewer:** zoom buttons and keys, and going back returns you to the photo you were on.
 
 <p align="center">
-  <img src="docs/screenshots/library.png" alt="The Piklin library" width="900">
+  <img src="docs/screenshots/library.png" alt="The Piklin library, in dark mode" width="900">
 </p>
 
 ## New in 2.0: your photos on a map
@@ -86,13 +90,13 @@ and sorted A to Z, Z to A, or by how many photos they hold.
 
 ### Editing without fear
 
-- **28 professional tools and Looks.** Tune, curves, selective adjustments, healing, portrait tools and more.
+- **Simple or Advanced.** Simple is one-click Improve and six quick fixes in plain words; Advanced is 28 professional tools and Looks: tune, curves, selective adjustments, healing, portrait tools and more.
 - **Non-destructive.** Your original file is never changed, and every edit can be undone.
 - **Quick fixes.** Rotate photos and videos in one click, and see your edits right in the thumbnails.
 - **Export your way.** JPEG, WebP, AVIF or PNG, at the size you choose, with or without location and metadata.
 
 <p align="center">
-  <img src="docs/screenshots/editor.png" alt="Editing a photo" width="900">
+  <img src="docs/screenshots/editor.png" alt="Editing a photo: Simple mode with Improve and quick fixes" width="900">
 </p>
 
 ### Video, built in
