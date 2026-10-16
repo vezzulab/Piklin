@@ -2004,9 +2004,9 @@ window.piklin .pika-step-dot.current label { color: #ffffff; }
 window.piklin .pika-step-dot.done { background: #1d1d1f; }
 window.piklin .pika-step-dot.done image { color: #ffffff; -gtk-icon-size: 12px; }
 window.piklin .pika-step-line {
-  min-width: 34px;
+  min-width: 36px;
   min-height: 2px;
-  margin: 0 6px;
+  margin: 0 10px;
   border-radius: 2px;
   background: alpha(#000000, 0.08);
 }
@@ -2017,7 +2017,7 @@ window.piklin .pika-steps-caption {
   font-weight: 600;
   letter-spacing: 0.08em;
 }
-window.piklin .pika-step-page { padding: 18px 40px 12px 40px; }
+window.piklin .pika-step-page { padding: 18px 40px 18px 40px; }       /* the same air above and below */
 
 window.piklin .pika-step-icon {
   min-width: 64px;
@@ -2043,27 +2043,27 @@ window.piklin .pika-step-content { margin-top: 24px; }
 window.piklin .pika-step-note { color: @pika_text_dim; font-size: 0.85rem; }
 
 window.piklin button.pika-choice {
-  margin: 0 0 10px 0;
-  padding: 12px 14px;
-  min-height: 50px;
-  border: 1px solid @pika_hairline;
-  border-radius: 14px;
+  margin: 0;                         /* the gap between cards is the box's, so the last has no extra space below */
+  padding: 8px 16px 8px 12px;
+  min-height: 46px;                  /* every card the same height (about 64 px), whatever it says */
+  border: 1.5px solid alpha(#000000, 0.11);
+  border-radius: 18px;
   background: #ffffff;
   background-image: none;
-  box-shadow: 0 1px 2px alpha(#000000, 0.04);
+  box-shadow: 0 1px 3px alpha(#000000, 0.05);
   transition: border-color 150ms ease-out, box-shadow 150ms ease-out, background-color 150ms ease-out;
 }
-window.piklin button.pika-choice:hover { border-color: alpha(#000000, 0.28); background: #fbfbfc; }
+window.piklin button.pika-choice:hover { border-color: alpha(#000000, 0.30); background: #fbfbfc; }
 window.piklin button.pika-choice:checked {
   border-color: #111113;
-  background: #ffffff;
-  box-shadow: 0 0 0 1px #111113, 0 8px 22px alpha(#000000, 0.10);
+  background: #fbfbfc;
+  box-shadow: 0 6px 20px alpha(#000000, 0.10);
 }
 window.piklin button.pika-choice .pika-choice-icon {
-  min-width: 40px;
-  min-height: 40px;
-  border-radius: 12px;
-  background: alpha(#000000, 0.05);
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 999px;              /* a round tile, like the check on the other side */
+  background: alpha(#000000, 0.055);
   transition: background-color 150ms ease-out;
 }
 window.piklin button.pika-choice .pika-choice-icon image { color: #000000; -gtk-icon-size: 20px; }
@@ -2071,15 +2071,15 @@ window.piklin button.pika-choice:checked .pika-choice-icon {
   background-image: linear-gradient(to bottom, #3a3a3e, #0b0b0c);
 }
 window.piklin button.pika-choice:checked .pika-choice-icon image { color: #ffffff; }
-window.piklin button.pika-choice .pika-choice-title { color: #000000; font-weight: 700; font-size: 1rem; }
-window.piklin button.pika-choice .pika-choice-desc { color: @pika_text_dim; font-size: 0.85rem; font-weight: 400; }
+window.piklin button.pika-choice .pika-choice-title { color: #000000; font-weight: 700; font-size: 1.02rem; }
+window.piklin button.pika-choice .pika-choice-desc { color: @pika_text_dim; font-size: 0.88rem; font-weight: 400; }
 window.piklin button.pika-choice .pika-choice-check {
-  min-width: 22px;
-  min-height: 22px;
+  min-width: 24px;
+  min-height: 24px;
   border-radius: 999px;
   background: #111113;
   color: #ffffff;
-  -gtk-icon-size: 12px;
+  -gtk-icon-size: 13px;
   opacity: 0;
   transition: opacity 150ms ease-out;
 }
@@ -2100,17 +2100,19 @@ window.piklin .pika-steps-footer {
   padding: 16px 40px 20px 40px;
   border-top: 1px solid @pika_hairline_soft;
 }
-/* Back and Continue: two pills of the same size, one at each side. */
+/* Back and Continue: two pills of the same size and the same shape, one at each side. */
 window.piklin button.pika-step-back {
-  min-height: 32px;
+  min-height: 40px;
   padding: 0 18px;
-  border: none;
+  border: 1.5px solid alpha(#000000, 0.14);
   border-radius: 999px;
-  background: alpha(#000000, 0.06);
+  background: #ffffff;
+  background-image: none;
   box-shadow: none;
-  font-weight: 600;
+  font-weight: 700;
 }
-window.piklin button.pika-step-back:hover { background: alpha(#000000, 0.10); }
+window.piklin button.pika-step-back:hover { background: alpha(#000000, 0.04); border-color: alpha(#000000, 0.28); }
+window.piklin .pika-steps-footer button.pika-primary-pill { min-height: 40px; border-radius: 999px; font-weight: 700; }
 window.piklin button.suggested-action.pika-primary-pill:disabled { opacity: 0.35; }
 
 /* In the first steps both pills sit flush with the side margins: the
@@ -2272,3 +2274,12 @@ window.piklin image.pika-map-dot-part { color: alpha(@pika_accent, 0.42); }
 window.piklin .pika-sidebar row image.pika-trash-full,
 window.piklin .pika-sidebar row:selected image.pika-trash-full,
 .pika-trash-full { color: #d93025; -gtk-icon-style: symbolic; }
+
+/* A face picked in "Is this the same person?" */
+.pika-face-pick { padding: 3px; border-radius: 999px; background: transparent; box-shadow: none; }
+.pika-face-pick:hover { background-color: alpha(@pika_accent, 0.12); }
+.pika-face-pick:checked { background-color: @pika_accent; }
+
+/* What the search box understood: one chip for each, taken away with a click */
+.pika-chip { padding: 4px 12px; min-height: 0; background-color: alpha(@pika_accent, 0.14); }
+.pika-chip:hover { background-color: alpha(@pika_accent, 0.24); }

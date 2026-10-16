@@ -208,6 +208,17 @@ with zipfile.ZipFile(sys.argv[1]) as z:
     open(sys.argv[2], "wb").write(z.read(name))
 PY
   chmod 755 "$R/bin/rclone"
+
+  # JPEG XL photos: cjxl and djxl (libjxl, BSD-3-Clause) for this processor,
+  # built by packaging/build-jxl.sh. Without them there is no JPEG XL.
+  JXL_DIR="$HERE/jxl-cache/macos-$([ "$a" = x86_64 ] && echo amd64 || echo arm64)"
+  if [ -x "$JXL_DIR/cjxl" ] && [ -x "$JXL_DIR/djxl" ]; then
+    install -m 755 "$JXL_DIR/cjxl" "$JXL_DIR/djxl" "$R/bin/"
+    mkdir -p "$C/Resources/third-party/libjxl"
+    cp "$JXL_DIR"/*LICENSE* "$JXL_DIR"/*PATENTS* "$C/Resources/third-party/libjxl/" 2>/dev/null || true
+  else
+    echo "warning: no cjxl/djxl for macOS $a (run ARCH=$a packaging/build-jxl.sh): no JPEG XL in this app" >&2
+  fi
 done
 
 # ------------------------------------------------------------ Piklin itself

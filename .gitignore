@@ -26,3 +26,4 @@ packaging/appimage-cache/
 packaging/rclone-cache/
 packaging/media-cache-*/
 packaging/wheel-local-*/
+packaging/jxl-cache/

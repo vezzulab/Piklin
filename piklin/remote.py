@@ -2731,10 +2731,17 @@ def library_files(root: Path, include_originals: bool = True,
     """
     root = Path(root)
     ordered: list[Path] = []
-    for sub in ("Edits", "Albums"):
+    for sub in ("Edits", "Albums", "People"):
         d = root / sub
         if d.is_dir():
-            ordered += sorted(p for p in d.rglob("*") if p.is_file())
+            found = sorted(p for p in d.rglob("*") if p.is_file())
+            if sub == "People":
+                # only this computer's own file goes up: the others' came with a
+                # restore, and sending a copy back could cover what that computer
+                # has written since
+                from .peoplesync import my_id
+                found = [p for p in found if p.name == f"{my_id()}.json"]
+            ordered += found
     # photo-state.json (favourites, hidden), removed-photos.json,
     # watched-folders.json and settings.json
     for f in sorted(root.glob("*.json")) + [root / "README.txt"]:

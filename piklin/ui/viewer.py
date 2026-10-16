@@ -118,6 +118,17 @@ class ViewerView(Gtk.Box):
         nxt.connect("clicked", lambda *_: self.emit("navigate", 1))
         bar.append(prev)
         bar.append(nxt)
+        # Zoom: also with Ctrl and the wheel, a double click, or + and - keys
+        zout = Gtk.Button(icon_name="zoom-out-symbolic", tooltip_text=_("Zoom Out (-)"))
+        zout.connect("clicked", lambda *_: self.zoom_by(1 / 1.5))
+        zin = Gtk.Button(icon_name="zoom-in-symbolic", tooltip_text=_("Zoom In (+)"))
+        zin.connect("clicked", lambda *_: self.zoom_by(1.5))
+        self.zoom_fit = Gtk.Button(icon_name="zoom-fit-best-symbolic",
+                                   tooltip_text=_("Fit to Window (0)"))
+        self.zoom_fit.connect("clicked", lambda *_: self.zoom_by(None))
+        bar.append(zout)
+        bar.append(zin)
+        bar.append(self.zoom_fit)
 
         self.name_label = Gtk.Label(xalign=0.5, hexpand=True)
         self.name_label.add_css_class("heading")
@@ -545,6 +556,11 @@ class ViewerView(Gtk.Box):
         self._apply_zoom()
         return True
 
+    def zoom_by(self, factor) -> None:
+        """Zoom in or out by a factor; None fits the photo to the window."""
+        self._zoom = 1.0 if factor is None else max(1.0, min(8.0, self._zoom * factor))
+        self._apply_zoom()
+
     def _on_click(self, gesture, n_press, x, y):
         if n_press >= 2:
             self._zoom = 1.0 if self._zoom > 1.0 else 2.5
@@ -554,6 +570,15 @@ class ViewerView(Gtk.Box):
         paintable = self.picture.get_paintable()
         if paintable is None:
             return
+        # the middle of what is on screen stays the middle: remember where it is
+        # as a fraction of the photo, and put the scrollbars back there once
+        # the new size has been laid out
+        centre = []
+        for adj in (self.scroller.get_hadjustment(), self.scroller.get_vadjustment()):
+            up = adj.get_upper()
+            centre.append((adj.get_value() + adj.get_page_size() / 2) / up
+                          if up > adj.get_page_size() + 1 else 0.5)
+        self._recentre(centre)
         if self._zoom <= 1.001:
             self.picture.set_size_request(-1, -1)
             self.picture.set_content_fit(Gtk.ContentFit.CONTAIN)
@@ -561,11 +586,25 @@ class ViewerView(Gtk.Box):
         else:
             w = self.scroller.get_width() or 800
             h = self.scroller.get_height() or 600
-            self.picture.set_content_fit(Gtk.ContentFit.FILL)
+            self.picture.set_content_fit(Gtk.ContentFit.CONTAIN)
             self.picture.set_size_request(int(w * self._zoom),
                                           int(h * self._zoom))
             self.scroller.set_policy(Gtk.PolicyType.AUTOMATIC,
                                      Gtk.PolicyType.AUTOMATIC)
+
+    def _recentre(self, centre) -> None:
+        ticks = [0]
+
+        def settle(_widget, _clock):
+            ticks[0] += 1
+            for adj, frac in zip((self.scroller.get_hadjustment(),
+                                  self.scroller.get_vadjustment()), centre):
+                page = adj.get_page_size()
+                if adj.get_upper() > page + 1:
+                    adj.set_value(max(adj.get_lower(), min(
+                        adj.get_upper() - page, frac * adj.get_upper() - page / 2)))
+            return GLib.SOURCE_CONTINUE if ticks[0] < 4 else GLib.SOURCE_REMOVE
+        self.add_tick_callback(settle)
 
     def shutdown(self):
         self._render.stop()

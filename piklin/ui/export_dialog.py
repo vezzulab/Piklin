@@ -519,7 +519,18 @@ class ExportDialog(Adw.Dialog):
                                            subfolder=subfolder, title=title,
                                            taken_at=taken)
                     out.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(p, out)
+                    if p.suffix.lower() == ".jxl":
+                        # the original is the JPEG it was made from
+                        from .. import jxl
+                        if jxl.restore_jpeg(p, out):
+                            shutil.copystat(p, out)
+                        else:
+                            out = cz.export_target(dest, p, i, naming=naming,
+                                                   subfolder=subfolder, title=title,
+                                                   taken_at=taken, suffix=".jxl")
+                            shutil.copy2(p, out)
+                    else:
+                        shutil.copy2(p, out)
                     done += 1
                     total += out.stat().st_size
                 except Exception:

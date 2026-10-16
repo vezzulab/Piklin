@@ -96,6 +96,10 @@ def file_for_drag(library, path: Path | str) -> Path:
     try:
         stack = _edit_stack(library, p)
         out.parent.mkdir(parents=True, exist_ok=True)
+        if stack is None and p.suffix.lower() == ".jxl":
+            from . import jxl
+            if jxl.restore_jpeg(p, out):        # the very JPEG it was made from
+                return out
         image = None
         if stack is not None:
             from .engine.stack import render_full

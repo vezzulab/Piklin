@@ -23,6 +23,7 @@ from pathlib import Path
 
 from .video import VIDEO_EXT
 from typing import Any, Iterable, Iterator, Sequence
+from .textfold import fold
 from .i18n import N_, month_year
 
 SCHEMA_VERSION = 3
@@ -172,6 +173,75 @@ CREATE TABLE IF NOT EXISTS creations (
     updated_at REAL NOT NULL
 );
 
+-- People: faces found in the photos and grouped, all on this computer (see
+-- people.py). A person has a name once the user gives one. A face's state is
+-- 0 grouped by Piklin, 1 confirmed by the user, 2 taken out of its person by
+-- the user (it is never put in one again by itself), 3 ignored.
+CREATE TABLE IF NOT EXISTS people (
+    id         INTEGER PRIMARY KEY,
+    name       TEXT,
+    cover_face INTEGER,
+    cover_turn INTEGER NOT NULL DEFAULT 0,      -- the picture turned by the user: 0, 90, 180, 270
+    uuid       TEXT,                            -- the same on every computer (see peoplesync.py)
+    name_at    REAL NOT NULL DEFAULT 0,         -- when the name was given: the newest wins
+    cover_at   REAL NOT NULL DEFAULT 0,         -- when the user chose the picture (0: Piklin chose it)
+    cover_custom TEXT,                          -- a picture framed by hand: JSON, see people.set_cover_custom
+    hidden     INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS faces (
+    id        INTEGER PRIMARY KEY,
+    photo_id  INTEGER NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+    x REAL NOT NULL, y REAL NOT NULL, w REAL NOT NULL, h REAL NOT NULL,
+    score     REAL NOT NULL DEFAULT 0,
+    px        INTEGER NOT NULL DEFAULT 0,       -- the face's width in pixels, as looked at
+    yaw       REAL NOT NULL DEFAULT 0,          -- turned left or right, -1 to 1 (0: facing us)
+    roll      REAL NOT NULL DEFAULT 0,          -- head tilt in degrees
+    emb       BLOB NOT NULL,                    -- 128 floats, length 1
+    person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,
+    state     INTEGER NOT NULL DEFAULT 0,
+    was_person INTEGER,                         -- who the user took it out of (state 2)
+    state_at   REAL NOT NULL DEFAULT 0,         -- when the user decided (states 1 to 3)
+    pinned     INTEGER NOT NULL DEFAULT 0       -- chosen one by one by the user: never moved by Piklin
+);
+CREATE INDEX IF NOT EXISTS faces_photo  ON faces(photo_id);
+CREATE INDEX IF NOT EXISTS faces_person ON faces(person_id);
+-- What the user answered when asked "is this the same person?", with how alike
+-- the two groups were: from it Piklin learns how alike is alike enough, for
+-- this library.
+CREATE TABLE IF NOT EXISTS people_answers (
+    link REAL NOT NULL, same INTEGER NOT NULL, at REAL NOT NULL
+);
+
+-- People that were joined into another: the other computers do the same.
+CREATE TABLE IF NOT EXISTS people_merged (
+    old TEXT PRIMARY KEY, new TEXT NOT NULL, at REAL NOT NULL
+);
+
+-- Two people the user said are not the same: Piklin does not ask again.
+CREATE TABLE IF NOT EXISTS people_apart (
+    a INTEGER NOT NULL, b INTEGER NOT NULL, PRIMARY KEY (a, b)
+);
+-- Where each photo with coordinates was taken, named from the list of towns
+-- Piklin carries (places.py), so that "Miami" finds it with no network. The
+-- coordinates it was made from are kept: a photo that was placed again is named
+-- again. The folded columns are what a search compares.
+CREATE TABLE IF NOT EXISTS photo_places (
+    photo_id INTEGER PRIMARY KEY REFERENCES photos(id) ON DELETE CASCADE,
+    lat REAL NOT NULL, lon REAL NOT NULL,
+    city TEXT, region TEXT, country TEXT,
+    city_f TEXT, region_f TEXT, country_f TEXT
+);
+CREATE INDEX IF NOT EXISTS photo_places_city    ON photo_places(city_f);
+CREATE INDEX IF NOT EXISTS photo_places_country ON photo_places(country_f);
+
+-- Which photos have been looked at for faces, and by which version of the
+-- looking, so a better model later can look again.
+CREATE TABLE IF NOT EXISTS face_scans (
+    photo_id INTEGER PRIMARY KEY REFERENCES photos(id) ON DELETE CASCADE,
+    version  INTEGER NOT NULL
+);
+
 -- Photos the user removed from the library whose files are still in a
 -- watched folder. Without this list the next scan finds the file again
 -- and adds it back as a brand-new photo, as if it had never been removed.
@@ -225,7 +295,7 @@ def search_text(rec: dict) -> str:
                       d.strftime("%A")]
         except (ValueError, OSError, OverflowError):
             pass
-    return " ".join(p for p in parts if p).lower()
+    return fold(" ".join(p for p in parts if p))
 
 
 # ==========================================================================
@@ -403,6 +473,7 @@ class Catalog:
             check_same_thread=False,
         )
         con.row_factory = sqlite3.Row
+        con.create_function("piklin_fold", 1, fold, deterministic=True)
         cur = con.cursor()
         cur.execute("PRAGMA journal_mode=WAL")
         cur.execute("PRAGMA synchronous=NORMAL")
@@ -436,6 +507,11 @@ class Catalog:
         with self.write() as cur:
             cur.executescript(SCHEMA)
             self._migrate(cur)
+            # The text the search compares has no accents ("cancion" finds
+            # "canción"): what was written before that is converted, once.
+            if not cur.execute("SELECT 1 FROM meta WHERE key='search_folded'").fetchone():
+                cur.execute("UPDATE photo_text SET haystack=piklin_fold(haystack)")
+                cur.execute("INSERT INTO meta(key,value) VALUES('search_folded','1')")
             cur.execute(
                 "INSERT INTO meta(key,value) VALUES('schema_version',?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -453,6 +529,30 @@ class Catalog:
         is what makes it safe to call unconditionally rather than only
         when the version number changes.
         """
+        people_cols = {r[1] for r in cur.execute("PRAGMA table_info(people)")}
+        if people_cols and "uuid" not in people_cols:
+            cur.execute("ALTER TABLE people ADD COLUMN uuid TEXT")
+            cur.execute("ALTER TABLE people ADD COLUMN name_at REAL NOT NULL DEFAULT 0")
+        if people_cols:
+            for (pid,) in cur.execute("SELECT id FROM people WHERE uuid IS NULL").fetchall():
+                cur.execute("UPDATE people SET uuid=? WHERE id=?", (uuid.uuid4().hex, pid))
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS people_uuid ON people(uuid)")
+        if people_cols and "cover_custom" not in people_cols:
+            cur.execute("ALTER TABLE people ADD COLUMN cover_custom TEXT")
+        if people_cols and "cover_at" not in people_cols:
+            cur.execute("ALTER TABLE people ADD COLUMN cover_at REAL NOT NULL DEFAULT 0")
+        if people_cols and "cover_turn" not in people_cols:
+            cur.execute("ALTER TABLE people ADD COLUMN cover_turn INTEGER NOT NULL DEFAULT 0")
+        face_cols = {r[1] for r in cur.execute("PRAGMA table_info(faces)")}
+        if face_cols and "pinned" not in face_cols:
+            cur.execute("ALTER TABLE faces ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+        if face_cols and "state_at" not in face_cols:
+            cur.execute("ALTER TABLE faces ADD COLUMN state_at REAL NOT NULL DEFAULT 0")
+        if face_cols and "was_person" not in face_cols:
+            cur.execute("ALTER TABLE faces ADD COLUMN was_person INTEGER")
+        if face_cols and "yaw" not in face_cols:
+            cur.execute("ALTER TABLE faces ADD COLUMN yaw REAL NOT NULL DEFAULT 0")
+            cur.execute("ALTER TABLE faces ADD COLUMN roll REAL NOT NULL DEFAULT 0")
         # Title, caption and keywords, as in the Info panel. Typed
         # by the user; mirrored to photo-state.json by sidecars.py.
         pcols = {row[1] for row in cur.execute("PRAGMA table_info(photos)")}
@@ -665,7 +765,7 @@ class Catalog:
             # rescan does not make them unsearchable.
             cur.executemany(
                 "INSERT INTO photo_text(photo_id,haystack) "
-                "SELECT id, rtrim(? || ' ' || lower(COALESCE(title,'') || ' ' || "
+                "SELECT id, rtrim(? || ' ' || piklin_fold(COALESCE(title,'') || ' ' || "
                 "COALESCE(caption,'') || ' ' || COALESCE(keywords,''))) "
                 "FROM photos WHERE path=? "
                 "ON CONFLICT(photo_id) DO UPDATE SET haystack=excluded.haystack",
@@ -991,10 +1091,21 @@ class Catalog:
             where.append("(" + " OR ".join(wanted) + ")")
 
         if search:
-            joins += " JOIN photo_text t ON t.photo_id=p.id"
-            for term in search.lower().split():
-                where.append("t.haystack LIKE ?")
-                params.append(f"%{term}%")
+            # What is typed is read first (smartsearch.py): a person, a year, a
+            # place, a kind of file become conditions of their own; the words
+            # left over are looked for in the text of each photo, as they always were.
+            from . import smartsearch
+            frag, prm, words, parsed = smartsearch.compile(self, search)
+            where.extend(frag)
+            params.extend(prm)
+            if words or parsed.not_words:
+                joins += " JOIN photo_text t ON t.photo_id=p.id"
+            for term in words:
+                where.append("t.haystack LIKE ? ESCAPE '\\'")
+                params.append("%" + smartsearch._like(term) + "%")
+            for term in parsed.not_words:
+                where.append("t.haystack NOT LIKE ? ESCAPE '\\'")
+                params.append("%" + smartsearch._like(term) + "%")
 
         orders = {
             "taken_desc": "p.taken_at DESC, p.id DESC",

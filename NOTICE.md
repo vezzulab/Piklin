@@ -16,6 +16,7 @@ The Piklin packages include the software below. Each part keeps its own licence,
 | [miniaudio](https://miniaud.io) / [pyminiaudio](https://github.com/irmen/pyminiaudio) | Sound output | Public domain or MIT-0 / MIT |
 | [OpenCV](https://opencv.org) | Image processing and face detection | Apache-2.0 |
 | [YuNet face detector](https://github.com/opencv/opencv_zoo) | Portrait tools | MIT |
+| [SFace face recognition](https://github.com/opencv/opencv_zoo) | People: groups the same face, on this computer | Apache-2.0 |
 | [NumPy](https://numpy.org) | Image processing | BSD-3-Clause |
 | [Pillow](https://python-pillow.org) | Image formats | MIT-CMU |
 | [pi-heif](https://github.com/bigcat88/pillow_heif) with libheif and libde265 | HEIC and HEIF photos | BSD-3-Clause; LGPL-3.0 |
@@ -47,6 +48,10 @@ These libraries are separate shared libraries inside `Piklin.app/Contents/Resour
 ## FFmpeg
 
 FFmpeg is built by `packaging/build-media.sh` without any GPL or non-free component. The script stops unless FFmpeg's own configuration reports "LGPL version 2.1 or later". The FFmpeg libraries ship as separate shared libraries and can be replaced with your own build. The corresponding source code is available from [ffmpeg.org](https://ffmpeg.org/releases/). The exact build configuration is installed with Piklin.
+
+## libjxl
+
+`cjxl` and `djxl`, built by `packaging/build-jxl.sh` from [libjxl](https://github.com/libjxl/libjxl) (BSD-3-Clause, with its patent grant), keep a photo as JPEG XL about a fifth smaller and give back the same JPEG. They carry brotli (MIT), highway (Apache-2.0), lcms2 (MIT) and skcms (BSD-3-Clause), whose licences are installed with Piklin.
 
 ## System libraries
 

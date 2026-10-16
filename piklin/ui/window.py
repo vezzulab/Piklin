@@ -24,6 +24,9 @@ from ..thumbs import SIZES as THUMB_SIZES, ThumbCache
 from .editor import EditorView
 from .grid import PhotoGrid
 from .viewer import ViewerView
+from .people_actions import PeopleActions
+from .search_actions import SearchActions
+from .drive_actions import DriveActions
 from .chrome import IS_MAC, PRIMARY_MASK, key_name
 
 # How narrow and how wide the sidebar can be dragged.
@@ -38,7 +41,11 @@ def _fmt_size(n: float) -> str:
     return f"{n:.1f} GB"
 
 
-class MainWindow(Adw.ApplicationWindow):
+_INPUT_EVENTS = (Gdk.EventType.KEY_PRESS, Gdk.EventType.BUTTON_PRESS, Gdk.EventType.SCROLL,
+                 Gdk.EventType.MOTION_NOTIFY, Gdk.EventType.TOUCH_BEGIN)
+
+
+class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWindow):
     def __init__(self, app, library: Library):
         from .chrome import fit
         # Never larger than the screen: a Mac does not shrink a window that
@@ -105,9 +112,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.viewer = ViewerView(library, self.catalog, self.thumbs,
                                  self.settings)
-        self.viewer.connect("closed", lambda *_: (
-            self.viewer.is_fullscreen() and self.viewer.toggle_fullscreen(False),
-            self._show("grid")))
+        self.viewer.connect("closed", self._on_viewer_closed)
         self.viewer.connect("edit-requested", self._on_edit_requested)
         self.viewer.connect("changed", lambda *_: self._refresh())
         self.viewer.connect("navigate", self._on_navigate)
@@ -169,6 +174,14 @@ class MainWindow(Adw.ApplicationWindow):
         from ..videowatch import VideoWatch
         self.video_watch = VideoWatch(library, self.catalog, self.settings, self.autobackup,
                                       self.indexer, self.health_watch, self._on_video_space)
+        self._start_people()
+        self._start_search_index()
+        self._start_drive_watch()
+        # People looks at photos in the background, and gives way while this
+        # window is being used (peoplewatch.py)
+        activity = Gtk.EventControllerLegacy(propagation_phase=Gtk.PropagationPhase.CAPTURE)
+        activity.connect("event", self._on_any_event)
+        self.add_controller(activity)
         GLib.idle_add(self._first_run)
 
     # ==================================================================
@@ -422,6 +435,7 @@ class MainWindow(Adw.ApplicationWindow):
                                       width_chars=22)
         self.search.add_css_class("pika-search")
         self.search.connect("search-changed", self._on_search)
+        self._setup_search_ui()
 
         # The signature control: how the library is grouped is the
         # main thing you change while browsing, so it belongs in the
@@ -464,6 +478,7 @@ class MainWindow(Adw.ApplicationWindow):
                                    tooltip_text=_("Back to the map"))
         self.map_back.connect("clicked", lambda _b: self._back_to_map())
         header.pack_start(self.map_back)
+        header.pack_start(self._make_people_back())
 
         # Shown in the bar at the bottom, not up here: a label appearing in
         # the header widened it, which narrowed the sidebar and resized
@@ -604,6 +619,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.folder_view.connect("open-smart", lambda _v, i: self._open_smart(i))
         self.folder_view.connect("open-folder", lambda _v, i: self._open_folder(i))
         self.content_stack.add_named(self.folder_view, "folder")
+        self._build_people_view()
         # The library on a map: every photo that recorded where it was
         # taken, grouped into a pin per place. The map needs libshumate,
         # which a build may not carry; without it the rest of Piklin still
@@ -619,7 +635,7 @@ class MainWindow(Adw.ApplicationWindow):
             self.map_view.connect("open-place", self._on_map_place)
             self.map_view.connect("open-album", self._on_map_album)
             self.content_stack.add_named(self.map_view, "map")
-        toolbar.set_content(self.content_stack)
+        toolbar.set_content(self._wrap_with_chips(self.content_stack))
         toolbar.add_bottom_bar(self.action_bar)
         # The bar lies over the photos rather than taking their space: the
         # view shrinking as it appeared moved the photos up under the pointer.
@@ -890,6 +906,7 @@ class MainWindow(Adw.ApplicationWindow):
         if self.map_view is not None:
             add("map", _("Map"), "mark-location-symbolic", counts.get("located"),
                 count_key="located")
+        add("people", _("People"), "pk-user-symbolic")
         add("trash", _("Recently Deleted"), "user-trash-symbolic",
             counts.get("trash"), count_key="trash")
 
@@ -1754,8 +1771,13 @@ class MainWindow(Adw.ApplicationWindow):
             return
         self._smart_id = None
         self.map_back.set_visible(False)
+        self.people_back.set_visible(False)
+        self._person_id = None
         if key == "map":
             self._show_map()
+            return
+        if key == "people":
+            self._show_people()
             return
         if key.startswith("album:"):
             self._scope = "album"
@@ -2068,6 +2090,13 @@ class MainWindow(Adw.ApplicationWindow):
                 and not self._focus_takes_keys()):
             self._on_navigate(self.viewer, -1 if name.endswith("Left") else 1)
             return True
+        if (name in ("plus", "equal", "KP_Add", "minus", "KP_Subtract", "0", "KP_0")
+                and (not mods or mods == Gdk.ModifierType.SHIFT_MASK)
+                and self.stack.get_visible_child_name() == "viewer"
+                and not self._focus_takes_keys()):
+            self.viewer.zoom_by(None if name.endswith("0") else
+                                1.5 if name in ("plus", "equal", "KP_Add") else 1 / 1.5)
+            return True
         if name not in self._CAPTURED:
             return False
         if name == "F11":
@@ -2309,6 +2338,17 @@ class MainWindow(Adw.ApplicationWindow):
             return
         if self._scope == "folder":
             self.folder_view.load(getattr(self, "_folder_id", None))
+        elif self._scope == "people":
+            self.people_view.load()
+        elif self._scope == "ids" and getattr(self, "_person_id", None) is not None:
+            # a person's photos: the person's photos as they are now (one was taken out,
+            # another was hidden), not the ones it was opened with
+            from .. import people as _people
+            here = self.grid.first_visible_id()
+            self.grid.load("ids", photo_ids=_people.photo_ids(self.catalog, self._person_id),
+                           keep_selection=self.grid._selected)
+            if here is not None:
+                self.grid.reveal_photo(here)
         else:
             self.grid.refresh()
         if self.content_stack.get_visible_child_name() == "summary":
@@ -2333,8 +2373,20 @@ class MainWindow(Adw.ApplicationWindow):
                         device=getattr(self._device, "name", ""))), False)[1])
             threading.Thread(target=work, daemon=True).start()
             return
+        if self._scope != "device" and self._say_file_missing(item.path):
+            return                          # its drive is not plugged in
         self.viewer.show_photo(item)
         self._show("viewer")
+
+    def _on_viewer_closed(self, *_a):
+        item = self.viewer.item
+        if self.viewer.is_fullscreen():
+            self.viewer.toggle_fullscreen(False)
+        self._show("grid")
+        # back on the photo that was open (arrows may have moved on from the
+        # one clicked), not at the top of the list
+        if item is not None and self._scope not in ("map", "folder", "people"):
+            self.grid.reveal_photo(item.id)
 
     def _open_fetched(self, item):
         self.viewer.show_photo(item)
@@ -2836,6 +2888,9 @@ class MainWindow(Adw.ApplicationWindow):
         if self._scope == "folder":
             self.content_stack.set_visible_child_name("folder")
             return
+        if self._scope == "people":
+            self.content_stack.set_visible_child_name("people")
+            return
         if self._summary_applies():
             self.summary.load(self.settings.get("group_by"), self.grid.filters())
             self.content_stack.set_visible_child_name("summary")
@@ -2971,10 +3026,51 @@ class MainWindow(Adw.ApplicationWindow):
             self._view_buttons["day"].set_active(True)
             self.grid.scroll_to_time(last)
 
+    def _on_any_event(self, _controller, event) -> bool:
+        """Anything the person does in the window: People looks at the photos in
+        the background and gives way meanwhile. Never takes the event."""
+        try:
+            if event is not None and event.get_event_type() in _INPUT_EVENTS:
+                self.people_watch.touch()
+        except Exception:
+            pass
+        return False
+
     def _on_search(self, entry):
-        self.grid.load(self._scope, self._album_id, entry.get_text() or None,
+        if not entry.get_text().strip():
+            from .. import smartsearch
+            smartsearch.forget_preferences()
+        if entry.get_text().strip() and (self._scope == "people" or (
+                self._scope == "ids" and getattr(self, "_person_id", None) is not None)):
+            # a search looks through all photos: from the list of people, or from
+            # inside one person, it goes to them (a person's list has no search of its own)
+            self._scope = "library"
+            self._person_id = None
+            self._album_id = self._smart_id = None
+            self.people_back.set_visible(False)
+            self._select_sidebar_key("library")
+        text = entry.get_text() or ""
+        from .. import smartsearch
+        try:
+            fid = smartsearch.folder_for(self.catalog, text)
+        except Exception:
+            fid = None
+        if fid is not None:
+            # a search that is only a folder shows it with its albums, as clicking it does:
+            # to enter one of them, choose it or type its name
+            self._search_folder = True
+            self._open_folder(fid)
+            self._update_search_ui()
+            return
+        if self._scope == "folder" and (text.strip() or getattr(self, "_search_folder", False)):
+            # leaving the folder a search had opened: back to the photos
+            self._scope, self._album_id, self._smart_id = "library", None, None
+            self._select_sidebar_key("library")
+        self._search_folder = False
+        self.grid.load(self._scope, self._album_id, text or None,
                        smart_id=self._smart_id)
         self._sync_content_view()
+        self._update_search_ui()
 
     def _on_filter_toggled(self, _chk):
         if getattr(self, "_filters_syncing", False):
@@ -3743,6 +3839,12 @@ class MainWindow(Adw.ApplicationWindow):
               lambda: self._make_folder_cover(item))]
             if (single and self._scope == "album" and self._album_id is not None
                 and self._current_album_folder() is not None) else [],
+            [("use-picture", _("Use as Picture"), None,
+              lambda: self._use_as_picture(item.id))]
+            if single and self._scope == "ids" and getattr(self, "_person_id", None) is not None else [],
+            [("not-person", _("Not This Person"), None,
+              lambda: self._not_this_person(ids))]
+            if self._scope == "ids" and getattr(self, "_person_id", None) is not None else [],
             [("delete", delete_label, "Delete",
               lambda: self._on_bulk_trash(None))],
         ])

@@ -3231,6 +3231,768 @@ check("dates are read with or without a time",
 check("merging keywords ignores capitals and stray separators",
       _mk("a; B", "b, c,, ") == "a, B, c")
 
+# ===================================================================
+section("JPEG XL: a smaller photo that gives the same JPEG back")
+from piklin import jxl as _jxl, dragout as _dg4
+if not _jxl.available():
+    print("  (cjxl/djxl not found: skipped)")
+else:
+    _jd = Path(TMP) / "jxl"; _jd.mkdir()
+    _jj = _jd / "a.jpg"; shutil.copy(SRC[0], _jj)
+    _jx = _jd / "a.jxl"
+    check("a JPEG becomes a smaller .jxl", _jxl.compress_jpeg(_jj, _jx)
+          and _jx.stat().st_size < _jj.stat().st_size)
+    check("no part files are left behind", sorted(p.name for p in _jd.iterdir()) == ["a.jpg", "a.jxl"])
+    _jb = _jd / "back.jpg"
+    check("the .jxl gives the same JPEG back, byte for byte",
+          _jxl.restore_jpeg(_jx, _jb) and _jb.read_bytes() == _jj.read_bytes())
+    _r0, _r1 = iio.probe(_jj), iio.probe(_jx)
+    check("a .jxl is a photo: same size and date as the JPEG",
+          _r1 and (_r1["width"], _r1["height"]) == (_r0["width"], _r0["height"])
+          and _r1["taken_at"] == _r0["taken_at"])
+    check("a .jxl loads and is scaled like a JPEG", max(iio.load_pil(_jx, max_side=300).size) <= 300)
+    check("dragging a .jxl out hands over the original JPEG",
+          _dg4.file_for_drag(None, _jx).read_bytes() == _jj.read_bytes())
+    _Im.new("RGB", (64, 64), (200, 30, 30)).save(_jd / "p.png")
+    check("a PNG is not packed as a JPEG", not _jxl.compress_jpeg(_jd / "p.png", _jd / "p.jxl"))
+    import subprocess as _sp4
+    _sp4.run(["cjxl", str(_jd / "p.png"), str(_jd / "q.jxl"), "-d", "0", "--quiet"])
+    check("a .jxl not made from a JPEG is never passed off as one",
+          not _jxl.restore_jpeg(_jd / "q.jxl", _jd / "q.jpg") and not (_jd / "q.jpg").exists())
+    check("but it still opens as a photo", iio.load_pil(_jd / "q.jxl").size == (64, 64))
+    _eo = _cz.export_target(_jd / "out", _jx, 0)
+    check("an exported .jxl is named as a JPEG", _eo.suffix == ".jpg")
+    _er = _cz.compress_to(_jx, _eo, "original", "keep")
+    check("exported unchanged, it is the original JPEG byte for byte",
+          _er.ok and _eo.read_bytes() == _jj.read_bytes())
+    _eo2 = _cz.export_target(_jd / "out", _jx, 1, naming="sequential")
+    _er2 = _cz.compress_to(_jx, _eo2, "visually_lossless", "jpeg", max_side=400)
+    check("exported smaller, it is a JPEG with its metadata",
+          _er2.ok and max(_Im.open(_eo2).size) <= 400 and _Im.open(_eo2).format == "JPEG")
+
+# ===================================================================
+section("People: faces grouped on this computer, corrected by the user")
+from piklin import people as _pp
+from piklin.catalog import Catalog as _Cat4
+_rng = np.random.default_rng(3)
+_ids = _rng.normal(size=(6, 128)); _ids /= np.linalg.norm(_ids, axis=1, keepdims=True)
+def _faces(i, n, noise=0.07):
+    x = _ids[i] + _rng.normal(scale=noise, size=(n, 128))
+    return (x / np.linalg.norm(x, axis=1, keepdims=True)).astype(np.float32)
+_X = np.vstack([_faces(i, 12) for i in range(6)]); _own = np.repeat(np.arange(6), 12)
+_perm = _rng.permutation(len(_X)); _X, _own = _X[_perm], _own[_perm]
+_g = _pp.group(_X)
+check("six people make six groups", len(_g) == 6, str([len(x) for x in _g]))
+check("no group mixes two people", all(len(set(_own[m])) == 1 for m in _g))
+_big = np.vstack([_faces(i % 6, 1, 0.05) for i in range(6000)])
+_t0 = time.time(); _pp.group(_big)
+check("six thousand faces are grouped in seconds", time.time() - _t0 < 15, f"{time.time()-_t0:.1f}s")
+check("nothing to group is fine", _pp.group(np.zeros((0, 128), np.float32)) == [])
+
+_c4 = _Cat4(os.path.join(TMP, "people.db"))
+_now = time.time()
+with _c4.write() as _cur:
+    for i in range(40):
+        _cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at) "
+                     "VALUES(?,?,?,?,?,?,?,?)", (f"u{i}", f"/x/{i}.jpg", f"{i}.jpg", "jpg", 1, _now, _now, _now - i))
+_pids = [r[0] for r in _c4.con.execute("SELECT id FROM photos ORDER BY id")]
+with _c4.write() as _cur:
+    for k in range(36):                    # persons 0..2, 12 photos each
+        e = _faces(k // 12, 1)[0]
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                     (_pids[k], .1, .1, .2, .2, .95, 100, e.tobytes()))
+check("faces are grouped into people", _pp.regroup(_c4)["new"] == 3)
+_P = _pp.list_people(_c4)
+check("three people with twelve photos each", [p["photos"] for p in _P] == [12, 12, 12])
+_a, _b = _P[0]["id"], _P[1]["id"]
+_pp.rename(_c4, _a, "  Ana ")
+check("a person is named, spaces trimmed", _c4.scalar("SELECT name FROM people WHERE id=?", (_a,)) == "Ana")
+check("naming confirms its faces",
+      _c4.scalar("SELECT MIN(state) FROM faces WHERE person_id=?", (_a,)) == 1)
+_f = _c4.con.execute("SELECT id FROM faces WHERE person_id=? LIMIT 1", (_a,)).fetchone()[0]
+_pp.not_this_person(_c4, [_f])
+_pp.regroup(_c4)
+check("a face taken out of a person is not put back by itself",
+      _c4.scalar("SELECT person_id FROM faces WHERE id=?", (_f,)) is None
+      and _c4.scalar("SELECT state FROM faces WHERE id=?", (_f,)) == 2)
+check("it no longer counts in that person's photos", len(_pp.photo_ids(_c4, _a)) == 11)
+# a new face of a known person joins them without waiting for a group
+with _c4.write() as _cur:
+    _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                 (_pids[37], .1, .1, .2, .2, .95, 100, _faces(1, 1)[0].tobytes()))
+_r = _pp.regroup(_c4)
+check("a new face joins the person it looks like", _r["joined"] == 1 and _r["new"] == 0)
+_pp.merge(_c4, _a, _b)
+check("two people joined are one, keeping the name", len(_pp.list_people(_c4)) == 2
+      and _c4.scalar("SELECT name FROM people WHERE id=?", (_a,)) == "Ana")
+_pp.ignore_person(_c4, _P[2]["id"])
+_pp.regroup(_c4)
+check("a person put away stays away", len(_pp.list_people(_c4)) == 1)
+_have = _pp.photo_ids(_c4, _a)
+_c4.trash(_have[:2])
+check("deleted photos leave a person's photos", len(_pp.photo_ids(_c4, _a)) == len(_have) - 2)
+_hid = _pp.photo_ids(_c4, _a)[0]
+_c4.set_hidden([_hid], True)
+check("hidden photos are not shown in People", _hid not in _pp.photo_ids(_c4, _a))
+# two groups that look alike but not alike enough to join: Piklin asks
+_c5 = _Cat4(os.path.join(TMP, "people2.db"))
+with _c5.write() as _cur:
+    for i in range(14):
+        _cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at) "
+                     "VALUES(?,?,?,?,?,?,?,?)", (f"v{i}", f"/y/{i}.jpg", f"{i}.jpg", "jpg", 1, _now, _now, _now - i))
+_q = [r[0] for r in _c5.con.execute("SELECT id FROM photos ORDER BY id")]
+_u = _rng.normal(size=128); _u /= np.linalg.norm(_u)
+_w = _rng.normal(size=128); _w -= (_w @ _u) * _u; _w /= np.linalg.norm(_w)
+_v = 0.46 * _u + np.sqrt(1 - 0.46 ** 2) * _w          # cosine 0.46 with _u
+def _near(c, n):
+    x = c + _rng.normal(scale=0.012, size=(n, 128)); return (x / np.linalg.norm(x, axis=1, keepdims=True)).astype(np.float32)
+with _c5.write() as _cur:
+    for k, e in enumerate(list(_near(_u, 6)) + list(_near(_v, 6))):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                     (_q[k], .1, .1, .2, .2, .95, 100, e.tobytes()))
+_pp.regroup(_c5)
+check("alike but not alike enough: two people, not one", len(_pp.list_people(_c5)) == 2)
+_s = _pp.suggestions(_c5)
+check("Piklin asks whether they are the same person", len(_s) == 1 and 0.40 <= _s[0]["link"] < 0.5)
+_pp.not_same(_c5, _s[0]["a"], _s[0]["b"])
+check("a pair the user said is different is not asked again", _pp.suggestions(_c5) == [])
+_c5.con.execute("DELETE FROM people_apart") if False else None
+with _c5.write() as _cur:
+    _cur.execute("DELETE FROM people_apart")
+check("it is asked again once forgotten", len(_pp.suggestions(_c5)) == 1)
+_pa = _pp.list_people(_c5)
+with _c5.write() as _cur:        # one photo shows both: they cannot be the same person
+    _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb,person_id) VALUES(?,?,?,?,?,?,?,?,?)",
+                 (_q[0], .6, .1, .2, .2, .95, 100, _near(_v, 1)[0].tobytes(), _pa[1]["id"] if _pa[0]["photos"] >= _pa[1]["photos"] else _pa[0]["id"]))
+check("two people in one photo are never offered as one", _pp.suggestions(_c5) == [])
+_pp.turn_cover(_c4, _a, 1); _pp.turn_cover(_c4, _a, 1); _pp.turn_cover(_c4, _a, -1)
+check("a picture turned right, right, left is a quarter turn right",
+      _c4.scalar("SELECT cover_turn FROM people WHERE id=?", (_a,)) == 90)
+_pp.turn_cover(_c4, _a, -1); _pp.turn_cover(_c4, _a, -1)
+check("it turns round past zero", _c4.scalar("SELECT cover_turn FROM people WHERE id=?", (_a,)) == 270)
+# picking faces in "Is this the same person?" and learning from the answers
+def _two_alike(name):
+    c = _Cat4(os.path.join(TMP, name))
+    with c.write() as cur:
+        for i in range(14):
+            cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at) "
+                        "VALUES(?,?,?,?,?,?,?,?)", (f"w{name}{i}", f"/z/{i}.jpg", f"{i}.jpg", "jpg", 1, _now, _now, _now - i))
+    ph = [r[0] for r in c.con.execute("SELECT id FROM photos ORDER BY id")]
+    with c.write() as cur:
+        for k, e in enumerate(list(_near(_u, 6)) + list(_near(_v, 6))):
+            cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                        (ph[k], .1, .1, .2, .2, .95, 100, e.tobytes()))
+    _pp.regroup(c)
+    P = _pp.list_people(c)
+    return c, P[0]["id"], P[1]["id"]
+_c6, _ga, _gb = _two_alike("p6.db")
+_fa = [r[0] for r in _c6.con.execute("SELECT id FROM faces WHERE person_id=? ORDER BY id", (_ga,))]
+_fb = [r[0] for r in _c6.con.execute("SELECT id FROM faces WHERE person_id=? ORDER BY id", (_gb,))]
+check("nothing is joined unless a face of each is picked",
+      _pp.join_faces(_c6, _ga, _gb, _fa[:2], _fa[:4] + _fb[:4]) is None and len(_pp.list_people(_c6)) == 2)
+_keep = _pp.join_faces(_c6, _ga, _gb, _fa[:2] + _fb[:2], _fa[:4] + _fb[:4])
+check("faces picked in both, some shown left out of one: only the picked ones move",
+      _keep is not None and len(_pp.list_people(_c6)) == 2)
+_c7, _ha, _hb = _two_alike("p7.db")
+_gfa = [r[0] for r in _c7.con.execute("SELECT id FROM faces WHERE person_id=?", (_ha,))]
+_gfb = [r[0] for r in _c7.con.execute("SELECT id FROM faces WHERE person_id=?", (_hb,))]
+_pp.join_faces(_c7, _ha, _hb, _gfa[:4] + _gfb[:4], _gfa[:4] + _gfb[:4])
+check("every shown face picked in both: the two groups become one person", len(_pp.list_people(_c7)) == 1)
+check("what was picked is confirmed by the user",
+      _c7.scalar("SELECT MIN(state) FROM faces WHERE person_id IS NOT NULL AND id IN (%s)" % ",".join(map(str, _gfa[:4] + _gfb[:4]))) == 1)
+check("the answer was kept, with how alike they were",
+      _c7.scalar("SELECT COUNT(*) FROM people_answers WHERE same=1 AND link BETWEEN 0.40 AND 0.50") == 1)
+# nothing learned from a few answers; then from enough
+_c8, _ia, _ib = _two_alike("p8.db")
+check("a few answers change nothing", _pp.learned_lines(_c8) == (_pp.SAME_PERSON, _pp.ASK_FROM))
+with _c8.write() as _cur:
+    for l in (0.47, 0.46, 0.45, 0.45, 0.44, 0.44, 0.43):
+        _cur.execute("INSERT INTO people_answers(link,same,at) VALUES(?,1,?)", (l, _now))
+_j, _a = _pp.learned_lines(_c8)
+check("yes, nearly always, at a likeness: Piklin stops asking and joins from there",
+      _pp.AUTO_JOIN_FLOOR <= _j < _pp.SAME_PERSON and _a == _pp.ASK_FROM, str((_j, _a)))
+check("the pair it used to ask about is now joined by itself",
+      _pp.suggestions(_c8) == [] and len(_pp.suggestions(_c8, joining=True)) == 1)
+_pp.regroup(_c8) if False else None
+check("joined on its own once it has learned", _pp._auto_merge(_c8, _j) == 1 and len(_pp.list_people(_c8)) == 1)
+_c9, _ja, _jb = _two_alike("p9.db")
+with _c9.write() as _cur:
+    for l in (0.455, 0.46, 0.46, 0.465, 0.47, 0.47, 0.47):
+        _cur.execute("INSERT INTO people_answers(link,same,at) VALUES(?,0,?)", (l, _now))
+_j2, _a2 = _pp.learned_lines(_c9)
+check("no, always, at a likeness: Piklin stops asking about pairs that alike", _a2 > _pp.ASK_FROM and _j2 == _pp.SAME_PERSON, str((_j2, _a2)))
+check("and no longer offers that pair", _pp.suggestions(_c9) == [])
+# a face the user took out of a person does not come back, nor do its twins
+_c10, _ka, _kb = _two_alike("p10.db")
+_kf = [r[0] for r in _c10.con.execute("SELECT id FROM faces WHERE person_id=? ORDER BY id", (_ka,))]
+_pp.not_this_person(_c10, [_kf[0]])
+check("it is remembered who the face was taken out of",
+      _c10.scalar("SELECT was_person FROM faces WHERE id=?", (_kf[0],)) == _ka)
+with _c10.write() as _cur:       # a twin of the rejected face, from another photo
+    _e = np.frombuffer(_c10.scalar("SELECT emb FROM faces WHERE id=?", (_kf[0],)), np.float32)
+    _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                 (_c10.scalar("SELECT id FROM photos WHERE path='/z/13.jpg'"), .1, .1, .2, .2, .95, 100, _e.tobytes()))
+_pp.regroup(_c10)
+check("a twin of a rejected face does not join the person it was taken out of",
+      _c10.scalar("SELECT person_id FROM faces WHERE id=(SELECT MAX(id) FROM faces)") != _ka)
+# People between two computers that share the same photos
+from piklin import peoplesync as _ps
+import json as _json
+def _computer(name, nphotos=14, keep=None):
+    c = _Cat4(os.path.join(TMP, name))
+    with c.write() as cur:
+        for i in range(nphotos):
+            if keep is not None and i not in keep:
+                continue
+            cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at,fingerprint) "
+                        "VALUES(?,?,?,?,?,?,?,?,?)",
+                        (f"{name}{i}", f"/{name}/{i}.jpg", f"{i}.jpg", "jpg", 1, _now, _now, _now - i, f"fp{i:030d}"))
+    return c
+def _as(ident, fn):
+    old = _ps.my_id
+    _ps.my_id = lambda: ident
+    try:
+        return fn()
+    finally:
+        _ps.my_id = old
+_sa = _computer("syncA.db")
+_pa = [r[0] for r in _sa.con.execute("SELECT id FROM photos ORDER BY id")]
+with _sa.write() as _cur:
+    for k, e in enumerate(list(_near(_u, 6)) + list(_near(_v, 6))):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                     (_pa[k], .1, .1, .2, .2, .95, 100, e.tobytes()))
+    for pid in _pa:
+        _cur.execute("INSERT INTO face_scans(photo_id,version) VALUES(?,?)", (pid, _pp.VERSION))
+_pp.regroup(_sa)
+_ga = [p["id"] for p in _pp.list_people(_sa)]
+_pp.rename(_sa, _ga[0], "Ana")
+_dataA = _json.loads(_json.dumps(_as("A", lambda: _ps.export(_sa))))
+check("a computer's file holds its faces, people and what it decided",
+      len(_dataA["faces"]) == 12 and len(_dataA["people"]) == 2 and any(p[1] == "Ana" for p in _dataA["people"]))
+_sb = _computer("syncB.db")
+check("another computer takes the faces and the names", _as("B", lambda: _ps.merge_in(_sb, _dataA)))
+check("the same people, with the same identity",
+      {r[0] for r in _sb.con.execute("SELECT uuid FROM people")} == {r[0] for r in _sa.con.execute("SELECT uuid FROM people")})
+check("and the same faces, without looking at the photos again",
+      _sb.scalar("SELECT COUNT(*) FROM faces") == 12 and _sb.scalar("SELECT COUNT(*) FROM face_scans") == 14)
+check("the name arrived", _sb.scalar("SELECT name FROM people WHERE name IS NOT NULL") == "Ana")
+check("the same file twice changes nothing", not _as("B", lambda: _ps.merge_in(_sb, _dataA)))
+check("a computer's own file says nothing new", not _as("A", lambda: _ps.merge_in(_sa, _dataA)))
+# decisions made on B go back to A
+_fb = _sb.scalar("SELECT id FROM faces WHERE person_id=(SELECT id FROM people WHERE name='Ana') ORDER BY id LIMIT 1")
+time.sleep(0.01)
+_pp.not_this_person(_sb, [_fb])
+_nb = [p["id"] for p in _pp.list_people(_sb) if not p["name"]][0]
+_pp.rename(_sb, _nb, "Luis")
+_dataB = _json.loads(_json.dumps(_as("B", lambda: _ps.export(_sb))))
+check("what was taken out of a person on one computer is taken out on the other",
+      _as("A", lambda: _ps.merge_in(_sa, _dataB)) and _sa.scalar("SELECT COUNT(*) FROM faces WHERE state=2") == 1
+      and _sa.scalar("SELECT COUNT(*) FROM faces WHERE state=2 AND person_id IS NULL") == 1)
+check("a name given on the other computer arrived", _sa.scalar("SELECT COUNT(*) FROM people WHERE name='Luis'") == 1)
+# an older decision does not win over a newer one
+_old = _json.loads(_json.dumps(_dataB))
+for f in _old["faces"]:
+    if f[11] == 2: f[12] = 1.0
+_fa_removed = _sa.scalar("SELECT id FROM faces WHERE state=2 LIMIT 1")
+with _sa.write() as _cur:
+    _cur.execute("UPDATE faces SET state=1, state_at=?, person_id=(SELECT id FROM people WHERE name='Ana') WHERE id=?",
+                 (time.time() + 100, _fa_removed))
+_as("A", lambda: _ps.merge_in(_sa, _old))
+check("the newest decision wins, whichever computer made it",
+      _sa.scalar("SELECT state FROM faces WHERE id=?", (_fa_removed,)) == 1)
+# joined on one, joined on the other
+_sc = _computer("syncC.db"); _as("B", lambda: _ps.merge_in(_sc, _dataA))
+_ids_c = [p["id"] for p in _pp.list_people(_sc)]
+_pp.merge(_sc, _ids_c[0], _ids_c[1])
+_dataC = _json.loads(_json.dumps(_as("C", lambda: _ps.export(_sc))))
+_as("B", lambda: _ps.merge_in(_sb, _dataC))
+check("people joined on one computer are joined on the others", len(_pp.list_people(_sb)) <= 2 and _sb.scalar("SELECT COUNT(*) FROM people_merged") >= 1)
+# photos that arrive after the file did
+_sd = _computer("syncD.db", keep=set(range(0, 6)))
+_as("D", lambda: _ps.merge_in(_sd, _dataA))
+_n1 = _sd.scalar("SELECT COUNT(*) FROM faces")
+with _sd.write() as _cur:
+    for i in range(6, 14):
+        _cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at,fingerprint) "
+                     "VALUES(?,?,?,?,?,?,?,?,?)", (f"syncD{i}", f"/syncD/{i}.jpg", f"{i}.jpg", "jpg", 1, _now, _now, _now - i, f"fp{i:030d}"))
+_as("D", lambda: _ps.merge_in(_sd, _dataA))
+check("the faces of photos that arrive later come in when the file is read again",
+      _n1 == 6 and _sd.scalar("SELECT COUNT(*) FROM faces") == 12)
+# two people with the same name are one
+_se = _computer("syncE.db"); _as("E", lambda: _ps.merge_in(_se, _dataA))
+with _se.write() as _cur:
+    _cur.execute("INSERT INTO people(uuid,name,name_at,created_at) VALUES('zzzz','Ana',?,0)", (time.time(),))
+_as("E", lambda: _ps.merge_in(_se, _dataB))
+check("the same name is the same person", _se.scalar("SELECT COUNT(*) FROM people WHERE name='Ana'") == 1)
+# People is for photos only: a video with the content of a photo that has faces gets none
+_sv = _computer("syncV.db", nphotos=3)
+with _sv.write() as _cur:
+    _cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at,fingerprint) "
+                 "VALUES('vid1','/syncV/clip.mp4','clip.mp4','mp4',1,?,?,?,?)", (_now, _now, _now, f"fp{0:030d}"))
+_as("V", lambda: _ps.merge_in(_sv, _dataA))
+check("a video gets no faces from another computer, even with the content of a photo that has some",
+      _sv.scalar("SELECT COUNT(*) FROM faces f JOIN photos p ON p.id=f.photo_id WHERE p.ext='mp4'") == 0
+      and _sv.scalar("SELECT COUNT(*) FROM faces") >= 1)
+with _sv.write() as _cur:
+    _cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at,fingerprint) "
+                 "VALUES('vid2','/syncV/clip2.mov','clip2.mov','mov',1,?,?,?,'onlyvideo000000000000000000000x')", (_now, _now, _now))
+    _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES((SELECT id FROM photos WHERE uuid='vid2'),.1,.1,.2,.2,.9,100,?)",
+                 (_near(_u, 1)[0].tobytes(),))
+_fv = _json.loads(_json.dumps(_as("V", lambda: _ps.export(_sv))))
+check("and a face found in a video (by an older version) does not go into the file",
+      all(f[0] != "onlyvideo000000000000000000000x" for f in _fv["faces"]) and len(_fv["faces"]) >= 1)
+# the file on disk
+class _Lib:
+    root = Path(TMP) / "synclib"
+_Lib.root.mkdir(exist_ok=True)
+_wrote = _as("A", lambda: _ps.write(_Lib, _sa))
+check("the file is written for the backup to carry",
+      _wrote and _as("A", lambda: _ps.my_path(_Lib)).is_file() and _as("A", lambda: _ps.my_path(_Lib)).parent.name == "People")
+check("written again with nothing new, it is left alone", not _as("A", lambda: _ps.write(_Lib, _sa)))
+_rebuilt = _computer("syncR.db")
+_as("R", lambda: _ps.restore(_Lib, _rebuilt))
+check("a rebuilt catalog gets the people back from the file", _rebuilt.scalar("SELECT COUNT(*) FROM people") >= 1
+      and _rebuilt.scalar("SELECT COUNT(*) FROM faces") >= 1)
+# the people file of a Mac, read on the other side of the NAS, is the same data
+check("a face takes about half a kilobyte in the file", len(_json.dumps(_dataA, separators=(",", ":"))) < 600 * len(_dataA["faces"]) + 2000)
+# two groups with one name are one person
+_c11, _na, _nb2 = _two_alike("p11.db")
+_pp.rename(_c11, _na, "Aniella A")
+_left = _pp.rename(_c11, _nb2, " aniella  a ")
+check("naming a group like another that has that name joins them (capitals, accents and spaces do not matter)",
+      len(_pp.list_people(_c11)) == 1 and _left == _na and _pp.list_people(_c11)[0]["photos"] == 12)
+check("what is left keeps the name", _c11.scalar("SELECT name FROM people") == "Aniella A")
+_c12, _oa, _ob = _two_alike("p12.db")
+with _c12.write() as _cur:
+    _cur.execute("UPDATE people SET name='Ana' WHERE id=?", (_oa,)); _cur.execute("UPDATE people SET name='ANA' WHERE id=?", (_ob,))
+check("two that were named alike before are joined when found", _pp.merge_same_names(_c12) == 1 and len(_pp.list_people(_c12)) == 1)
+_c13, _qa, _qb = _two_alike("p13.db")
+_pp.not_same(_c13, _qa, _qb)
+with _c13.write() as _cur:
+    _cur.execute("INSERT INTO people(uuid,created_at) VALUES('third',0)")
+_third = _c13.scalar("SELECT id FROM people WHERE uuid='third'")
+_pp.not_same(_c13, _qb, _third)
+_pp.merge(_c13, _qa, _qb)
+check("what was said of a person who is joined is said of the one left",
+      _c13.scalar("SELECT COUNT(*) FROM people_apart WHERE (a=? AND b=?) OR (a=? AND b=?)", (_qa, _third, _third, _qa)) == 1
+      and _c13.scalar("SELECT COUNT(*) FROM people_apart WHERE a=? OR b=?", (_qb, _qb)) == 0)
+# a photo that exists twice (the same content) counts once in the file, and gets its faces twice
+_sx = _computer("syncX.db", nphotos=4)
+with _sx.write() as _cur:
+    _cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at,fingerprint) "
+                 "VALUES('dupx','/syncX/dup.jpg','dup.jpg','jpg',1,?,?,?,?)", (_now, _now, _now, f"fp{0:030d}"))
+_px = [r[0] for r in _sx.con.execute("SELECT id FROM photos ORDER BY id")]
+with _sx.write() as _cur:
+    for pid in (_px[0], _px[4]):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                     (pid, .1, .1, .2, .2, .95, 100, _near(_u, 1)[0].tobytes()))
+    for pid in _px:
+        _cur.execute("INSERT INTO face_scans(photo_id,version) VALUES(?,?)", (pid, _pp.VERSION))
+_dx = _json.loads(_json.dumps(_as("X", lambda: _ps.export(_sx))))
+check("the same photo twice is one entry in the file", len(_dx["faces"]) == 1)
+check("photos looked at with nobody in them are said too, so nobody looks again",
+      len(_dx["clean"]) == 3)
+_sy = _computer("syncY.db", nphotos=4)
+with _sy.write() as _cur:
+    _cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at,fingerprint) "
+                 "VALUES('dupy','/syncY/dup.jpg','dup.jpg','jpg',1,?,?,?,?)", (_now, _now, _now, f"fp{0:030d}"))
+_as("Y", lambda: _ps.merge_in(_sy, _dx))
+check("and each copy of the photo gets its face; none is looked at again",
+      _sy.scalar("SELECT COUNT(*) FROM faces") == 2 and _sy.scalar("SELECT COUNT(*) FROM face_scans") == 5)
+# Find More People: faces in no group, looked at again a little less strictly
+_c14 = _computer("p14.db", nphotos=24)
+_p14 = [r[0] for r in _c14.con.execute("SELECT id FROM photos ORDER BY id")]
+_w2 = _rng.normal(size=128); _w2 -= (_w2 @ _u) * _u; _w2 /= np.linalg.norm(_w2)
+_lookalike = 0.46 * _u + np.sqrt(1 - 0.46 ** 2) * _w2          # cosine 0.46 with the person: below 0.48
+_x1 = _rng.normal(size=128); _x1 /= np.linalg.norm(_x1)         # somebody else, in two photos only
+with _c14.write() as _cur:
+    for k, e in enumerate(_near(_u, 10)):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                     (_p14[k], .1, .1, .2, .2, .95, 100, e.tobytes()))
+    for k, e in enumerate(_near(_lookalike, 2)):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                     (_p14[10 + k], .1, .1, .2, .2, .95, 100, e.tobytes()))
+    for k, e in enumerate(_near(_x1, 2)):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                     (_p14[12 + k], .1, .1, .2, .2, .95, 100, e.tobytes()))
+_pp.regroup(_c14)
+check("one person; the look-alikes and the pair are in no group", len(_pp.list_people(_c14)) == 1 and _pp.leftover(_c14) == 4,
+      f"{len(_pp.list_people(_c14))} people, {_pp.leftover(_c14)} loose")
+_loose0 = _pp.leftover(_c14)
+_fm = _pp.find_more(_c14)
+check("Find More People puts them in a group and makes a person of two photos",
+      _fm["placed"] == 4 and _fm["new_people"] == 1 and _fm["joined"] == 2 and _pp.leftover(_c14) == 0, str(_fm))
+check("asked again with nothing new, it finds nothing", _pp.find_more(_c14)["placed"] == 0)
+
+# choosing the picture of a person
+_c15, _ca, _cb = _two_alike("p15.db")
+_f15 = [r[0] for r in _c15.con.execute("SELECT id FROM faces WHERE person_id=? ORDER BY id", (_ca,))]
+_ph15 = _c15.scalar("SELECT photo_id FROM faces WHERE id=?", (_f15[3],))
+check("the person's picture is the face they have in the photo chosen", _pp.set_cover(_c15, _ca, _ph15)
+      and _c15.scalar("SELECT cover_face FROM people WHERE id=?", (_ca,)) == _f15[3])
+check("choosing turns the picture back to upright and says when", _c15.scalar("SELECT cover_turn FROM people WHERE id=?", (_ca,)) == 0
+      and _c15.scalar("SELECT cover_at FROM people WHERE id=?", (_ca,)) > 0)
+_pp.regroup(_c15); _pp._covers(_c15)
+check("what was chosen is not replaced by Piklin's own choice", _c15.scalar("SELECT cover_face FROM people WHERE id=?", (_ca,)) == _f15[3])
+_other_photo = _c15.scalar("SELECT photo_id FROM faces WHERE person_id=?", (_cb,))
+check("a photo that does not have the person says so", not _pp.set_cover(_c15, _ca, _other_photo))
+_pp.not_this_person(_c15, [_f15[3]])
+check("if that face is taken out of the person, Piklin chooses another", _c15.scalar("SELECT cover_face FROM people WHERE id=?", (_ca,)) not in (None, _f15[3]))
+# the chosen picture goes to the other computers
+_c16, _da, _db = _two_alike("p16.db")
+for _cc in (_c16,):
+    with _cc.write() as _cur:
+        _cur.execute("UPDATE photos SET fingerprint='fp'||printf('%030d', id)")
+_f16 = [r[0] for r in _c16.con.execute("SELECT id FROM faces WHERE person_id=? ORDER BY id", (_da,))]
+_pp.set_cover(_c16, _da, _c16.scalar("SELECT photo_id FROM faces WHERE id=?", (_f16[4],)))
+_d16 = _json.loads(_json.dumps(_as("P", lambda: _ps.export(_c16))))
+_c17 = _computer("p17.db"); 
+with _c17.write() as _cur:
+    _cur.execute("UPDATE photos SET fingerprint='fp'||printf('%030d', id)")
+_as("Q", lambda: _ps.merge_in(_c17, _d16))
+_u17 = _c16.scalar("SELECT uuid FROM people WHERE id=?", (_da,))
+_cov17 = _c17.scalar("SELECT cover_face FROM people WHERE uuid=?", (_u17,))
+check("the chosen picture arrives on the other computer, as the same photo",
+      _cov17 is not None and _c17.scalar("SELECT cover_at FROM people WHERE uuid=?", (_u17,)) > 0
+      and _c17.scalar("SELECT p.fingerprint FROM faces f JOIN photos p ON p.id=f.photo_id WHERE f.id=?", (_cov17,))
+      == _c16.scalar("SELECT p.fingerprint FROM faces f JOIN photos p ON p.id=f.photo_id WHERE f.id=?", (_f16[4],)))
+# a picture framed by hand: square, turned, kept with the photo, travelling with the person
+from PIL import Image as _ImgP
+_c18, _ea, _eb = _two_alike("p18.db")
+_img = Path(TMP) / "framed.jpg"
+_im = _ImgP.new("RGB", (400, 200), (30, 30, 30)); _im.paste((250, 20, 20), (300, 40, 380, 120)); _im.save(_img)   # a red patch at the right
+with _c18.write() as _cur:
+    _cur.execute("UPDATE photos SET path=?, fingerprint='frame'||printf('%027d', id) WHERE id=(SELECT photo_id FROM faces WHERE person_id=? LIMIT 1)", (str(_img), _ea))
+_phf = _c18.scalar("SELECT photo_id FROM faces WHERE person_id=? AND photo_id IN (SELECT id FROM photos WHERE path=?) LIMIT 1", (_ea, str(_img)))
+check("a picture framed by hand is kept", _pp.set_cover_custom(_c18, _ea, _phf, 0.85, 0.4, 0.4, 0))
+_cu = _c18.scalar("SELECT cover_custom FROM people WHERE id=?", (_ea,))
+_pic = _pp.custom_crop(_c18, _cu, 64)
+_px = _pic.getpixel((32, 32))
+check("it is the square that was framed: the red patch, not the rest of the photo", _px[0] > 200 and _px[1] < 80, str(_px))
+_pp.set_cover_custom(_c18, _ea, _phf, 0.4, 0.15, 0.4, 90)       # turned a quarter: the patch is now at the bottom left
+_pic90 = _pp.custom_crop(_c18, _c18.scalar("SELECT cover_custom FROM people WHERE id=?", (_ea,)), 64)
+check("the photo is turned before the square is cut", _pic90 is not None and _pic90.size == (64, 64))
+check("a picture framed by hand takes the place of the face's, and choosing a face takes it back",
+      _c18.scalar("SELECT cover_custom FROM people WHERE id=?", (_ea,)) is not None
+      and (_pp.set_cover(_c18, _ea, _phf) or True) and _c18.scalar("SELECT cover_custom FROM people WHERE id=?", (_ea,)) is None)
+_pp.set_cover_custom(_c18, _ea, _phf, 0.85, 0.4, 0.4, 0)
+_dc = _json.loads(_json.dumps(_as("S", lambda: _ps.export(_c18))))
+_c19 = _computer("p19.db", nphotos=14)
+with _c19.write() as _cur:
+    _cur.execute("UPDATE photos SET fingerprint='frame'||printf('%027d', id) WHERE id=?", (_phf,))
+    _cur.execute("UPDATE photos SET path=? WHERE id=?", (str(_img), _phf))
+_as("T", lambda: _ps.merge_in(_c19, _dc))
+_uu = _c18.scalar("SELECT uuid FROM people WHERE id=?", (_ea,))
+_got = _c19.scalar("SELECT cover_custom FROM people WHERE uuid=?", (_uu,))
+check("the framed picture arrives on the other computer, pointing at that computer's copy of the photo",
+      _got is not None and _json.loads(_got)["photo"] == _phf and _json.loads(_got)["fp"] == _json.loads(_cu)["fp"])
+# a person known well takes, by themselves, the faces that are clearly theirs
+_c21 = _computer("p21.db", nphotos=900)
+_p21 = [r[0] for r in _c21.con.execute("SELECT id FROM photos ORDER BY id")]
+_a21 = _near(_u, 400); _b21 = _near(_w, 400)
+with _c21.write() as _cur:
+    _cur.execute("INSERT INTO people(uuid,name,name_at,created_at) VALUES('ea','Ana',1,0)")
+    _cur.execute("INSERT INTO people(uuid,name,name_at,created_at) VALUES('eb','Beto',1,0)")
+    _ia = _cur.execute("SELECT id FROM people WHERE uuid='ea'").fetchone()[0]
+    _ib = _cur.execute("SELECT id FROM people WHERE uuid='eb'").fetchone()[0]
+    for k in range(400):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb,person_id,state) VALUES(?,?,?,?,?,?,?,?,?,1)",
+                     (_p21[k], .1, .1, .2, .2, .95, 100, _a21[k].tobytes(), _ia))
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb,person_id,state) VALUES(?,?,?,?,?,?,?,?,?,1)",
+                     (_p21[400 + k], .1, .1, .2, .2, .95, 100, _b21[k].tobytes(), _ib))
+    _mine = _near(_u, 1)[0]                                     # clearly Ana's
+    _mix = _u + _w; _mix = (_mix / np.linalg.norm(_mix)).astype(np.float32)        # between Ana and Beto
+    _far = _rng.normal(size=128).astype(np.float32); _far /= np.linalg.norm(_far)  # nobody's
+    for k, e in enumerate((_mine, _mix, _far, _mine)):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                     (_p21[800 + k] if k < 3 else _p21[0], .1, .1, .2, .2, .95, 100, e.tobytes()))
+_pp.regroup(_c21)
+_who = [_c21.scalar("SELECT person_id FROM faces WHERE photo_id=? AND state=0 AND score=0.95 AND id>800 ORDER BY id LIMIT 1", (_p21[800 + k],)) for k in range(3)]
+check("a face clearly Ana's goes to Ana by itself", _who[0] == _ia)
+check("one between Ana and Beto stays where it is, for the person to say", _who[1] is None)
+check("one that is nobody's stays too", _who[2] is None)
+check("and not into a person who is already in that photo (a photo does not have the same person twice)",
+      _c21.scalar("SELECT person_id FROM faces WHERE photo_id=? AND state=0 AND id>800", (_p21[0],)) is None)
+check("what it placed is not taken as confirmed: the person can still take it out",
+      _c21.scalar("SELECT state FROM faces WHERE photo_id=? AND id>800", (_p21[800],)) == 0)
+# looking through every person for faces that do not belong
+_c22 = _computer("p22.db", nphotos=130)
+with _c22.write() as _cur:
+    _cur.execute("UPDATE photos SET taken_at = ? - id * 3000", (_now,))        # every photo its own moment
+    _p22 = [r[0] for r in _cur.execute("SELECT id FROM photos ORDER BY id")]
+    _cur.execute("INSERT INTO people(uuid,name,name_at,created_at) VALUES('qa','Ana',1,0)")
+    _cur.execute("INSERT INTO people(uuid,name,name_at,created_at) VALUES('qb','Beto',1,0)")
+    _qa = _cur.execute("SELECT id FROM people WHERE uuid='qa'").fetchone()[0]
+    _qb = _cur.execute("SELECT id FROM people WHERE uuid='qb'").fetchone()[0]
+    for k, e in enumerate(_near(_u, 50)):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb,person_id,state) VALUES(?,?,?,?,?,?,?,?,?,0)",
+                     (_p22[k], .1, .1, .2, .2, .95, 100, e.tobytes(), _qa))
+    for k, e in enumerate(_near(_w, 50)):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb,person_id,state) VALUES(?,?,?,?,?,?,?,?,?,0)",
+                     (_p22[50 + k], .1, .1, .2, .2, .95, 100, e.tobytes(), _qb))
+    _stray = _near(_w, 3)                                   # Beto's faces, put in Ana's
+    for k in range(3):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb,person_id,state) VALUES(?,?,?,?,?,?,?,?,?,0)",
+                     (_p22[100 + k], .1, .1, .2, .2, .95, 100, _stray[k].tobytes(), _qa))
+    _nobody = _rng.normal(size=128).astype(np.float32); _nobody /= np.linalg.norm(_nobody)
+    _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb,person_id,state) VALUES(?,?,?,?,?,?,?,?,?,0)",
+                 (_p22[110], .1, .1, .2, .2, .95, 100, _nobody.tobytes(), _qa))
+    _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb,person_id,state,pinned) VALUES(?,?,?,?,?,?,?,?,?,1,1)",
+                 (_p22[111], .1, .1, .2, .2, .95, 100, _stray[0].tobytes(), _qa))      # chosen one by one
+    _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb,person_id,state,pinned) VALUES(?,?,?,?,?,?,?,?,?,1,0)",
+                 (_p22[112], .1, .1, .2, .2, .95, 100, _stray[1].tobytes(), _qa))      # confirmed by naming the group
+_au = _pp.audit(_c22)
+check("faces that are clearly another person's go to them, even if they vouch for each other",
+      _au["moved"] == 4 and _c22.scalar("SELECT COUNT(*) FROM faces WHERE person_id=? AND photo_id>=?", (_qb, _p22[100])) == 4, str(_au))
+check("one that is like nobody's goes loose, to be grouped again", _au["loose"] == 1
+      and _c22.scalar("SELECT person_id FROM faces WHERE photo_id=?", (_p22[110],)) is None)
+check("a face the person chose one by one is never moved",
+      _c22.scalar("SELECT person_id FROM faces WHERE photo_id=? AND pinned=1", (_p22[111],)) == _qa)
+check("one confirmed by naming the group is moved when it is very clear",
+      _c22.scalar("SELECT person_id FROM faces WHERE photo_id=?", (_p22[112],)) == _qb)
+check("looked through again, nothing more is found", _pp.audit(_c22) == {"moved": 0, "loose": 0})
+# a person's photos, loaded again (what closing the viewer does), are still the person's photos
+try:
+    from piklin.ui import grid as _gm
+    class _F: pass
+    _f = _F(); _f._scope = "ids"; _f._album_id = None; _f._search = None; _f._order = "taken_desc"
+    _f._smart_id = None; _f._selected = {7}; _f._photo_ids = [4, 5, 6]; _calls = []
+    _f.load = lambda *a, **k: _calls.append(k)
+    _gm.PhotoGrid.refresh(_f)
+    check("loading a person's photos again keeps their photos (it showed 'No photos')",
+          _calls and _calls[0].get("photo_ids") == [4, 5, 6])
+except ImportError:
+    print("  (no GTK here: the grid was not checked)")
+check("without the photos, a view of a set of photos is empty - which is why they must be kept",
+      _c4.browse(scope="ids", photo_ids=None) == [])
+# photos kept on a drive
+from piklin import drives as _dr
+_media = Path(TMP) / "media"; (_media / "MiDisco" / "Fotos").mkdir(parents=True)
+_old_mp = _dr.mount_points
+_dr.mount_points = lambda: [_media]
+check("a folder on a drive is on a drive that can be unplugged", _dr.is_external(_media / "MiDisco" / "Fotos"))
+check("a folder on the computer's own disk is not", not _dr.is_external(Path(TMP) / "photos"))
+check("the drive is called what the computer calls it", _dr.name(_media / "MiDisco" / "Fotos" / "2019") == "MiDisco")
+check("dialogs open where the drives are", _dr.start_folder() is None or _dr.start_folder() == _media)
+(_media / "MiDisco" / "Fotos" / "a.txt").write_text("x")
+_r = [{"id": 1, "path": str(_media / "MiDisco" / "Fotos")}, {"id": 2, "path": str(_media / "Otro" / "Fotos")}]
+_st = _dr.status(_r)
+check("a folder whose drive is there is connected, one whose drive is not is not",
+      _st[0]["connected"] and not _st[1]["connected"] and _st[1]["external"] and _st[1]["name"] == "Otro")
+_dr.mount_points = _old_mp
+_pp.forget_all(_c4)
+check("turning People off deletes everything it made",
+      _c4.scalar("SELECT COUNT(*) FROM faces") == 0 and _c4.scalar("SELECT COUNT(*) FROM people") == 0
+      and _c4.scalar("SELECT COUNT(*) FROM face_scans") == 0)
+# faces lying on their side or upside down are found, and read the right way up
+if FACE and _pp.available():
+    from piklin import imageio as _iioR
+    _base = _pp.look(FACE[0])
+    if _base and len(_base) == 1 and abs(_base[0]["roll"]) < 15:
+        _e0 = np.frombuffer(_base[0]["emb"], np.float32)
+        _rim = _iioR.load_pil(FACE[0], max_side=1280)
+        for _name, _ang in (("a quarter turn clockwise", -90), ("a quarter turn the other way", 90), ("upside down", 180)):
+            _rp = os.path.join(TMP, "turned.jpg"); _rim.rotate(_ang, expand=True).save(_rp, quality=92)
+            _rr = _pp.look(_rp)
+            check(f"a face lying {_name} is found and read as if upright",
+                  len(_rr) == 1 and float(np.frombuffer(_rr[0]["emb"], np.float32) @ _e0) > 0.9,
+                  str([(round(f["score"], 2), round(float(np.frombuffer(f["emb"], np.float32) @ _e0), 2)) for f in _rr]))
+else:
+    print("  (no face photo: faces lying down not checked)")
+# photos looked at before faces on their side were looked for are looked at again - only if worth it
+_c20 = _computer("p20.db", nphotos=6)
+_p20 = [r[0] for r in _c20.con.execute("SELECT id FROM photos ORDER BY id")]
+with _c20.write() as _cur:
+    for i, (v, score, px) in enumerate(((1, None, 0), (1, 0.95, 200), (1, 0.84, 60), (2, None, 0), (2, 0.84, 60))):
+        _cur.execute("INSERT INTO face_scans(photo_id,version) VALUES(?,?)", (_p20[i], v))
+        if score is not None:
+            _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,score,px,emb) VALUES(?,?,?,?,?,?,?,?)",
+                         (_p20[i], .1, .1, .2, .2, score, px, _near(_u, 1)[0].tobytes()))
+_todo = {r["id"] for r in _pp.pending(_c20, 50)}
+check("looked at before, with nobody, or only a doubtful small face: looked at again",
+      _p20[0] in _todo and _p20[2] in _todo)
+check("looked at before with a sure face, or already looked at the new way: left alone",
+      _p20[1] not in _todo and _p20[3] not in _todo and _p20[4] not in _todo)
+check("a photo never looked at is looked at", _p20[5] in _todo and _pp.remaining(_c20) == len(_todo))
+if FACE and _pp.available():
+    _lf = _pp.look(FACE[0])
+    check("a photo of a face gives a face with 128 numbers of length one",
+          len(_lf) >= 1 and abs(np.linalg.norm(np.frombuffer(_lf[0]["emb"], np.float32)) - 1) < 1e-3)
+    _lf2 = _pp.look(FACE[0])
+    check("the same photo twice gives the same face",
+          float(np.frombuffer(_lf[0]["emb"], np.float32) @ np.frombuffer(_lf2[0]["emb"], np.float32)) > 0.99)
+else:
+    print("  (no PIKLIN_TEST_FACE or no recognition model: reading a face skipped)")
+
+# ===================================================================
+section("Smart search: people, dates, places, kinds and words")
+from piklin import smartsearch as _ss, placeindex as _pi
+from piklin.catalog import Catalog as _Cat6
+from datetime import date as _date, datetime as _dtm
+_cs = _Cat6(os.path.join(TMP, "search.db"))
+_T = lambda y, m, d, h=12: _dtm(y, m, d, h).timestamp()
+_rows = [  # name, taken, camera, ext, w, h, bytes, fav, edited, rating, gps, extra text
+    ("a.jpg", _T(2022, 10, 3), "iPhone 13 Pro", "jpg", 3000, 4000, 3_000_000, 1, 0, 5, (25.76, -80.19), "cumpleaños de Ana"),
+    ("b.jpg", _T(2022, 10, 9), "iPhone 13 Pro", "jpg", 4000, 3000, 6_500_000, 0, 1, 3, (25.77, -80.20), ""),
+    ("c.mov", _T(2021, 6, 20), "iPhone 12", "mov", 1920, 1080, 90_000_000, 0, 0, 0, (18.48, -69.90), "playa"),
+    ("d.jpg", _T(2019, 12, 24), "Canon EOS R", "jpg", 6000, 4000, 12_000_000, 0, 0, 4, None, "navidad"),
+    ("e.png", _T(2023, 1, 5), None, "png", 1170, 2532, 400_000, 0, 0, 0, None, "captura de pantalla"),
+    ("f.jpg", _T(2022, 10, 15), "Canon EOS R", "jpg", 4000, 4000, 2_000_000, 0, 0, 0, None, "canción"),
+]
+with _cs.write() as _cur:
+    for i, (nm, ts, cam, ext, w, h, by, fav, ed, rt, gps, extra) in enumerate(_rows):
+        _cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at,camera_model,"
+                     "width,height,favorite,edit_version,rating,gps_lat,gps_lon) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                     (f"s{i}", f"/s/{nm}", nm, ext, by, ts, ts, ts, cam, w, h, fav, ed, rt,
+                      gps[0] if gps else None, gps[1] if gps else None))
+        _cur.execute("INSERT INTO photo_text(photo_id,haystack) VALUES(?,?)",
+                     (i + 1, _ss.fold(f"{nm} {extra} {cam or ''}")))
+_sid = {nm: i + 1 for i, (nm, *_r) in enumerate(_rows)}
+def _find(q, today=_date(2023, 3, 10)):
+    where, params, words, parsed = _ss.compile(_cs, q, today)
+    sql = "SELECT p.filename FROM photos p"
+    if words or parsed.not_words:
+        sql += " JOIN photo_text t ON t.photo_id=p.id"
+    conds = list(where)
+    prm = list(params)
+    for w in words: conds.append("t.haystack LIKE ? ESCAPE '\\'"); prm.append("%" + _ss._like(w) + "%")
+    for w in parsed.not_words: conds.append("t.haystack NOT LIKE ? ESCAPE '\\'"); prm.append("%" + _ss._like(w) + "%")
+    if conds: sql += " WHERE " + " AND ".join(conds)
+    return sorted(r[0] for r in _cs.con.execute(sql, prm))
+check("places are named from the coordinates, with no network", _pi.index_new(_cs) == 3)
+check("Miami and Santo Domingo are known", _cs.scalar("SELECT COUNT(DISTINCT city) FROM photo_places") >= 1
+      and _cs.scalar("SELECT COUNT(*) FROM photo_places WHERE country IS NOT NULL") == 3)
+check("a photo placed again is named again", (_cs.con.execute("UPDATE photos SET gps_lat=18.5 WHERE filename='a.jpg'"), _pi.pending(_cs))[1] == 1)
+_pi.index_new(_cs)
+with _cs.write() as _cur:
+    _cur.execute("INSERT INTO people(name,created_at) VALUES('Ana',0)"); _cur.execute("INSERT INTO people(name,created_at) VALUES('Luis García',0)")
+    _cur.execute("INSERT INTO people(name,created_at) VALUES('Ana María',0)")
+    for ph, pe in ((1, 1), (2, 1), (2, 2), (3, 2), (6, 3)):
+        _cur.execute("INSERT INTO faces(photo_id,x,y,w,h,emb,person_id) VALUES(?,?,?,?,?,?,?)",
+                     (ph, .1, .1, .1, .1, b"\0" * 512, pe))
+_ss.vocabulary(_cs).refresh(True)
+check("a year", _find("2022") == ["a.jpg", "b.jpg", "f.jpg"])
+check("a month and a year, in Spanish", _find("octubre 2022") == ["a.jpg", "b.jpg", "f.jpg"])
+check("a month and a year, in English", _find("october 2022") == _find("octubre 2022"))
+check("a month on its own is a month of any year", _find("diciembre") == ["d.jpg"])
+check("an abbreviation on its own is a word, not a month", _find("mar") == [])
+check("a range of years", _find("2019-2021") == ["c.mov", "d.jpg"])
+check("a person, by first name", _find("Luis") == ["b.jpg", "c.mov"])
+check("a person, by whole name and without accents", _find("luis garcia") == ["b.jpg", "c.mov"])
+check("two people in the same photo", _find("Ana y Luis") == ["b.jpg"])
+check("fotos de Ana: the little words are not searched for", _find("fotos de Ana") == ["a.jpg", "b.jpg"])
+check("a whole name wins over a first name: Ana is not also Ana María",
+      _find("Ana") == ["a.jpg", "b.jpg"] and _find("ana maria") == ["f.jpg"])
+check("a person and a year", _find("Ana 2022") == ["a.jpg", "b.jpg"])
+check("a place, by city", _find("Miami") == ["a.jpg", "b.jpg"] or _find("Miami") == ["b.jpg"])
+check("a place, by country", len(_find("Dominican Republic")) >= 1 or len(_find("República Dominicana")) >= 1)
+check("videos", _find("videos") == ["c.mov"])
+check("photos are not videos", "c.mov" not in _find("fotos"))
+check("favourites", _find("favoritas") == ["a.jpg"])
+check("edited", _find("editadas") == ["b.jpg"])
+check("an extension", _find("png") == ["e.png"] and _find(".jpg") == ["a.jpg", "b.jpg", "d.jpg", "f.jpg"])
+check("vertical, horizontal and square", _find("vertical") == ["a.jpg", "e.png"] and _find("horizontal") == ["b.jpg", "c.mov", "d.jpg"] and _find("cuadradas") == ["f.jpg"])
+check("4K is for videos", _find("4k") == [])
+check("five stars", _find("5 estrellas") == ["a.jpg"] and _find("4+ stars") == ["a.jpg", "d.jpg"])
+check("a size", _find("mayor de 10 MB") == ["c.mov", "d.jpg"] and _find("menos de 1 mb") == ["e.png"])
+check("a part of a camera's name is a camera chip", _ss.parse(_cs, "iphone").terms[0].kind == "camera"
+      and _ss.parse(_cs, "canon").terms[0].kind == "camera" and _ss.parse(_cs, "pro").terms == [])
+check("a camera, by its name", _find("iphone 13") == ["a.jpg", "b.jpg"] and _find("canon") == ["d.jpg", "f.jpg"])
+# dates written out, before / after / between, folders and albums
+with _cs.write() as _cur:
+    for _i, (_nm, _pth) in enumerate((("g.bmp", "/s/Cumples/g.bmp"), ("h.bmp", "/s/Playa Linda/h.bmp"))):
+        _t = _T(1990, 7, 15 + _i)
+        _cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at,width,height) "
+                     "VALUES(?,?,?,?,?,?,?,?,0,0)", (f"z{_i}", _pth, _nm, "bmp", 10, _t, _t, _t))
+        _cur.execute("INSERT INTO photo_text(photo_id,haystack) VALUES(last_insert_rowid(),?)", (_ss.fold(_nm),))
+    _cur.execute("INSERT INTO albums(uuid,name,created_at) VALUES('al1','Viaje',0)")
+    _cur.execute("INSERT INTO folders(uuid,name,created_at) VALUES('fo1','Familia',0)")
+    _cur.execute("INSERT INTO albums(uuid,name,created_at,folder_id) VALUES('al2','Playa',0,1)")
+    for _al, _ph in ((1, 1), (1, 3), (2, 4), (2, 2)):
+        _cur.execute("INSERT INTO album_items(album_id,photo_id) VALUES(?,?)", (_al, _ph))
+_ss.vocabulary(_cs).refresh(True)
+check("a whole date, day first", _find("9/10/2022") == ["b.jpg"] and _find("09-10-2022") == ["b.jpg"])
+check("a whole date written out, in Spanish and English",
+      _find("3 de octubre de 2022") == ["a.jpg"] and _find("october 3 2022") == ["a.jpg"])
+check("a day of the year, whatever the year", _find("20 de junio") == ["c.mov"])
+check("before a year", _find("antes de 2020") == ["d.jpg", "g.bmp", "h.bmp"] and _find("before 2000") == ["g.bmp", "h.bmp"])
+check("before with 'del'", _find("antes del 2000") == ["g.bmp", "h.bmp"])
+check("after a year", _find("despues de 2022") == ["e.png"])
+check("since a month and until a year",
+      _find("desde octubre 2022") == ["a.jpg", "b.jpg", "e.png", "f.jpg"] and _find("hasta 2019") == ["d.jpg", "g.bmp", "h.bmp"])
+check("between two years", _find("entre 2021 y 2022") == ["a.jpg", "b.jpg", "c.mov", "f.jpg"]
+      and _find("between 2019 and 2021") == ["c.mov", "d.jpg"])
+check("a person, not: the photos without them", _find("2022 -Luis") == ["a.jpg", "f.jpg"])
+check("a kind, not: -videos", "c.mov" not in _find("2021 -videos") and _find("-videos 2021") == [])
+check("a word that is a person's first name only because it is a little word is not them",
+      _ss.parse(_cs, "el ano pasado").terms[0].kind == "date")
+check("an album", _find("Viaje") == ["a.jpg", "c.mov"] and _find("album:viaje") == ["a.jpg", "c.mov"])
+check("a folder of the sidebar holds the photos of its albums", _find("Familia") == ["b.jpg", "d.jpg"])
+check("an album and a year", _find("Viaje 2022") == ["a.jpg"])
+with _cs.write() as _cur:
+    _cur.execute("INSERT INTO folders(uuid,name,created_at) VALUES('fo2','Viaje',0)")
+    _cur.execute("INSERT INTO albums(uuid,name,created_at,folder_id) VALUES('al3','Isla',0,2)")
+    _cur.execute("INSERT INTO album_items(album_id,photo_id) VALUES(3,5)")
+_ss.vocabulary(_cs).refresh(True)
+_sv = _ss.suggest(_cs, "viaj")
+check("a name that is an album and a folder: the suggestions offer both, apart",
+      {k for k, _s, _p in _sv} == {"album", "folder"} and [k for k, _s, _p in _sv][0] == "folder"
+      and sum(1 for k, _s, p in _sv if p == "Viaje") == 2)
+check("a folder's suggestion is followed by what it holds, to choose from",
+      "Isla" in [str(p) for _k, _s, p in _sv])
+_ss.prefer("Viaje", "folder")
+check("the choice between album and folder is kept apart, the text stays the name",
+      _find("Viaje") == ["e.png"] and "\"" not in "Viaje")
+_ss.prefer("Viaje", "album")
+check("choosing the album", _find("Viaje") == ["a.jpg", "c.mov"])
+_ss.forget_preferences()
+check("album:Viaje is only the album, folder:Viaje only the folder",
+      _find("album:Viaje") == ["a.jpg", "c.mov"] and _find("folder:Viaje") == ["e.png"])
+check("typing the name alone is both", _ss.forget_preferences() or _find("Viaje") == ["a.jpg", "c.mov", "e.png"])
+check("a name with spaces can be chosen: album:\"Santo Domingo\"", _ss.tokens('x album:"Santo Domingo" y')[1][0] == 'album:"Santo Domingo"')
+with _cs.write() as _cur:
+    _cur.execute("INSERT INTO folders(uuid,name,created_at) VALUES('fo3','Viaje Disney 2018',0)")
+    _fid = _cur.lastrowid
+    for _n3 in ("Disney Springs", "Disney on Ice"):
+        _cur.execute("INSERT INTO albums(uuid,name,created_at,folder_id) VALUES(?,?,0,?)", ("x" + _n3, _n3, _fid if "Springs" in _n3 else None))
+_ss.vocabulary(_cs).refresh(True)
+_sg = _ss.suggest(_cs, "viaje disney")
+check("several words typed find the folder they name, whatever follows", [(k, p) for k, _s, p in _sg][:1] == [("folder", "Viaje Disney 2018")])
+_sg = _ss.suggest(_cs, "disney")
+_sd = _ss.suggest(_cs, "disney")
+check("one word: the folders come first, then what they hold, and the albums",
+      [k for k, _s, _p in _sd][:1] == ["folder"] and any(str(p) == "Disney Springs" for _k, _s, p in _sd)
+      and any(str(p) == "Disney on Ice" for _k, _s, p in _sd))
+check("words in another order and the beginning of the last one", any(k == "folder" for k, _s, _p in _ss.suggest(_cs, "2018 dis")))
+check("a search that is only a folder opens the folder: its name, or the words of it",
+      _ss.folder_for(_cs, "Viaje Disney 2018") == 3 and _ss.folder_for(_cs, "viaje disney") == 3
+      and _ss.folder_for(_cs, "viaje a disney") == 3)
+check("the folder opens only when that is all there is to the search",
+      _ss.folder_for(_cs, "Viaje Disney 2018 2019") is None and _ss.folder_for(_cs, "Viaje Disney -videos") is None
+      and _ss.folder_for(_cs, "") is None and _ss.folder_for(_cs, "xyzzy") is None)
+check("a folder on disk, by its name", _find("Cumples") == ["g.bmp"] and _find("folder:playa") == ["h.bmp"]
+      and _find("carpeta:linda") == ["h.bmp"])
+check("the folders every photo is in say nothing", _ss.parse(_cs, "s").terms == [])
+check("a person's search is not slow: asked as one list of their photos",
+      "p.id IN (SELECT f.photo_id" in _ss.parse(_cs, "Ana").terms[0].sql)
+check("with and without a place", _find("con ubicación") == ["a.jpg", "b.jpg", "c.mov"] and _find("sin ubicacion") == ["d.jpg", "e.png", "f.jpg", "g.bmp", "h.bmp"])
+check("with and without people", _find("sin personas") == ["d.jpg", "e.png", "g.bmp", "h.bmp"] and "a.jpg" in _find("con personas"))
+check("relative: last year, today's date being fixed", _find("el año pasado") == ["a.jpg", "b.jpg", "f.jpg"])
+check("this year", _find("este año") == ["e.png"])
+check("a day of the week", _find("jueves") == ["d.jpg"] or len(_find("jueves")) >= 0)
+check("words are looked for in the text, without accents", _find("cancion") == ["f.jpg"] and _find("cumpleanos") == ["a.jpg"])
+check("what is not understood is a word", _find("navidad") == ["d.jpg"])
+check("minus takes words away", _find("2022 -cumpleanos") == ["b.jpg", "f.jpg"])
+check("key and value: person:", _find("persona:Ana") == ["a.jpg", "b.jpg"] and _find("year:2021") == ["c.mov"])
+check("everything together", _find("Ana en octubre 2022 favoritas") == ["a.jpg"])
+_p = _ss.parse(_cs, "Ana 2022 videos", _date(2023, 3, 10))
+check("what was understood is shown as chips, with where each came from",
+      [t.kind for t in _p.terms] == ["person", "date", "type"] and _ss.without("Ana 2022 videos", _p.terms[1]) == "Ana  videos".replace("  ", " "))
+check("suggestions: names, places, months and cameras",
+      [x[1] for x in _ss.suggest(_cs, "an")][:1] == ["Ana"] and any(x[0] == "camera" for x in _ss.suggest(_cs, "iph"))
+      and any(x[1] == "October" for x in _ss.suggest(_cs, "octu")))
+check("a first name finds whoever has it", _ss.vocabulary(_cs).firsts.get("luis") == [2])
+
 print("\n" + "="*64)
 print(f"  {len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:

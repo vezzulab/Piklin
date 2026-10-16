@@ -418,6 +418,31 @@ def pull(library, catalog, backend, progress=None) -> SyncResult:
                 mine_path.unlink(missing_ok=True)
             result.changed = True
 
+    # People: what the other computers found and decided (peoplesync.py). Each
+    # file is kept here, outside what a backup sends, so that it can be read
+    # again when the photos it speaks of arrive later.
+    from . import peoplesync
+    mine = f"{peoplesync.DIR}/{peoplesync.my_id()}.json"
+    for rel in sorted(index):
+        if (not rel.startswith(peoplesync.DIR + "/") or not rel.endswith(".json")
+                or rel == mine or not changed(rel)):
+            continue
+        keep = peoplesync.cache_dir(root) / rel.rsplit("/", 1)[-1]
+        keep.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if not backend.get(rel, keep):
+                continue
+            theirs = json.loads(keep.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        new_seen[rel] = list(index[rel])
+        try:
+            if peoplesync.merge_in(catalog, theirs):
+                result.changed = True
+        except Exception as exc:
+            from . import logs
+            logs.get("backup").warning("could not read people from another computer: %s", exc)
+
     # The arrangement comes first: folders and albums as the backup has them
     # are in the catalog, and shown, before a single photo is fetched - a new
     # computer used to look empty for as long as the photos took to arrive.
@@ -678,6 +703,14 @@ def apply(library, catalog, new_photos: bool = False, edits=()) -> None:
     for uuid_ in folders_data.get("deleted") or {}:
         if uuid_ in rows and uuid_ not in wanted:
             catalog.delete_folder(rows[uuid_]["id"])
+
+    # people, for the photos that have just arrived
+    if new_photos:
+        from . import peoplesync
+        try:
+            peoplesync.import_all(library, catalog)
+        except Exception:
+            pass
 
     # marks
     marks = _read(sidecars.photo_state_path(library))

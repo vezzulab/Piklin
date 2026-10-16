@@ -19,6 +19,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 import threading
+import time
 from datetime import datetime
 
 import gi
@@ -50,6 +51,7 @@ SCROLLBAR_ALLOWANCE = 14
 # instead of everything in the first page. A day with more photos simply
 # continues in the next row, without a gap.
 MAX_PER_SECTION = 36
+UNIFORM_FROM = 1500       # photos in a person's list from which it has no day headings
 
 # Thumbnails already decoded, kept across views so going back to an album
 # or to All Photos shows them at once: photo path -> (thumbnail file,
@@ -1418,9 +1420,83 @@ class PhotoGrid(Gtk.Box):
         self._reveal_ts = float(ts)
         self._continue_reveal()
 
+    def first_visible_id(self):
+        """The photo at the top of the view, or None when the view is at the top."""
+        adj = self.scroller.get_vadjustment()
+        if adj.get_value() < 4:
+            return None
+        best = None
+        for pid, containers in self._tile_containers.items():
+            for c in containers:
+                if not c.get_mapped():
+                    continue
+                ok, r = c.compute_bounds(self.scroller)
+                if ok and r.get_y() + r.get_height() > 0 and (
+                        best is None or (r.get_y(), r.get_x()) < best[0]):
+                    best = ((r.get_y(), r.get_x()), pid)
+        return best[1] if best else None
+
+    def reveal_photo(self, photo_id: int) -> None:
+        """Scroll to a photo once it is in the list (the view was just loaded
+        again, as after the viewer closes): keep loading until it is there."""
+        self._reveal_id = photo_id
+        self._reveal_ts = None
+        self._continue_reveal()
+
+    def _reveal_photo_now(self, photo_id: int) -> bool:
+        """True when the photo is in the list and the view is on its way to it."""
+        item = self._by_id.get(photo_id)
+        if item is None:
+            return False
+        target = None
+        for i in range(self.sections.get_n_items()):
+            if item in self.sections.get_item(i).items:
+                target = i
+                break
+        if target is None:
+            return False
+        ticks = [0]
+
+        def go():
+            try:
+                self.view.scroll_to(target, Gtk.ListScrollFlags.NONE, None)
+            except Exception:
+                pass
+            # the section may be taller than the window: bring the very tile
+            # into the middle of the view once it has been laid out
+            self.add_tick_callback(settle)
+            return GLib.SOURCE_REMOVE
+
+        def settle(_widget, _clock):
+            ticks[0] += 1
+            adj = self.scroller.get_vadjustment()
+            for c in self._tile_containers.get(photo_id, ()):
+                if not c.get_mapped():
+                    continue
+                ok, r = c.compute_bounds(self.scroller)
+                if not ok:
+                    continue
+                page = adj.get_page_size()
+                if r.get_y() < 0 or r.get_y() + r.get_height() > page:
+                    want = adj.get_value() + r.get_y() - (page - r.get_height()) / 2
+                    adj.set_value(max(adj.get_lower(), min(adj.get_upper() - page, want)))
+                return GLib.SOURCE_REMOVE
+            return GLib.SOURCE_CONTINUE if ticks[0] < 20 else GLib.SOURCE_REMOVE
+        GLib.idle_add(go)
+        return True
+
     def _continue_reveal(self) -> None:
         ts = getattr(self, "_reveal_ts", None)
         if ts is None:
+            return
+        rid = getattr(self, "_reveal_id", None)
+        if rid is not None:
+            if self._reveal_photo_now(rid):
+                self._reveal_id = None
+            elif self._exhausted:
+                self._reveal_id = None
+            elif not self._loading:
+                self._load_page()
             return
         for i in range(self.sections.get_n_items()):
             sec = self.sections.get_item(i)
@@ -1513,6 +1589,7 @@ class PhotoGrid(Gtk.Box):
         self._exhausted = False
         self._loading = False        # abandon any fetch still in flight
         self._generation += 1
+        self._reveal_id = None
         self._tail = None
         self._day_counts = {}         # section key -> photos in that day so far
         self._day_videos = {}         # section key -> how many of those are videos
@@ -1593,8 +1670,13 @@ class PhotoGrid(Gtk.Box):
     def refresh(self) -> None:
         if self._scope == "device":
             return          # a device's contents are not ours to refresh
+        # A view of a set of photos (a person's, a place on the map) is made of the
+        # photos it was given: loading it again without them showed it empty.
+        here = self.first_visible_id()
         self.load(self._scope, self._album_id, self._search, self._order,
-                  self._smart_id, keep_selection=self._selected)
+                  self._smart_id, keep_selection=self._selected, photo_ids=self._photo_ids)
+        if here is not None:
+            self.reveal_photo(here)         # a refresh does not send you back to the top
 
     def _load_page(self) -> None:
         if self._loading or self._exhausted:
@@ -1607,15 +1689,23 @@ class PhotoGrid(Gtk.Box):
         filters = self._filters | ({self._kind} if self._kind else set())
 
         def work():
-            try:
-                rows = self.catalog.browse(
-                    scope=self._scope, album_id=self._album_id,
-                    smart_id=self._smart_id,
-                    search=self._search, order=self._order,
-                    filters=filters, photo_ids=self._photo_ids,
-                    by_group=self._by_group, limit=limit, offset=offset)
-            except Exception:
-                rows = []
+            rows = None
+            for attempt in range(4):
+                try:
+                    rows = self.catalog.browse(
+                        scope=self._scope, album_id=self._album_id,
+                        smart_id=self._smart_id,
+                        search=self._search, order=self._order,
+                        filters=filters, photo_ids=self._photo_ids,
+                        by_group=self._by_group, limit=limit, offset=offset)
+                    break
+                except Exception as exc:
+                    # Not an empty page: that would end the list here, quietly,
+                    # with the rest of the photos missing. Say it and try again.
+                    from .. import logs
+                    logs.get("grid").warning("A page of photos could not be read (try %d): %r",
+                                             attempt + 1, exc)
+                    time.sleep(0.25 * (attempt + 1))
 
             def apply():
                 # Clear the in-flight flag before anything can return
@@ -1624,6 +1714,12 @@ class PhotoGrid(Gtk.Box):
                 # _loading and decline to fetch, so the view stayed empty.
                 self._loading = False
                 if gen != self._generation:
+                    return False
+                if rows is None:
+                    # still could not read it: look again in a moment, never
+                    # take the list for finished
+                    GLib.timeout_add(1500, lambda: (gen == self._generation
+                                                    and self._load_page(), False)[1])
                     return False
                 if rows:
                     self._append_rows(rows)
@@ -1670,6 +1766,12 @@ class PhotoGrid(Gtk.Box):
         grown = None
         tail = self._tail
         dupes = self._scope == "duplicates"
+        # A person with thousands of photos is one run of rows all of the same
+        # height, with no day headings: a list whose rows differ in height
+        # cannot know how long it is until every row has been seen, and at
+        # that length the view jumped back and forth by whole screens as it
+        # found out while scrolling.
+        uniform = bool(self._photo_ids) and len(self._photo_ids) > UNIFORM_FROM
         for item in items:
             if dupes:
                 # one set of identical copies per block, named after the photo
@@ -1677,7 +1779,7 @@ class PhotoGrid(Gtk.Box):
             elif self._by_group:
                 name = item.place_name or ""
                 key, title, sub = (f"group:{name}", name or _("Other photos"), "")
-            elif not sort_by_date or mode == "none":
+            elif not sort_by_date or mode == "none" or uniform:
                 key, title, sub = ("all", "", "")
             else:
                 key, title, sub = _section_key(item.taken_at, mode)

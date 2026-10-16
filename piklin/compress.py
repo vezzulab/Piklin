@@ -162,7 +162,7 @@ def _exif_bytes(path: Path) -> bytes | None:
     where and when it was taken.
     """
     try:
-        with Image.open(path) as im:
+        with iio._open(Path(path)) as im:
             data = im.info.get("exif")
             ex = Image.Exif()
             if data:
@@ -229,7 +229,8 @@ def export_target(dest: Path | str, src: Path | str, index: int, *,
         except (OSError, ValueError, OverflowError):
             day = datetime.now()
         base = base / day.strftime("%Y-%m-%d")
-    ext = suffix or src.suffix
+    # A photo kept as JPEG XL goes out as the JPEG it was made from.
+    ext = suffix or (".jpg" if src.suffix.lower() == ".jxl" else src.suffix)
     if naming == "title" and title and title.strip():
         # Characters no filesystem accepts become spaces, then runs of
         # spaces collapse: "Faro: norte/sur" -> "Faro norte sur".
@@ -495,6 +496,20 @@ def compress_to(source: Path | str, dest: Path | str,
         size = 0
 
     out.parent.mkdir(parents=True, exist_ok=True)
+
+    if src.suffix.lower() == ".jxl" and image is None:
+        # Kept as JPEG XL: work from the JPEG it was made from, exactly, so a
+        # copy that is not changed is the original byte for byte.
+        import tempfile
+        from . import jxl
+        with tempfile.TemporaryDirectory(prefix="piklin-jxl-") as d:
+            jpg = Path(d) / (src.stem + ".jpg")
+            if jxl.restore_jpeg(src, jpg):
+                r = compress_to(jpg, out, profile, fmt, allow_larger=allow_larger,
+                                strip_metadata=strip_metadata,
+                                strip_location=strip_location, max_side=max_side)
+                r.source = src
+                return r
 
     if (prof.passthrough and image is None and not strip_metadata
             and not strip_location and not max_side):

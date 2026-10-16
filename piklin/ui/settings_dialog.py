@@ -12,6 +12,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, GLib, Gio, Gtk, Pango  # noqa: E402
 
 from .. import compress as cz
+from .. import drives
 from .. import remote as remote_mod
 
 
@@ -1497,13 +1498,36 @@ class SettingsDialog(Adw.PreferencesDialog):
             title=_("Your Photo Folders"),
             description=_("Photos in these folders stay where they are. Piklin never moves or "
                           "changes them."))
+        # a folder or a drive's, added where it is: the buttons at the top
+        add_box = Gtk.Box(spacing=6)
+        add_folder = Gtk.Button(label=_("Add Folder…"))
+        add_folder.connect("clicked", lambda _b: self._add_photo_folder(None))
+        add_drive = Gtk.Button(label=_("Add a Drive…"))
+        add_drive.set_tooltip_text(_("Photos on an external drive stay on it. Piklin does not copy "
+                                     "them, and finds them again whenever the drive is plugged in."))
+        add_drive.connect("clicked", lambda _b: self._add_photo_folder(drives.start_folder()))
+        add_box.append(add_folder)
+        add_box.append(add_drive)
+        folders.set_header_suffix(add_box)
         roots = self.catalog.roots(enabled_only=False)
         if not roots:
             folders.add(Adw.ActionRow(title=_("None yet")))
-        for r in roots:
+        for st in drives.status(roots):
+            r = {"id": st["id"], "path": st["path"]}
             n = self.catalog.scalar(
                 "SELECT COUNT(*) FROM photos WHERE root_id=?", (r["id"],), 0)
-            rr = Adw.ActionRow(title=r["path"], subtitle=ngettext("{count} photo", "{count} photos", n).format(count=f"{n:,}"))
+            count = ngettext("{count} photo", "{count} photos", n).format(count=f"{n:,}")
+            if st["external"]:
+                where = (_("On the drive “{name}”").format(name=st["name"]) if st["connected"]
+                         else _("The drive “{name}” is not connected").format(name=st["name"]))
+                subtitle = f"{count}  ·  {where}"
+            else:
+                subtitle = count if st["connected"] else f"{count}  ·  " + _("The folder is not there")
+            rr = Adw.ActionRow(title=r["path"], subtitle=subtitle)
+            rr.add_prefix(Gtk.Image(icon_name=("drive-harddisk-symbolic" if st["external"]
+                                               else "folder-symbolic")))
+            if not st["connected"]:
+                rr.add_css_class("dim-label")
             drop = Gtk.Button(icon_name="list-remove-symbolic",
                               valign=Gtk.Align.CENTER,
                               tooltip_text=_("Stop using this folder (the files stay)"))
@@ -1569,6 +1593,23 @@ class SettingsDialog(Adw.PreferencesDialog):
         self._toast(ngettext("{count} photo will be back in a moment.",
                              "{count} photos will be back in a moment.",
                              n).format(count=f"{n:,}"))
+
+    def _add_photo_folder(self, start):
+        """Add a folder with photos where it is - not copied, not moved. For a
+        drive the dialog opens where the drives are."""
+        dialog = Gtk.FileDialog(title=_("Choose a Folder with Photos"))
+        if start is not None:
+            dialog.set_initial_folder(Gio.File.new_for_path(str(start)))
+
+        def done(dlg, res):
+            try:
+                folder = dlg.select_folder_finish(res)
+            except GLib.Error:
+                return
+            if folder is not None and folder.get_path():
+                self._window._start_scan([folder.get_path()])
+                self._toast(_("Looking for photos in the folder."))
+        dialog.select_folder(self._window, None, done)
 
     def _on_forget_root(self, _btn, root_id):
         self.catalog.forget_root(root_id, drop_photos=True)

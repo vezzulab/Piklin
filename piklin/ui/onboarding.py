@@ -22,9 +22,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("Pango", "1.0")
-from gi.repository import Adw, GLib, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
 
-from .. import i18n  # noqa: E402
+from .. import drives, i18n  # noqa: E402
 from ..i18n import _  # noqa: E402
 from ..paths import LIBRARY_EXT, LIBRARY_NAME, Library, pictures_dir, remember_library  # noqa: E402
 
@@ -216,7 +216,7 @@ class FirstSteps(Adw.Dialog):
         self._next.set_sensitive(self._can_continue())
 
     def _can_continue(self) -> bool:
-        if self._step == 2 and self.choices["photos"] == "folder":
+        if self._step == 2 and self.choices["photos"] in ("folder", "drive"):
             return bool(self.choices["folders"])
         if self._step == 3 and self.choices["photos"] == "restore":
             return self.choices["backup"] in BACKUP_KINDS
@@ -264,7 +264,7 @@ class FirstSteps(Adw.Dialog):
 
     def _choices(self, key, selected, options):
         """Cards to choose one from: (value, icon, title, description)."""
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)     # the same gap between all
         first = None
         for value, icon, title, desc in options:
             button = Gtk.ToggleButton(active=value == selected)
@@ -276,7 +276,7 @@ class FirstSteps(Adw.Dialog):
             row = Gtk.Box(spacing=14)
             badge = Gtk.CenterBox(halign=Gtk.Align.START, valign=Gtk.Align.CENTER,
                                   hexpand=False, vexpand=False)
-            badge.set_size_request(40, 40)
+            badge.set_size_request(44, 44)
             badge.add_css_class("pika-choice-icon")
             badge.set_center_widget(Gtk.Image(icon_name=icon))
             row.append(badge)
@@ -340,9 +340,13 @@ class FirstSteps(Adw.Dialog):
         if self._pictures is not None:
             options.append(("pictures", "folder-pictures-symbolic", _("Pictures Folder"),
                             _tilde(self._pictures)))
+        drive = folder if (self.choices["photos"] == "drive" and folder) else None
         options += [
+            ("drive", "drive-harddisk-symbolic", _("A Drive With Your Photos"),
+             _tilde(drive) if drive else _("They stay on the drive. Piklin does not copy them, and "
+                                           "finds them again whenever you plug it in")),
             ("folder", "folder-open-symbolic", _("Another Folder"),
-             _tilde(folder) if folder else _("Such as a folder on an external drive")),
+             _tilde(folder) if (folder and not drive) else _("Any folder on this computer")),
             ("restore", "document-revert-symbolic", _("Restore From a Backup"),
              _("Bring back a library from a drive, NAS or cloud service where Piklin "
                "made a backup")),
@@ -389,6 +393,7 @@ class FirstSteps(Adw.Dialog):
             language = _(language)
         photos = {"pictures": _tilde(self._pictures) if self._pictures else "",
                   "folder": _tilde(c["folders"][0]) if c["folders"] else "",
+                  "drive": _tilde(c["folders"][0]) if c["folders"] else "",
                   "restore": _("Restore From a Backup"),
                   "later": _("Not Now")}.get(c["photos"], "")
         backup = {"local": _("Folder or Drive"), "webdav": _("NAS or WebDAV Server"),
@@ -442,6 +447,14 @@ class FirstSteps(Adw.Dialog):
                                   self._set_library)
             self._update_chrome()
             return
+        if key == "photos" and value == "drive":
+            previous = self.choices["photos"]
+            self.choices["photos"] = "drive"
+            self._pick_folder(_("Choose the Folder on the Drive"), key,
+                              previous if not self.choices["folders"] else None,
+                              self._set_drive_folder, start=drives.start_folder())
+            self._update_chrome()
+            return
         if key == "photos" and value == "folder":
             previous = self.choices["photos"]
             self.choices["photos"] = "folder"
@@ -456,11 +469,14 @@ class FirstSteps(Adw.Dialog):
         self.choices[key] = value
         self._update_chrome()
 
-    def _pick_folder(self, title, key, fallback, chosen):
-        """Choose a folder; cancelled, the card chosen before comes back."""
+    def _pick_folder(self, title, key, fallback, chosen, start=None):
+        """Choose a folder; cancelled, the card chosen before comes back. ``start``:
+        where the dialog opens (the drives, for a drive)."""
         before = next((v for (k, v), b in self._buttons.items()
                        if k == key and v != "else" and b is not None), None)
         dialog = Gtk.FileDialog(title=title)
+        if start is not None:
+            dialog.set_initial_folder(Gio.File.new_for_path(str(start)))
 
         def done(dlg, res):
             try:
@@ -489,6 +505,17 @@ class FirstSteps(Adw.Dialog):
         self.choices["library"] = folder
         if button is not None:
             button._detail.set_text(_tilde(folder / LIBRARY_NAME))
+        return True
+
+    def _set_drive_folder(self, folder: Path) -> bool:
+        self.choices["folders"] = [folder]
+        self.choices["photos"] = "drive"
+        button = self._buttons.get(("photos", "drive"))
+        if button is not None:
+            button._detail.set_text(_tilde(folder))
+        folder_button = self._buttons.get(("photos", "folder"))
+        if folder_button is not None:
+            folder_button._detail.set_text(_("Any folder on this computer"))
         return True
 
     def _set_photo_folder(self, folder: Path) -> bool:
@@ -525,7 +552,7 @@ class FirstSteps(Adw.Dialog):
         c, window = self.choices, self.window
         if c["photos"] == "pictures" and self._pictures is not None:
             folders = [str(self._pictures)]
-        elif c["photos"] == "folder":
+        elif c["photos"] in ("folder", "drive"):
             folders = [str(p) for p in c["folders"]]
         else:
             folders = []

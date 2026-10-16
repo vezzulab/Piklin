@@ -62,6 +62,24 @@ def _capture(path):
     return cap if cap.isOpened() else None
 
 
+# Some OpenCV builds read no AV1 (the Linux ones: their FFmpeg has no AV1
+# decoder, only the one that needs a graphics card). Once one has failed on an
+# AV1 video, the next ones go straight to PyAV, whose FFmpeg reads them: trying
+# OpenCV first each time cost a failed decode and a page of errors for every
+# video of a library whose videos Piklin itself made smaller as AV1.
+_CV_CANNOT_AV1 = False
+
+
+def _is_av1(path) -> bool:
+    """From the header only, without decoding."""
+    try:
+        import av
+        with av.open(str(path)) as container:
+            return container.streams.video[0].codec_context.name in ("av1", "libdav1d", "libaom-av1")
+    except Exception:
+        return False
+
+
 def pixel_aspect(sar) -> float:
     """A video's pixel shape as a number: 1.0 for square pixels.
 
@@ -108,6 +126,8 @@ def stream_info(path: Path | str) -> dict | None:
     """Width and height as shown (rotation and pixel shape applied), fps and
     duration."""
     import cv2
+    if _CV_CANNOT_AV1 and _is_av1(path):
+        return _av_stream_info(path)
     cap = _capture(path)
     if cap is None:
         return _av_stream_info(path)
@@ -128,7 +148,10 @@ def stream_info(path: Path | str) -> dict | None:
         # reads it. Taken as "no video", the check that a smaller AV1 video
         # is the same video failed on that computer, which then never took
         # the smaller videos another computer had made.
-        return _av_stream_info(path)
+        info = _av_stream_info(path)
+        if info is not None:
+            _learn_cv_cannot_av1(path)
+        return info
     if not (0 < fps < 1000):
         fps = 0.0
     duration = frames / fps if fps and frames > 0 else 0.0
@@ -150,6 +173,8 @@ def frame_at(path: Path | str, seconds: float = 0.0,
     """One frame as an RGB ``PIL.Image`` (rotation applied by OpenCV)."""
     import cv2
     from PIL import Image
+    if _CV_CANNOT_AV1 and _is_av1(path):
+        return _av_frame_at(path, seconds, max_side)
     cap = _capture(path)
     if cap is None:
         return _av_frame_at(path, seconds, max_side)
@@ -168,6 +193,7 @@ def frame_at(path: Path | str, seconds: float = 0.0,
     finally:
         cap.release()
     if unreadable:
+        _learn_cv_cannot_av1(path)
         return _av_frame_at(path, seconds, max_side)    # see stream_info
     im = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     shown = _shown(im.width, im.height, par, rotation)
@@ -182,6 +208,13 @@ def frame_at(path: Path | str, seconds: float = 0.0,
 # Some OpenCV builds come without its FFmpeg (the one for Intel Macs), and
 # open no video at all. PyAV, with the FFmpeg Piklin ships, reads the same
 # files on every system, so a video is never refused for that.
+def _learn_cv_cannot_av1(path) -> None:
+    """OpenCV opened the file and could not decode it: if it is AV1, remember."""
+    global _CV_CANNOT_AV1
+    if not _CV_CANNOT_AV1 and _is_av1(path):
+        _CV_CANNOT_AV1 = True
+
+
 def _av_frame(container, stream, seconds: float):
     """The first frame at or after ``seconds`` (the last one if it runs out)."""
     if seconds > 0 and stream.time_base:

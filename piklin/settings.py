@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any
 
 DEFAULTS: dict[str, Any] = {
+    # People: faces looked for and grouped on this computer. Off until asked.
+    "people_enabled": False,
     # -- storage & compression ------------------------------------------
     # What happens to files brought into the library.
     "import_policy": "reference",      # reference | copy | move

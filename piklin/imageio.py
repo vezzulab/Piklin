@@ -65,9 +65,20 @@ except Exception:
     pass
 
 
+def _open(p: Path):
+    """Image.open, and a .jxl through JPEG XL's own tools."""
+    if p.suffix.lower() == ".jxl":
+        from . import jxl
+        return jxl.open_image(p)
+    return Image.open(p)
+
+
 def supported_extensions() -> set[str]:
     from .video import VIDEO_EXT
     ext = set(RASTER_EXT) | VIDEO_EXT
+    from . import jxl
+    if jxl.available():
+        ext.add(jxl.EXT)
     if _HEIF:
         ext |= HEIF_EXT
     if _RAWPY:
@@ -271,7 +282,7 @@ def probe(path: Path | str, root_id: int | None = None) -> dict | None:
             with rawpy.imread(str(p)) as raw:
                 rec["width"], rec["height"] = raw.sizes.width, raw.sizes.height
             return _finish_probe(rec, tags)
-        im = Image.open(p)
+        im = _open(p)
     except Exception:
         return None
     with im:
@@ -392,7 +403,7 @@ def load_pil(path: Path | str, max_side: int | None = None,
                 output_bps=8, half_size=bool(max_side and max_side <= 2048))
         im = Image.fromarray(rgb)
     else:
-        im = Image.open(p)
+        im = _open(p)
         if max_side and im.format == "JPEG":
             # libjpeg DCT scaling: decode at 1/2, 1/4 or 1/8 directly.
             im.draft("RGB", (max_side, max_side))

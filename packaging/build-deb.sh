@@ -141,6 +141,20 @@ PY
 mkdir -p "$DOC/third-party/rclone"
 cp "$HERE/rclone-cache/COPYING" "$DOC/third-party/rclone/COPYING"
 
+# ------------------------------------------------------------ JPEG XL tools
+# cjxl and djxl (libjxl, BSD-3-Clause), built by packaging/build-jxl.sh: they
+# make a photo about a fifth smaller and give the same JPEG back. Without
+# them Piklin builds, and just does not offer JPEG XL.
+JXL_DIR="$HERE/jxl-cache/linux-$ARCH"
+if [ -x "$JXL_DIR/cjxl" ] && [ -x "$JXL_DIR/djxl" ]; then
+  say "cjxl and djxl for JPEG XL photos"
+  install -m 755 "$JXL_DIR/cjxl" "$JXL_DIR/djxl" "$LIB/"
+  mkdir -p "$DOC/third-party/libjxl"
+  cp "$JXL_DIR"/*LICENSE* "$JXL_DIR"/*PATENTS* "$DOC/third-party/libjxl/" 2>/dev/null || true
+else
+  echo "warning: no cjxl/djxl for linux-$ARCH (run packaging/build-jxl.sh on a $ARCH Linux): no JPEG XL in this package" >&2
+fi
+
 # ----------------------------------------------------------------- updates
 # Piklin updates itself through this helper, run by pkexec. It installs only
 # a newer Piklin signed with Vezzu Studio's release key (see
@@ -248,6 +262,10 @@ Comment: Inter typeface, SIL Open Font License.
 Files: usr/share/piklin/data/models/*
 License: MIT
 Comment: YuNet face detector, from the OpenCV model zoo.
+
+Files: usr/share/piklin/data/models/face_recognition_sface_2021dec.onnx
+License: Apache-2.0
+Comment: SFace face recognition model, from the OpenCV model zoo; licence in data/models/SFACE-LICENSE.txt.
 
 Files: usr/share/piklin/data/icons/hicolor/*
 License: MIT

@@ -13,6 +13,10 @@ if sys.platform == "darwin":
     # anything loads Pango.
     os.environ.setdefault("PANGOCAIRO_BACKEND", "fontconfig")
 
+# OpenCV's FFmpeg prints a line for every frame it cannot decode (AV1 on a
+# computer without the graphics card for it): the log is not for that.
+os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "-8")
+
 import gi  # noqa: E402
 
 gi.require_version("Gtk", "4.0")
@@ -450,6 +454,12 @@ def rebuild_index(library: Library, on_progress=None) -> int:
 
     n_state = sidecars.restore_photo_state(library, catalog)
     print(f"  restored marks (favourites, ratings, hidden) on {n_state} photos")
+    try:
+        from . import peoplesync
+        if peoplesync.restore(library, catalog):
+            print("  restored people (names, faces and what was decided)")
+    except Exception as exc:
+        print(f"  people could not be restored: {exc}")
     print("Done.")
     return 0
 
