@@ -156,7 +156,7 @@ details.mac ol{padding:0 0 12px 22px;color:#c3c8e0}details.mac li{margin:10px 0}
 details.mac p{color:var(--mute);font-size:14.5px;padding-bottom:20px}
 footer{padding:56px 0;border-top:1px solid var(--line);color:var(--mute);font-size:14.5px;background:#03030880}
 footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px}
-footer a{margin-left:18px;text-decoration:none}footer a:hover{color:#fff}
+details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}details.credits summary{cursor:pointer}details.credits ol{columns:2;padding-left:18px;margin-top:8px}details.credits li{margin:3px 0;break-inside:avoid}footer a{margin-left:18px;text-decoration:none}footer a:hover{color:#fff}
 /* reveal */
 .rv{opacity:0;transform:translateY(34px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
 .rv.in{opacity:1;transform:none}
@@ -320,6 +320,7 @@ footer a{margin-left:18px;text-decoration:none}footer a:hover{color:#fff}
     <span>© Vezzu Studio · <span class="l en">Piklin is free for any use.</span><span class="l es">Piklin es gratis para cualquier uso.</span> <a href="https://github.com/vezzulab/Piklin/blob/main/LICENSE" style="margin-left:0"><span class="l en">License</span><span class="l es">Licencia</span></a></span>
     <span><a href="https://github.com/vezzulab/Piklin">GitHub</a><a href="https://github.com/vezzulab/Piklin/releases">Releases</a><a href="https://ko-fi.com/vezzustudio"><span class="l en">Support on Ko-fi</span><span class="l es">Apoya en Ko-fi</span></a></span>
   </div>
+<div class="wrap"><details class="credits"><summary><span class="l en">Photo credits</span><span class="l es">Créditos de las fotos</span></summary><p><span class="l en">The example photos in the search demo come from Wikimedia Commons, under the licenses shown.</span><span class="l es">Las fotos de ejemplo de la demostración de búsqueda vienen de Wikimedia Commons, con las licencias indicadas.</span></p><ol><li><a href="https://commons.wikimedia.org/wiki/File:Miami_Skyline_(46732423931).jpg" rel="noopener">Miami Skyline (46732423931).jpg</a> · Joe deSousa · CC0</li><li><a href="https://commons.wikimedia.org/wiki/File:Miami,_Florida_skyline.jpg" rel="noopener">Miami, Florida skyline.jpg</a> · Wilfredor · CC0</li><li><a href="https://commons.wikimedia.org/wiki/File:Miami_Beach_-_Ocean_Drive_(2023).jpg" rel="noopener">Miami Beach - Ocean Drive (2023).jpg</a> · P. Hughes · CC BY 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:April_7,_2015_-_Wynwood_Miami_-_03.jpg" rel="noopener">April 7, 2015 - Wynwood Miami - 03.jpg</a> · osseous · CC BY 2.0</li><li><a href="https://commons.wikimedia.org/wiki/File:April_7,_2015_-_Wynwood_Miami_-_02.jpg" rel="noopener">April 7, 2015 - Wynwood Miami - 02.jpg</a> · osseous · CC BY 2.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Downtown_Miami_At_Sunset_Florida_United_States_Cityscape_Photography_(192263465).jpeg" rel="noopener">Downtown Miami At Sunset Florida United States Cityscape Photography (192263465).jpeg</a> · Giuseppe Milo · CC BY 3.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Walt_Disney_World_Epcot_Spaceship_Earth_(50098996988).jpg" rel="noopener">Walt Disney World Epcot Spaceship Earth (50098996988).jpg</a> · Anthony Quintano from Westminster, United States · CC BY 2.0</li><li><a href="https://commons.wikimedia.org/wiki/File:1_epcot_spaceship_earth_2010a.JPG" rel="noopener">1 epcot spaceship earth 2010a.JPG</a> · chensiyuan · Public domain</li><li><a href="https://commons.wikimedia.org/wiki/File:Tree_of_Life_at_Animal_Kingdom,_Discovery_Island,_Disney%27s_Animal_Kingdom,_June_2006_-_ThrillZing.jpg" rel="noopener">Tree of Life at Animal Kingdom, Discovery Island, Disney&#x27;s Animal Kingdom, June 2006 - ThrillZing.jpg</a> · ThrillZing · CC BY 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Tree_of_Life_iconic_carved_tree_structure,_Disney%27s_Animal_Kingdom,_June_2006_-_ThrillZing.jpg" rel="noopener">Tree of Life iconic carved tree structure, Disney&#x27;s Animal Kingdom, June 2006 - ThrillZing.jpg</a> · ThrillZing · CC BY 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Disney-MGM_Studios_entrance_sign_with_towers_and_flags,_Disney%27s_Hollywood_Studios,_June_2006_-_ThrillZing.jpg" rel="noopener">Disney-MGM Studios entrance sign with towers and flags, Disney&#x27;s Hollywood Studios, June 2006 - ThrillZing.jpg</a> · ThrillZing · CC BY 4.0</li><li><a href="https://commons.wikimedia.org/wiki/File:Disney_World,_Orlando_Florida.jpg" rel="noopener">Disney World, Orlando Florida.jpg</a> · Juliancolton · Public domain</li></ol></details></div>
 </footer>
 
 <script>
@@ -348,18 +349,18 @@ footer a{margin-left:18px;text-decoration:none}footer a:hover{color:#fff}
   // ---- the search that types itself: what was typed, and what Piklin understood
   var DEMOS = {
     en: [
-      { q: "disney trip 2018", chips: ["📁 Disney Trip 2018"], r: [1, 3, 5, 7, 9, 11] },
-      { q: "Ana and Luis Miami 2019", chips: ["👤 Ana", "👤 Luis", "📍 Miami", "📅 2019"], r: [2, 6, 10] },
-      { q: "before 2012 -videos", chips: ["📅 before 2012", "− videos"], r: [4, 8, 12, 1, 5, 9] },
-      { q: "July 15 2019", chips: ["📅 15 July 2019"], r: [6, 2] },
-      { q: "epcot", chips: ["🖼 Epcot"], r: [3, 7, 11, 10] }
+      { q: "disney trip 2018", chips: ["📁 Disney Trip 2018"], r: [7, 8, 9, 10, 11, 12] },
+      { q: "Ana and Luis Miami 2019", chips: ["👤 Ana", "👤 Luis", "📍 Miami", "📅 2019"], r: [1, 2, 3, 6] },
+      { q: "before 2012 -videos", chips: ["📅 before 2012", "− videos"], r: [8, 12, 3, 1, 9, 11] },
+      { q: "July 15 2019", chips: ["📅 15 July 2019"], r: [6, 2, 3] },
+      { q: "epcot", chips: ["🖼 Epcot"], r: [7, 8, 12] }
     ],
     es: [
-      { q: "viaje disney 2018", chips: ["📁 Viaje Disney 2018"], r: [1, 3, 5, 7, 9, 11] },
-      { q: "Ana y Luis Miami 2019", chips: ["👤 Ana", "👤 Luis", "📍 Miami", "📅 2019"], r: [2, 6, 10] },
-      { q: "antes de 2012 -videos", chips: ["📅 antes de 2012", "− videos"], r: [4, 8, 12, 1, 5, 9] },
-      { q: "15 de julio de 2019", chips: ["📅 15 julio 2019"], r: [6, 2] },
-      { q: "epcot", chips: ["🖼 Epcot"], r: [3, 7, 11, 10] }
+      { q: "viaje disney 2018", chips: ["📁 Viaje Disney 2018"], r: [7, 8, 9, 10, 11, 12] },
+      { q: "Ana y Luis Miami 2019", chips: ["👤 Ana", "👤 Luis", "📍 Miami", "📅 2019"], r: [1, 2, 3, 6] },
+      { q: "antes de 2012 -videos", chips: ["📅 antes de 2012", "− videos"], r: [8, 12, 3, 1, 9, 11] },
+      { q: "15 de julio de 2019", chips: ["📅 15 julio 2019"], r: [6, 2, 3] },
+      { q: "epcot", chips: ["🖼 Epcot"], r: [7, 8, 12] }
     ]
   };
   var typed = (function () {
