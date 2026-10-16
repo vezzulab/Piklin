@@ -116,6 +116,20 @@ h2{font-size:clamp(32px,4.6vw,58px);line-height:1.06;letter-spacing:-.03em;font-
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;min-height:34px}
 .chips em{font-style:normal;font-size:13px;padding:6px 12px;border-radius:999px;background:#46e6ff14;border:1px solid #46e6ff55;color:#bff4ff;animation:pop .35s both}
 @keyframes pop{from{opacity:0;transform:scale(.8)}}
+.stage{position:relative;border-radius:34px;overflow:hidden;border:1px solid var(--line);isolation:isolate;box-shadow:0 60px 160px #000c,0 0 120px #7a6bff30}
+.stage::before{content:"";position:absolute;inset:0;z-index:-2;background:url(art/search.jpg) center/cover;filter:saturate(1.2);transform:scale(1.06);animation:slow 30s ease-in-out infinite alternate}
+.stage::after{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse 70% 80% at 50% 45%,#04040acc 20%,#04040a99 60%,#04040a55 100%),linear-gradient(180deg,#04040a66,#04040ae6)}
+@keyframes slow{to{transform:scale(1.14) translate3d(-2%,1%,0)}}
+.stage-in{padding:clamp(34px,6vw,84px) clamp(22px,5vw,64px);text-align:center}
+.stage-in .lead{margin:0 auto 38px}
+.fakebar.big{margin:0 auto;max-width:760px;padding:22px 30px;font-size:clamp(18px,2.4vw,26px);border-color:#ffffff40;background:#0a0a1aaa;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 0 0 6px #ffffff08,0 0 70px #7a6bff66,inset 0 0 30px #46e6ff14;text-align:left}
+.stage .chips{justify-content:center;margin-top:20px}
+.stage .chips em{font-size:14.5px;padding:8px 15px}
+.results{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:34px auto 0;max-width:980px;min-height:96px}
+.results img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:14px;border:1px solid #ffffff2a;box-shadow:0 14px 40px #0009;animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(26px) scale(.9)}}
+.ticks.cols{grid-template-columns:repeat(3,1fr);gap:28px;margin-top:44px}
+@media(max-width:900px){.results{grid-template-columns:repeat(3,1fr)}.ticks.cols{grid-template-columns:1fr}}
 /* cards */
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:56px}
 .card{position:relative;padding:28px;border-radius:22px;border:1px solid var(--line);background:linear-gradient(160deg,#ffffff0d,#ffffff04);overflow:hidden;transition:transform .25s,border-color .25s}
@@ -213,20 +227,22 @@ footer a{margin-left:18px;text-decoration:none}footer a:hover{color:#fff}
 </section>
 
 <section id="search">
-  <div class="wrap split flip">
-    <div class="art rv"><img src="art/search.jpg" alt="A glowing search bar sending out light to a wall of photos" loading="lazy"></div>
-    <div class="rv">
-      <div class="eyebrow"><span class="l en">New · Search</span><span class="l es">Nuevo · Búsqueda</span></div>
-      <h2><span class="l en">Type what you remember. In any order.</span><span class="l es">Escribe lo que recuerdas. En cualquier orden.</span></h2>
-      <p class="lead"><span class="l en">A person, a date, a place, an album, a folder. Piklin reads it like a person would, and shows what it understood.</span><span class="l es">Una persona, una fecha, un lugar, un álbum, una carpeta. Piklin lo lee como lo haría una persona y te muestra lo que entendió.</span></p>
-      <div class="fakebar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="q" id="typed"></span></div>
-      <div class="chips" id="chips"></div>
-      <ul class="ticks">
-        <li><span class="l en"><b>Dates as you write them:</b> 15/07/2019, 4 julio, before 2012, between 2015 and 2017.</span><span class="l es"><b>Fechas como las escribes:</b> 15/07/2019, 4 julio, antes de 2012, entre 2015 y 2017.</span></li>
-        <li><span class="l en"><b>Folders and albums:</b> type “viaje disney” and see the folder with every album inside it.</span><span class="l es"><b>Carpetas y álbumes:</b> escribe “viaje disney” y ve la carpeta con cada álbum que tiene dentro.</span></li>
-        <li><span class="l en"><b>Leave things out</b> with a minus: <code>-videos</code>, <code>-Ana</code>.</span><span class="l es"><b>Deja cosas fuera</b> con un menos: <code>-videos</code>, <code>-Ana</code>.</span></li>
-      </ul>
+  <div class="wrap">
+    <div class="stage rv">
+      <div class="stage-in">
+        <div class="eyebrow"><span class="l en">New · Search</span><span class="l es">Nuevo · Búsqueda</span></div>
+        <h2><span class="l en">Type what you remember.<br><span class="grad">In any order.</span></span><span class="l es">Escribe lo que recuerdas.<br><span class="grad">En cualquier orden.</span></span></h2>
+        <p class="lead"><span class="l en">A person, a date, a place, an album, a folder. Piklin reads it the way you would say it, and shows what it understood.</span><span class="l es">Una persona, una fecha, un lugar, un álbum, una carpeta. Piklin lo lee como lo dirías tú y te muestra lo que entendió.</span></p>
+        <div class="fakebar big"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="q" id="typed"></span></div>
+        <div class="chips" id="chips"></div>
+        <div class="results" id="results" aria-hidden="true"></div>
+      </div>
     </div>
+    <ul class="ticks cols rv">
+      <li><span class="l en"><b>Dates as you write them:</b> 15/07/2019, July 15, before 2012, between 2015 and 2017.</span><span class="l es"><b>Fechas como las escribes:</b> 15/07/2019, 4 julio, antes de 2012, entre 2015 y 2017.</span></li>
+      <li><span class="l en"><b>Folders and albums:</b> type “disney trip” and see the folder with every album inside it.</span><span class="l es"><b>Carpetas y álbumes:</b> escribe “viaje disney” y ve la carpeta con cada álbum que tiene dentro.</span></li>
+      <li><span class="l en"><b>Leave things out</b> with a minus: <code>-videos</code>, <code>-Ana</code>.</span><span class="l es"><b>Deja cosas fuera</b> con un menos: <code>-videos</code>, <code>-Ana</code>.</span></li>
+    </ul>
   </div>
 </section>
 
@@ -330,24 +346,34 @@ footer a{margin-left:18px;text-decoration:none}footer a:hover{color:#fff}
   }
 
   // ---- the search that types itself: what was typed, and what Piklin understood
-  var DEMOS = [
-    { q: "viaje disney 2018", chips: { en: ["📁 Viaje Disney 2018"], es: ["📁 Viaje Disney 2018"] } },
-    { q: "Ana y Luis Miami 2019", chips: { en: ["👤 Ana", "👤 Luis", "📍 Miami", "📅 2019"], es: ["👤 Ana", "👤 Luis", "📍 Miami", "📅 2019"] } },
-    { q: "antes de 2012 -videos", chips: { en: ["📅 before 2012", "− videos"], es: ["📅 antes de 2012", "− videos"] } },
-    { q: "15 de julio de 2019", chips: { en: ["📅 15 July 2019"], es: ["📅 15 julio 2019"] } },
-    { q: "epcot", chips: { en: ["🖼 Epcot"], es: ["🖼 Epcot"] } }
-  ];
+  var DEMOS = {
+    en: [
+      { q: "disney trip 2018", chips: ["📁 Disney Trip 2018"], r: [1, 3, 5, 7, 9, 11] },
+      { q: "Ana and Luis Miami 2019", chips: ["👤 Ana", "👤 Luis", "📍 Miami", "📅 2019"], r: [2, 6, 10] },
+      { q: "before 2012 -videos", chips: ["📅 before 2012", "− videos"], r: [4, 8, 12, 1, 5, 9] },
+      { q: "July 15 2019", chips: ["📅 15 July 2019"], r: [6, 2] },
+      { q: "epcot", chips: ["🖼 Epcot"], r: [3, 7, 11, 10] }
+    ],
+    es: [
+      { q: "viaje disney 2018", chips: ["📁 Viaje Disney 2018"], r: [1, 3, 5, 7, 9, 11] },
+      { q: "Ana y Luis Miami 2019", chips: ["👤 Ana", "👤 Luis", "📍 Miami", "📅 2019"], r: [2, 6, 10] },
+      { q: "antes de 2012 -videos", chips: ["📅 antes de 2012", "− videos"], r: [4, 8, 12, 1, 5, 9] },
+      { q: "15 de julio de 2019", chips: ["📅 15 julio 2019"], r: [6, 2] },
+      { q: "epcot", chips: ["🖼 Epcot"], r: [3, 7, 11, 10] }
+    ]
+  };
   var typed = (function () {
-    var el = document.getElementById("typed"), chips = document.getElementById("chips");
+    var el = document.getElementById("typed"), chips = document.getElementById("chips"), res = document.getElementById("results");
     var i = 0, timer = null;
     function run() {
       clearTimeout(timer);
-      var d = DEMOS[i % DEMOS.length], n = 0; chips.innerHTML = ""; el.textContent = "";
+      var list = DEMOS[lang], d = list[i % list.length], n = 0; chips.innerHTML = ""; res.innerHTML = ""; el.textContent = "";
       (function step() {
         if (n <= d.q.length) { el.textContent = d.q.slice(0, n++); timer = setTimeout(step, 55 + Math.random() * 60); }
         else {
-          d.chips[lang].forEach(function (c, k) { var e = document.createElement("em"); e.textContent = c; e.style.animationDelay = (k * 120) + "ms"; chips.appendChild(e); });
-          timer = setTimeout(function () { i++; run(); }, 2600);
+          d.chips.forEach(function (c, k) { var e = document.createElement("em"); e.textContent = c; e.style.animationDelay = (k * 120) + "ms"; chips.appendChild(e); });
+          d.r.forEach(function (n2, k) { var im = document.createElement("img"); im.src = "art/t/" + (n2 < 10 ? "0" : "") + n2 + ".jpg"; im.alt = ""; im.style.animationDelay = (250 + k * 110) + "ms"; res.appendChild(im); });
+          timer = setTimeout(function () { i++; run(); }, 3600);
         }
       })();
     }
