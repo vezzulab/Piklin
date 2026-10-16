@@ -1,0 +1,26 @@
+--- a/gdk/macos/gdkmacosdisplay-translate.c	2026-10-15 21:02:55
++++ b/gdk/macos/gdkmacosdisplay-translate.c	2026-10-15 21:02:55
+@@ -582,6 +582,23 @@
+   state = get_keyboard_modifiers_from_ns_event (nsevent) |
+           _gdk_macos_display_get_current_mouse_modifiers (display);
+ 
++  /* A drag is a movement with a button down, whatever the buttons are by the
++   * time the event is handled. They are read from the mouse when it is
++   * handled, which can be after the person let go: a drag handled that late
++   * said no button was down, and GTK ended the click it belonged to. A click
++   * that moved a pixel was lost, and had to be made two or three times. */
++  switch ((int)[nsevent type])
++    {
++    case NSEventTypeLeftMouseDragged:
++    case NSEventTypeRightMouseDragged:
++    case NSEventTypeOtherMouseDragged:
++      state |= get_mouse_button_modifiers_from_ns_event (nsevent);
++      break;
++
++    default:
++      break;
++    }
++
+   if (([nsevent subtype] == NSEventSubtypeTabletPoint) &&
+       _gdk_macos_seat_get_tablet (GDK_MACOS_SEAT (seat), &pointer, &tool))
+     axes = _gdk_macos_seat_get_tablet_axes_from_nsevent (GDK_MACOS_SEAT (seat), nsevent);

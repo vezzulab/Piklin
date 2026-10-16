@@ -90,6 +90,13 @@ unpack() {   # unpack <archive> -> prints the fresh source directory
   local dir="$WORK/src-$(basename "$1" | sed -E 's/\.tar\.(gz|xz|bz2)$//')"
   rm -rf "$dir"; mkdir -p "$dir"
   tar -xf "$SRC/$1" -C "$dir" --strip-components=1
+  # Fixes to a library's own code, kept beside this script as
+  # patches/<name>-<version>-<what>.patch.
+  local stem p
+  stem="$(basename "$1" | sed -E 's/\.tar\.(gz|xz|bz2)$//')"
+  for p in "$HERE/patches/$stem"-*.patch; do
+    [ -f "$p" ] && patch -s -p1 -d "$dir" < "$p"
+  done
   # Some archives (AppStream) hold "./name-version/...": one level deeper.
   local inner
   if [ ! -e "$dir/meson.build" ] && [ ! -e "$dir/CMakeLists.txt" ] && [ ! -e "$dir/configure" ] \
