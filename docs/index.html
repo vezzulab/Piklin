@@ -15,7 +15,9 @@
   top();
   addEventListener("scroll",function(){ if(Date.now()-t0<4000) top(); },{passive:true});
   [60,200,500,1000,2000,3500].forEach(function(ms){setTimeout(top,ms)});
-  addEventListener("load",top); addEventListener("pageshow",top);
+  addEventListener("load",top);
+  // coming back to the page (Back button, a restored tab): the same start again
+  addEventListener("pageshow",function(e){ if(e.persisted){ moved=false; t0=Date.now(); named=location.hash.length>1&&location.hash!=="#all"; top(); [100,400,1000].forEach(function(ms){setTimeout(top,ms)}); } else top(); });
 })();
 </script>
 <meta name="theme-color" content="#04040a">
