@@ -117,9 +117,8 @@ h2{font-size:clamp(32px,4.6vw,58px);line-height:1.06;letter-spacing:-.03em;font-
 .chips em{font-style:normal;font-size:13px;padding:6px 12px;border-radius:999px;background:#46e6ff14;border:1px solid #46e6ff55;color:#bff4ff;animation:pop .35s both}
 @keyframes pop{from{opacity:0;transform:scale(.8)}}
 .stage{position:relative;border-radius:34px;overflow:hidden;border:1px solid var(--line);isolation:isolate;box-shadow:0 60px 160px #000c,0 0 120px #7a6bff30}
-.stage::before{content:"";position:absolute;inset:0;z-index:-2;background:url(art/search.jpg) center/cover;filter:saturate(1.2);transform:scale(1.06);animation:slow 30s ease-in-out infinite alternate}
+.stage::before{content:"";position:absolute;inset:0;z-index:-2;background:url(art/search.jpg) center/cover;filter:saturate(1.2)}
 .stage::after{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse 70% 80% at 50% 45%,#04040acc 20%,#04040a99 60%,#04040a55 100%),linear-gradient(180deg,#04040a66,#04040ae6)}
-@keyframes slow{to{transform:scale(1.14) translate3d(-2%,1%,0)}}
 .stage-in{padding:clamp(34px,6vw,84px) clamp(22px,5vw,64px);text-align:center}
 .stage-in .lead{margin:0 auto 38px}
 .fakebar.big{margin:0 auto;max-width:760px;padding:22px 30px;font-size:clamp(18px,2.4vw,26px);border-color:#ffffff40;background:#0a0a1aaa;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 0 0 6px #ffffff08,0 0 70px #7a6bff66,inset 0 0 30px #46e6ff14;text-align:left}
