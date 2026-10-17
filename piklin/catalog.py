@@ -236,6 +236,26 @@ CREATE TABLE IF NOT EXISTS photo_places (
 CREATE INDEX IF NOT EXISTS photo_places_city    ON photo_places(city_f);
 CREATE INDEX IF NOT EXISTS photo_places_country ON photo_places(country_f);
 
+-- Events: the days and trips the photos fall into, found by Piklin from when and where
+-- they were taken (events.py). A photo belongs to the event whose time span holds its
+-- date. ``custom`` marks the ones a person named, joined or split: those are kept as they
+-- are when the rest are found again.
+CREATE TABLE IF NOT EXISTS events (
+    id       INTEGER PRIMARY KEY,
+    uuid     TEXT NOT NULL UNIQUE,
+    name     TEXT,
+    start_at REAL NOT NULL,
+    end_at   REAL NOT NULL,
+    photos   INTEGER NOT NULL DEFAULT 0,
+    videos   INTEGER NOT NULL DEFAULT 0,
+    cover_id INTEGER,
+    place    TEXT,
+    country  TEXT,
+    custom   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS events_start ON events(start_at);
+
+
 -- Which photos have been looked at for faces, and by which version of the
 -- looking, so a better model later can look again.
 CREATE TABLE IF NOT EXISTS face_scans (

@@ -2283,3 +2283,6 @@ window.piklin .pika-sidebar row:selected image.pika-trash-full,
 /* What the search box understood: one chip for each, taken away with a click */
 .pika-chip { padding: 4px 12px; min-height: 0; background-color: alpha(@pika_accent, 0.14); }
 .pika-chip:hover { background-color: alpha(@pika_accent, 0.24); }
+
+.pika-event-cover { border-radius: 16px; overflow: hidden; background: #1c1c20; }
+.pika-event-cover picture { border-radius: 16px; }

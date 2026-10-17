@@ -3825,6 +3825,49 @@ else:
     print("  (no PIKLIN_TEST_FACE or no recognition model: reading a face skipped)")
 
 # ===================================================================
+section("Events: found from when and where, named, joined and split")
+from piklin import events as _ev
+from piklin.catalog import Catalog as _CatE
+from datetime import datetime as _dtE
+_ce = _CatE(os.path.join(TMP, "events.db"))
+_n = [0]
+def _addp(ts, city=None):
+    _n[0] += 1
+    with _ce.write() as cur:
+        cur.execute("INSERT INTO photos(uuid,path,filename,ext,bytes,mtime,added_at,taken_at,width,height) VALUES(?,?,?,?,?,?,?,?,1,1)",
+                    (f"e{_n[0]}", f"/e/{_n[0]}.jpg", f"{_n[0]}.jpg", "jpg", 100 + _n[0], ts, ts, ts))
+        if city:
+            cur.execute("INSERT INTO photo_places(photo_id,lat,lon,city,country) VALUES(?,?,?,?,?)", (_n[0], 1, 1, city, "US"))
+_T2 = lambda y, m, d, h=12: _dtE(y, m, d, h).timestamp()
+for k in range(8): _addp(_T2(2024, 10, 3, 10) + k * 600, "Miami")
+for k in range(6): _addp(_T2(2024, 10, 4, 11) + k * 900, "Miami")
+for k in range(7): _addp(_T2(2024, 12, 25, 9) + k * 300)
+for k in range(3): _addp(_T2(2025, 1, 10, 9) + k * 300)
+check("events are found by the pauses between photos, a few photos are not an event",
+      _ev.refresh(_ce) == 3 and [e["photos"] for e in _ev.all_events(_ce)] == [7, 6, 8])
+_names = [_ev.name_of(e) for e in _ev.all_events(_ce)]
+check("named from the place and the day, and Christmas by its date",
+      _names[0].startswith("Christmas") and _names[2].startswith("Miami") and "October 2024" in _names[2])
+check("each event has a cover and a place", all(e["cover_id"] for e in _ev.all_events(_ce))
+      and _ev.all_events(_ce)[2]["place"] == "Miami")
+_a, _b = [e["id"] for e in reversed(_ev.all_events(_ce))][:2]
+_j = _ev.join(_ce, _a, _b)
+check("two events join into one", _j and _ev.event(_ce, _j)["photos"] == 14 and len(_ev.all_events(_ce)) == 2)
+_ev.rename(_ce, _j, "Miami trip")
+_ev.refresh(_ce)
+check("a name given by hand survives finding the events again",
+      "Miami trip" in [_ev.name_of(e) for e in _ev.all_events(_ce)] and len(_ev.all_events(_ce)) == 2)
+_mid = _ce.scalar("SELECT taken_at FROM photos WHERE taken_at>=? ORDER BY taken_at LIMIT 1 OFFSET 9", (_ev.event(_ce, _j)["start_at"],))
+_s = _ev.split(_ce, _j, _mid)
+check("an event splits in two at a photo", _s and sorted(_ev.event(_ce, i)["photos"] for i in _s) == [5, 9])
+check("an event's photos are the ones in its span", len(_ev.photo_ids(_ce, _s[1])) == _ev.event(_ce, _s[1])["photos"])
+from piklin import smartsearch as _ss9
+_ss9.vocabulary(_ce).refresh(True)
+_w, _p, _wo, _pr = _ss9.compile(_ce, "Miami trip")
+check("search finds an event by its name", [t.kind for t in _pr.terms] == ["event"]
+      and _ce.scalar("SELECT COUNT(*) FROM photos p WHERE " + " AND ".join(_w), _p) == 9)
+check("an event becomes an album", _ev.to_album(_ce, _s[0]) is not None)
+
 section("Smart search: people, dates, places, kinds and words")
 from piklin import smartsearch as _ss, placeindex as _pi
 from piklin.catalog import Catalog as _Cat6

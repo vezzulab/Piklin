@@ -120,6 +120,7 @@ class Vocabulary:
         self.albums: dict[str, tuple[str, list[int]]] = {}    # folded name -> (shown, album ids)
         self.sidefolders: dict[str, tuple[str, list[int]]] = {}   # sidebar folder -> its albums' ids
         self.sidekids: dict[str, list[tuple[str, str]]] = {}      # sidebar folder -> (kind, name) it holds
+        self.events: dict[str, tuple[str, list[tuple[float, float]]]] = {}   # event name -> (shown, time spans)
         self.sidefolder_ids: dict[str, list[int]] = {}            # sidebar folder -> its own id(s)
         self._dirs_at = -1e9
 
@@ -197,6 +198,15 @@ class Vocabulary:
         self.people, self.firsts = people, firsts
         self.person_names, self.places, self.cameras = names, places, cameras
         self.albums, self.sidefolders, self.sidekids = albums, sidefolders, sidekids
+        try:
+            from . import events as _events
+            evs: dict = {}
+            for r in con.execute("SELECT * FROM events WHERE photos+videos>=1"):
+                nm = _events.name_of(r)
+                evs.setdefault(fold(nm), (nm, []))[1].append((r["start_at"], r["end_at"]))
+            self.events = evs
+        except Exception:
+            self.events = {}
         self.sidefolder_ids = sidefolder_ids
         # the folders photos are in on disk: seen less often, they change less
         if force or time.time() - self._dirs_at > 60:
@@ -516,6 +526,20 @@ def parse(catalog, text: str, today: date | None = None) -> Parsed:
                                 _person_sql(ids), list(ids)))
             i += n
             continue
+        # a name of several words that is an album, folder or event wins over a place that
+        # is only the beginning of it ("Miami trip" is not "Miami")
+        longer = None
+        for n in (6, 5, 4, 3, 2):
+            if i + n > len(toks) or any(used[i:i + n]):
+                continue
+            found = _named(vocab, " ".join(folded[i:i + n]))
+            if found:
+                longer = (n, found)
+                break
+        if longer is not None:
+            take(i, i + longer[0], _named_term(longer[1]))
+            i += longer[0]
+            continue
         # places, up to three words ("santo domingo")
         placed = False
         for n in (3, 2, 1):
@@ -701,6 +725,10 @@ def _named(vocab, key, only=None):
         out.append(("folder", shown, _album_cond(ids), list(ids), list(vocab.sidefolder_ids.get(key, ()))))
     if only in (None, "folder") and key in vocab.dirs:
         out.append(("folder", vocab.dirs[key], _dir_sql(), [_dir_param(key)], []))
+    if only in (None, "event") and key in vocab.events:
+        shown, spans = vocab.events[key]
+        cond = "(" + " OR ".join("(p.taken_at>=? AND p.taken_at<?)" for _s in spans) + ")"
+        out.append(("event", shown, cond, [x for lo, hi in spans for x in (lo, hi + 0.001)], []))
     return out
 
 
@@ -1042,7 +1070,7 @@ def suggest(catalog, text: str, limit: int = 8) -> list[tuple[str, str, str]]:
     # something - each beginning a word of the name ("viaje disney" is "Viaje Disney 2018")
     words_typed = [fold(t[0]).lstrip("-") for t in toks[-4:]]
 
-    every_name = list(vocab.sidefolders) + list(vocab.dirs) + list(vocab.albums)
+    every_name = list(vocab.sidefolders) + list(vocab.dirs) + list(vocab.albums) + list(vocab.events)
     typed_n = 0
     for n in (4, 3, 2, 1):
         if n > len(words_typed):
@@ -1072,6 +1100,8 @@ def suggest(catalog, text: str, limit: int = 8) -> list[tuple[str, str, str]]:
     seen_folders = set(vocab.sidefolders)
     for key in named_by_typed([k for k in vocab.dirs if k not in seen_folders]):
         add("folder", f"{vocab.dirs[key]}  ·  " + _("Folder on disk"), vocab.dirs[key])
+    for key in named_by_typed(vocab.events):
+        add("event", f"{vocab.events[key][0]}  ·  " + _("Event"), vocab.events[key][0])
     for key in named_by_typed(vocab.albums):
         add("album", f"{vocab.albums[key][0]}  ·  " + _("Album"), vocab.albums[key][0])
     for key, shown in vocab.cameras.items():
@@ -1101,7 +1131,7 @@ def suggest(catalog, text: str, limit: int = 8) -> list[tuple[str, str, str]]:
                 add("type", wd)
                 break
     # people first, then places, then the rest
-    order = {"person": 0, "place": 1, "folder": 2, "album": 3, "date": 4, "type": 5, "camera": 6}
+    order = {"person": 0, "place": 1, "event": 1.5, "folder": 2, "album": 3, "date": 4, "type": 5, "camera": 6}
     if last.isdigit():             # typing a number: years first, then what is named with one
         order["date"] = 1.5
     out.sort(key=lambda s: order.get(s[0], 9))

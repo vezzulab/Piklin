@@ -112,6 +112,7 @@ class PeopleActions:
         self._scope = "ids"
         self._album_id = self._smart_id = None
         self._person_id = person_id
+        self._event_id = None
         self._select_sidebar_key("people")
         self.grid.load("ids", photo_ids=ids)
         self.content_stack.set_visible_child_name("grid")

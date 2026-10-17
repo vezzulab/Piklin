@@ -25,6 +25,7 @@ from ..thumbs import SIZES as THUMB_SIZES, ThumbCache
 from .editor import EditorView
 from .grid import PhotoGrid
 from .viewer import ViewerView
+from .events_actions import EventsActions
 from .people_actions import PeopleActions
 from .search_actions import SearchActions
 from .drive_actions import DriveActions
@@ -46,7 +47,7 @@ _INPUT_EVENTS = (Gdk.EventType.KEY_PRESS, Gdk.EventType.BUTTON_PRESS, Gdk.EventT
                  Gdk.EventType.MOTION_NOTIFY, Gdk.EventType.TOUCH_BEGIN)
 
 
-class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWindow):
+class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.ApplicationWindow):
     def __init__(self, app, library: Library):
         from .chrome import fit
         # Never larger than the screen: a Mac does not shrink a window that
@@ -480,6 +481,7 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         self.map_back.connect("clicked", lambda _b: self._back_to_map())
         header.pack_start(self.map_back)
         header.pack_start(self._make_people_back())
+        header.pack_start(self._make_events_back())
 
         # Shown in the bar at the bottom, not up here: a label appearing in
         # the header widened it, which narrowed the sidebar and resized
@@ -621,6 +623,7 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         self.folder_view.connect("open-folder", lambda _v, i: self._open_folder(i))
         self.content_stack.add_named(self.folder_view, "folder")
         self._build_people_view()
+        self._build_events_view()
         # The library on a map: every photo that recorded where it was
         # taken, grouped into a pin per place. The map needs libshumate,
         # which a build may not carry; without it the rest of Piklin still
@@ -909,6 +912,7 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         if self.map_view is not None:
             add("map", _("Map"), "mark-location-symbolic", counts.get("located"),
                 count_key="located")
+        add("events", _("Events"), "x-office-calendar-symbolic")
         add("people", _("People"), "pk-user-symbolic")
         add("trash", _("Recently Deleted"), "user-trash-symbolic",
             counts.get("trash"), count_key="trash")
@@ -1807,7 +1811,12 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         self._smart_id = None
         self.map_back.set_visible(False)
         self.people_back.set_visible(False)
+        self.events_back.set_visible(False)
         self._person_id = None
+        self._event_id = None
+        if key == "events":
+            self._show_events()
+            return
         if key == "map":
             self._show_map()
             return
@@ -2375,6 +2384,15 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
             self.folder_view.load(getattr(self, "_folder_id", None))
         elif self._scope == "people":
             self.people_view.load()
+        elif self._scope == "events":
+            self.events_view.load()
+        elif self._scope == "ids" and getattr(self, "_event_id", None) is not None:
+            from .. import events as _events
+            here = self.grid.first_visible_id()
+            self.grid.load("ids", photo_ids=_events.photo_ids(self.catalog, self._event_id),
+                           keep_selection=self.grid._selected)
+            if here is not None:
+                self.grid.reveal_photo(here)
         elif self._scope == "ids" and getattr(self, "_person_id", None) is not None:
             # a person's photos: the person's photos as they are now (one was taken out,
             # another was hidden), not the ones it was opened with
@@ -2421,7 +2439,7 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         self._show("grid")
         # back on the photo that was open (arrows may have moved on from the
         # one clicked), not at the top of the list
-        if item is not None and self._scope not in ("map", "folder", "people"):
+        if item is not None and self._scope not in ("map", "folder", "people", "events"):
             self.grid.reveal_photo(item.id)
 
     def _open_fetched(self, item):
@@ -2946,6 +2964,9 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         if self._scope == "people":
             self.content_stack.set_visible_child_name("people")
             return
+        if self._scope == "events":
+            self.content_stack.set_visible_child_name("events")
+            return
         if self._summary_applies():
             self.summary.load(self.settings.get("group_by"), self.grid.filters())
             self.content_stack.set_visible_child_name("summary")
@@ -3095,14 +3116,17 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         if not entry.get_text().strip():
             from .. import smartsearch
             smartsearch.forget_preferences()
-        if entry.get_text().strip() and (self._scope == "people" or (
-                self._scope == "ids" and getattr(self, "_person_id", None) is not None)):
+        if entry.get_text().strip() and (self._scope in ("people", "events") or (
+                self._scope == "ids" and (getattr(self, "_person_id", None) is not None
+                                          or getattr(self, "_event_id", None) is not None))):
             # a search looks through all photos: from the list of people, or from
             # inside one person, it goes to them (a person's list has no search of its own)
             self._scope = "library"
             self._person_id = None
+            self._event_id = None
             self._album_id = self._smart_id = None
             self.people_back.set_visible(False)
+            self.events_back.set_visible(False)
             self._select_sidebar_key("library")
         text = entry.get_text() or ""
         from .. import smartsearch
@@ -3897,6 +3921,9 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
             [("use-picture", _("Use as Picture"), None,
               lambda: self._use_as_picture(item.id))]
             if single and self._scope == "ids" and getattr(self, "_person_id", None) is not None else [],
+            [("new-event", _("Start a New Event Here"), None,
+              lambda: self._start_event_here(item))]
+            if single and self._scope == "ids" and getattr(self, "_event_id", None) is not None else [],
             [("not-person", _("Not This Person"), None,
               lambda: self._not_this_person(ids))]
             if self._scope == "ids" and getattr(self, "_person_id", None) is not None else [],

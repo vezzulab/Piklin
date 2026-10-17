@@ -18,7 +18,8 @@ ICONS = {"person": "pk-user-symbolic", "date": "x-office-calendar-symbolic",
          "place": "mark-location-symbolic", "camera": "camera-photo-symbolic",
          "type": "view-list-symbolic", "rating": "starred-symbolic",
          "size": "drive-harddisk-symbolic", "not": "list-remove-symbolic",
-         "album": "image-x-generic-symbolic", "folder": "folder-symbolic"}
+         "album": "image-x-generic-symbolic", "folder": "folder-symbolic",
+         "event": "x-office-calendar-symbolic"}
 
 
 class SearchActions:

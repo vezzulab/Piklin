@@ -2,6 +2,9 @@
 
 ## Next
 
+### Events
+- **Events:** a new section in the sidebar. Piklin finds the days and trips in your photos by itself, from when and where they were taken (a pause of six hours, or a change of city, starts a new one), names them ("Miami · 22 March 2025", "Christmas 2024"), picks a cover photo and shows them as cards by year. Click one to open its photos; right-click to rename it, join it to the earlier or later event, or make an album of it; inside one, right-click a photo and choose "Start a New Event Here" to split it. What you rename, join or split is kept when events are found again. The search box finds events by name.
+
 ### Metadata
 - The viewer's Info panel is open by default and shows **all** the metadata of a photo or video, always under the basics: every EXIF tag with its name and its meaning in words (flash, metering, white balance...), the full GPS block, IPTC and XMP written by other programs (titles, keywords, ratings, copyright), the text inside a PNG, the colour profile, the RAW sensor data, and for a video its container, every stream (codec, profile, size, frame rate, colour range, bit rate, audio) and its tags. It can be searched and copied. Closing the panel is remembered.
 
