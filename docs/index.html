@@ -13,7 +13,10 @@
   ["wheel","touchstart","keydown","mousedown"].forEach(function(n){addEventListener(n,function(){moved=true},{passive:true,capture:true})});
   function top(){ if(!named&&!moved&&location.hash!=="#all"&&window.pageYOffset>0) window.scrollTo(0,0); }
   top();
-  addEventListener("scroll",function(){ if(Date.now()-t0<4000) top(); },{passive:true});
+  addEventListener("scroll",function(){ if(Date.now()-t0<6000) top(); },{passive:true});
+  // for the first seconds the top is held frame by frame, until the visitor takes over
+  (function hold(){ if(moved||named||Date.now()-t0>6000) return; if(window.pageYOffset>0) window.scrollTo(0,0); requestAnimationFrame(hold); })();
+  ["pointerdown","touchmove"].forEach(function(n){addEventListener(n,function(){moved=true},{passive:true,capture:true})});
   [60,200,500,1000,2000,3500].forEach(function(ms){setTimeout(top,ms)});
   addEventListener("load",top);
   // coming back to the page (Back button, a restored tab): the same start again
