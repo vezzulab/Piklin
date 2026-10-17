@@ -365,8 +365,8 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
 (function () {
   // ---- language: remembered on this device only
   var T = {
-    en: { title: "Piklin 2.0.6 — your photos, understood", mac: "Download for Mac", lin: "Download for Linux", arm: "Download for Linux ARM", me: "your computer" },
-    es: { title: "Piklin 2.0.6 — tus fotos, entendidas", mac: "Descargar para Mac", lin: "Descargar para Linux", arm: "Descargar para Linux ARM", me: "tu computadora" }
+    en: { title: "Piklin 2.0.6 — your photos, understood", mac: "Download for Mac", lin: "Download for Linux", arm: "Download for Linux ARM", any: "Choose your download", me: "your computer" },
+    es: { title: "Piklin 2.0.6 — tus fotos, entendidas", mac: "Descargar para Mac", lin: "Descargar para Linux", arm: "Descargar para Linux ARM", any: "Elegir mi descarga", me: "tu computadora" }
   };
   var lang = document.documentElement.getAttribute("data-lang");
   function setLang(l) {
@@ -464,8 +464,11 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
   // ---- picks the right download for this visitor. The only request made is to
   // GitHub for the list of files in the latest release; nothing is sent about you.
   var ua = navigator.userAgent || "", plat = navigator.platform || "";
-  var mac = /Mac/i.test(plat) || /Mac OS X/i.test(ua);
+  // A phone or a tablet (an iPad says it is a Mac) cannot run Piklin: it is offered the list
+  var touch = /iPhone|iPad|iPod|Android|Mobile/i.test(ua) || (/Mac/i.test(plat) && (navigator.maxTouchPoints || 0) > 1);
+  var mac = !touch && (/Mac/i.test(plat) || /Mac OS X/i.test(ua));
   var arm = /aarch64|arm64|armv8/i.test(ua + plat);
+  if (touch) { var dm = document.getElementById("dl-main"); dm.setAttribute("href", "#download"); label("any"); }
   fetch("https://api.github.com/repos/vezzulab/Piklin/releases/latest")
     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
     .then(function (rel) {
@@ -477,7 +480,7 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
         else if (/x86_64\.AppImage$/.test(a.name)) by.ai = a;
         else if (/aarch64\.AppImage$/.test(a.name)) by.armai = a;
       });
-      var pick = mac ? by.mac : (arm ? by.armdeb : by.deb);
+      var pick = touch ? null : (mac ? by.mac : (arm ? by.armdeb : by.deb));
       if (pick) { document.getElementById("dl-main").href = pick.browser_download_url; label(mac ? "mac" : (arm ? "arm" : "lin")); }
       document.getElementById("dl-version").textContent = rel.tag_name.replace(/^v/, "");
       var cards = document.querySelectorAll("#dl-rows .dcard"), order = [by.mac, by.deb, by.ai, by.armdeb, by.armai];
