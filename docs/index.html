@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <script>(function(){var l="en";try{l=localStorage.getItem("piklin-lang")||""}catch(e){}if(l!=="en"&&l!=="es")l=/^es/i.test(navigator.language||"")?"es":"en";var h=document.documentElement;h.setAttribute("data-lang",l);h.lang=l})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>try{history.scrollRestoration="manual"}catch(e){}if(!location.hash)window.scrollTo(0,0)</script>
 <meta name="theme-color" content="#04040a">
 <title>Piklin 2.0.6 — your photos, understood. Free and private for Linux and Mac</title>
 <meta name="description" content="Piklin is a free, private photo and video library and editor for Linux and Mac. It finds the people in your photos with no cloud, understands what you search for, and keeps your photos where you want them. Nothing leaves your computer.">
@@ -462,9 +463,14 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
   document.addEventListener("click", function (ev) {
     var a = ev.target.closest ? ev.target.closest('a[href^="#"]') : null; if (!a) return;
     var id = a.getAttribute("href").slice(1); if (!id || !document.getElementById(id)) return;
-    ev.preventDefault(); history.replaceState(null, "", "#" + id); goTo(id, !matchMedia("(prefers-reduced-motion:reduce)").matches);
+    ev.preventDefault(); goTo(id, !matchMedia("(prefers-reduced-motion:reduce)").matches);
   });
-  if (location.hash.length > 1 && location.hash !== "#all") window.addEventListener("load", function () { goTo(location.hash.slice(1), false); });
+  function startPlace() {
+    if (location.hash.length > 1 && location.hash !== "#all" && document.getElementById(location.hash.slice(1))) goTo(location.hash.slice(1), false);
+    else if (location.hash !== "#all") window.scrollTo(0, 0);
+  }
+  window.addEventListener("load", startPlace);
+  window.addEventListener("pageshow", function (e) { if (e.persisted) startPlace(); });
 
   // ---- reveal on scroll
   var io = "IntersectionObserver" in window ? new IntersectionObserver(function (es) {
