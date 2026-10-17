@@ -65,7 +65,8 @@ class ViewerView(Gtk.Box):
         self.info = self._build_info()
         self.split = Adw.OverlaySplitView(
             sidebar_position=Gtk.PackType.END, collapsed=False,
-            show_sidebar=False, sidebar_width_fraction=0.26)
+            show_sidebar=False, sidebar_width_fraction=0.28,
+            min_sidebar_width=340, max_sidebar_width=480)
         # Photos and videos share the stage; a video gets the player.
         self.player = VideoPlayer()
         self.player.add_css_class("pika-stage")
@@ -93,6 +94,9 @@ class ViewerView(Gtk.Box):
         self.split.set_sidebar(self.info)
         self.split.set_vexpand(True)
         self.append(self.split)
+        # Open by default: the metadata is always there. Closing it is remembered.
+        self.info_btn.set_active(bool(self.settings.get("viewer_info", True)))
+        self.info_btn.connect("toggled", self._remember_info)
 
         scroll = Gtk.EventControllerScroll(
             flags=Gtk.EventControllerScrollFlags.VERTICAL)
@@ -242,10 +246,95 @@ class ViewerView(Gtk.Box):
                 row.add_suffix(rename)
             self.info_group.add(row)
             self._info_rows[key] = row
+        # Everything else the file says about itself, always there under the basics:
+        # every EXIF tag, the GPS block, IPTC and XMP, and for a video its streams.
+        head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8, margin_top=22, margin_bottom=6)
+        title = Gtk.Label(label=_("All Metadata"), xalign=0.0, hexpand=True)
+        title.add_css_class("heading")
+        head.append(title)
+        copy = Gtk.Button(icon_name="edit-copy-symbolic", tooltip_text=_("Copy All Metadata"),
+                          valign=Gtk.Align.CENTER)
+        copy.add_css_class("flat")
+        copy.connect("clicked", self._copy_metadata)
+        head.append(copy)
+        box.append(head)
+        self.meta_search = Gtk.SearchEntry(placeholder_text=_("Search metadata"), margin_bottom=10)
+        self.meta_search.connect("search-changed", self._filter_metadata)
+        box.append(self.meta_search)
+        self.meta_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        box.append(self.meta_box)
+        self._meta = []                    # [(group widget, [(row, "name value")])]
+        self._meta_groups = []
+        self._meta_token = 0
         scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER,
                                       vexpand=True)
         scroller.set_child(box)
         return scroller
+
+    # -- all the metadata --------------------------------------------------------
+    def _schedule_metadata(self):
+        """Read it once the photo has been on screen a moment, so leafing through
+        photos with the arrow keys is never slowed down by it."""
+        if getattr(self, "_meta_timer", 0):
+            GLib.source_remove(self._meta_timer)
+        self._meta_token += 1
+        token, path = self._meta_token, str(self.item.path)
+
+        def start():
+            self._meta_timer = 0
+            if not self.split.get_show_sidebar() or token != self._meta_token:
+                return GLib.SOURCE_REMOVE
+
+            def work():
+                from .. import metadata
+                try:
+                    groups = metadata.read_all(path)
+                except Exception:
+                    groups = []
+                GLib.idle_add(self._show_metadata, token, groups)
+            threading.Thread(target=work, daemon=True, name="pika-metadata").start()
+            return GLib.SOURCE_REMOVE
+        self._meta_timer = GLib.timeout_add(140, start)
+
+    def _show_metadata(self, token, groups):
+        if token != self._meta_token:
+            return False                      # another photo is open now
+        while (child := self.meta_box.get_first_child()) is not None:
+            self.meta_box.remove(child)
+        self._meta, self._meta_groups = [], groups
+        for name, rows in groups:
+            group = Adw.PreferencesGroup(title=GLib.markup_escape_text(name))
+            built = []
+            for key, value in rows:
+                row = Adw.ActionRow(title=GLib.markup_escape_text(key), use_markup=False,
+                                    subtitle=GLib.markup_escape_text(value), subtitle_selectable=True)
+                row.set_title_lines(1)
+                group.add(row)
+                built.append((row, f"{key} {value}".lower()))
+            self.meta_box.append(group)
+            self._meta.append((group, built))
+        self._filter_metadata(self.meta_search)
+        return False
+
+    def _filter_metadata(self, entry):
+        needle = (entry.get_text() or "").strip().lower()
+        for group, built in self._meta:
+            shown = 0
+            for row, hay in built:
+                ok = not needle or needle in hay
+                row.set_visible(ok)
+                shown += ok
+            group.set_visible(bool(shown))
+
+    def _copy_metadata(self, *_a):
+        from .. import metadata
+        self.get_clipboard().set(metadata.as_text(self._meta_groups))
+
+    def _remember_info(self, btn):
+        if not self.is_fullscreen():
+            self.settings.set("viewer_info", btn.get_active())
+        if btn.get_active() and self.item is not None:
+            self._schedule_metadata()
 
     def is_fullscreen(self) -> bool:
         return self.has_css_class("pika-fullscreen")
@@ -356,6 +445,7 @@ class ViewerView(Gtk.Box):
     def _update_info(self):
         if self.item is None:
             return
+        self._schedule_metadata()
         row = self.catalog.photo(self.item.id)
         if row is None:
             return

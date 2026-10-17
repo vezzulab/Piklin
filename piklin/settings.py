@@ -100,6 +100,8 @@ DEFAULTS: dict[str, Any] = {
     # The first steps (language, library, photos, backup) were answered or
     # put off: they are not shown again.
     "onboarding_done": False,
+    # The Info panel of the viewer, with all the metadata, is open.
+    "viewer_info": True,
 
     # -- privacy ---------------------------------------------------------
     "face_detection": True,            # local only; used by portrait tools

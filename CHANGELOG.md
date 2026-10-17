@@ -1,5 +1,10 @@
 # Changelog
 
+## Next
+
+### Metadata
+- The viewer's Info panel is open by default and shows **all** the metadata of a photo or video, always under the basics: every EXIF tag with its name and its meaning in words (flash, metering, white balance...), the full GPS block, IPTC and XMP written by other programs (titles, keywords, ratings, copyright), the text inside a PNG, the colour profile, the RAW sensor data, and for a video its container, every stream (codec, profile, size, frame rate, colour range, bit rate, audio) and its tags. It can be searched and copied. Closing the panel is remembered.
+
 ## 2.0.6
 
 ### Sidebar
