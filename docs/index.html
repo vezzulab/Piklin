@@ -41,7 +41,7 @@
 .l{display:none}html[data-lang=en] .l.en,html[data-lang=es] .l.es{display:inline}
 :root{--bg:#04040a;--ink:#f4f5fb;--mute:#9aa0b8;--line:#ffffff1c;--cy:#46e6ff;--vi:#9b6bff;--pk:#ff6bd5;--max:1160px}
 *{box-sizing:border-box;margin:0}
-html{scroll-behavior:smooth;overflow-x:hidden}
+html{overflow-x:hidden}
 body{font-family:-apple-system,BlinkMacSystemFont,"Inter","SF Pro Display","Helvetica Neue",Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 a{color:inherit}
 ::selection{background:#9b6bff66}
@@ -81,10 +81,10 @@ h1{font-size:clamp(40px,6.4vw,84px);line-height:1.02;letter-spacing:-.035em;font
 .btn.go{background:linear-gradient(100deg,var(--cy),var(--vi) 60%,var(--pk));color:#04040a;border-color:transparent;box-shadow:0 0 40px #7a6bff66}
 .btn.go:hover{box-shadow:0 0 60px #7a6bffaa}
 .meta{margin-top:18px;font-size:13.5px;color:#7f86a3}
-.orb{position:relative;aspect-ratio:1344/752;margin-right:-6vw}
+.orb{position:relative;aspect-ratio:1344/752;margin-right:-6vw;align-self:end;margin-bottom:-36px}
 .orb img{width:100%;height:100%;object-fit:cover;-webkit-mask-image:radial-gradient(ellipse 62% 70% at 55% 52%,#000 55%,transparent 100%);mask-image:radial-gradient(ellipse 62% 70% at 55% 52%,#000 55%,transparent 100%);animation:float 9s ease-in-out infinite;transition:transform .2s ease-out}
 @keyframes float{50%{translate:0 -14px}}
-.stats{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:64px;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--line)}
+.stats{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:40px;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--line)}
 .stats div{background:#07070f;padding:22px 24px}
 .stats b{display:block;font-size:30px;letter-spacing:-.02em}
 .stats span{color:var(--mute);font-size:14px}
@@ -101,7 +101,7 @@ h2{font-size:clamp(32px,4.6vw,58px);line-height:1.06;letter-spacing:-.03em;font-
 .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:56px;align-items:center}
 .split.flip{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}.split.flip .art{order:-1}
 .art{position:relative}
-.art img{width:100%;display:block;border-radius:24px;border:1px solid var(--line);box-shadow:0 0 0 1px #ffffff08,0 40px 120px #000c,0 0 90px #7a6bff33}
+.art img{width:100%;height:auto;display:block;border-radius:24px;border:1px solid var(--line);box-shadow:0 0 0 1px #ffffff08,0 40px 120px #000c,0 0 90px #7a6bff33}
 .art::after{content:"";position:absolute;inset:-1px;border-radius:25px;background:linear-gradient(135deg,#46e6ff55,transparent 35%,transparent 65%,#ff6bd555);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;padding:1px;pointer-events:none}
 .ticks{list-style:none;padding:0;margin-top:26px;display:grid;gap:14px}
 .ticks li{position:relative;padding-left:34px;color:#c9cee6}
@@ -161,7 +161,7 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
 .rv{opacity:0;transform:translateY(34px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
 .rv.in{opacity:1;transform:none}
 .center{text-align:center}.center .lead{margin-inline:auto}
-@media(max-width:900px){.hero .wrap,.split,.split.flip{grid-template-columns:1fr}.split.flip .art{order:0}.orb{margin:0}.grid{grid-template-columns:1fr}.dl{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.shots{grid-template-columns:1fr}.top nav a:not(.pill){display:none}section{padding:80px 0}.hero{padding-top:110px}}
+@media(max-width:900px){.hero .wrap,.split,.split.flip{grid-template-columns:1fr}.split.flip .art{order:0}.orb{margin:0;align-self:auto}.grid{grid-template-columns:1fr}.dl{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.shots{grid-template-columns:1fr}.top nav a:not(.pill){display:none}section{padding:80px 0}.hero{padding-top:110px}}
 
 @media(max-width:900px){
   .hero .wrap,.split,.split.flip{grid-template-columns:minmax(0,1fr)}
@@ -180,9 +180,10 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
   h1{font-size:clamp(38px,12vw,52px);margin:18px 0 16px}
   .sub{font-size:16.5px;margin-bottom:26px}
   .btns{flex-direction:column;align-items:stretch}.btn{justify-content:center;padding:15px 22px}
-  .orb{margin:0 -18px;width:calc(100% + 36px);height:min(88vw,380px);aspect-ratio:auto;overflow:hidden;position:relative;-webkit-mask-image:none;mask-image:none}
-  .orb img{position:absolute;left:50%;top:50%;width:158%;max-width:none;height:auto;transform:translate(-68.5%,-47%);-webkit-mask-image:none;mask-image:none}
-  .stats{margin-top:36px}.stats div{padding:16px 16px}.stats b{font-size:24px}.stats span{font-size:12.5px}
+  .orb{margin:0 auto;width:100%;max-width:440px;height:auto;aspect-ratio:auto;overflow:visible}
+  .orb img{aspect-ratio:900/724;position:static;width:100%;max-width:none;height:auto;transform:none;-webkit-mask-image:none;mask-image:none}
+  .hero .wrap{gap:0}
+  .stats{margin-top:-18px;position:relative;z-index:2}.stats div{padding:16px 16px}.stats b{font-size:24px}.stats span{font-size:12.5px}
   section{padding:64px 0}
   h2{font-size:clamp(28px,8.4vw,40px)}
   .lead{font-size:16.5px}
@@ -231,7 +232,7 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
       </div>
       <p class="meta"><span class="l en">Free for any use · Linux and macOS · version </span><span class="l es">Gratis para cualquier uso · Linux y macOS · versión </span><b id="dl-version">2.0.6</b></p>
     </div>
-    <div class="orb" id="orb"><img src="art/hero.webp" alt="A glass globe of photos orbiting in the dark"></div>
+    <div class="orb" id="orb"><picture><source media="(max-width:600px)" srcset="art/hero-m.webp"><img width="1344" height="752" src="art/hero.webp" alt="A glass globe of photos orbiting in the dark"></picture></div>
     <div class="stats">
       <div><b>0</b><span class="l en">bytes sent to a cloud</span><span class="l es">bytes enviados a una nube</span></div>
       <div><b>150,000</b><span class="l en">photos, tested on a normal computer</span><span class="l es">fotos, probado en una computadora normal</span></div>
@@ -260,7 +261,7 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
         <li><span class="l en"><b>One list on every computer,</b> shared through your backup. Photos only, never videos.</span><span class="l es"><b>Una sola lista en todas tus computadoras,</b> compartida por tu copia. Solo fotos, nunca videos.</span></li>
       </ul>
     </div>
-    <div class="art rv"><img src="art/people.jpg" alt="Faces gathering into groups, drawn as glowing dots" loading="lazy"></div>
+    <div class="art rv"><img width="1344" height="752" src="art/people.jpg" alt="Faces gathering into groups, drawn as glowing dots" loading="lazy"></div>
   </div>
 </section>
 
@@ -295,7 +296,7 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
         <li><span class="l en"><b>It tells you which drive is missing,</b> and looks for new photos by itself when it comes back.</span><span class="l es"><b>Te dice qué disco falta,</b> y busca fotos nuevas solo cuando vuelve.</span></li>
       </ul>
     </div>
-    <div class="art rv"><img src="art/drive.jpg" alt="An external drive sending photos into the air as light" loading="lazy"></div>
+    <div class="art rv"><img width="1344" height="752" src="art/drive.jpg" alt="An external drive sending photos into the air as light" loading="lazy"></div>
   </div>
 </section>
 
@@ -304,7 +305,7 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
     <div class="eyebrow rv"><span class="l en">Your photos on a map</span><span class="l es">Tus fotos en un mapa</span></div>
     <h2 class="rv"><span class="l en">The map is the way into your library.</span><span class="l es">El mapa es la puerta a tu biblioteca.</span></h2>
     <p class="lead rv"><span class="l en">Every place you have been, as pins. Rest on a pin and its albums slide in. Places are named on your own disk: a coordinate never leaves your computer.</span><span class="l es">Cada lugar donde has estado, como pines. Detente en un pin y sus álbumes aparecen. Los lugares se nombran en tu propio disco: una coordenada nunca sale de tu computadora.</span></p>
-    <div class="art mapshot rv"><img src="screenshots/map.png" alt="Piklin's map, with a pin for every place in the library" loading="lazy"></div>
+    <div class="art mapshot rv"><img width="1920" height="1055" src="screenshots/map.png" alt="Piklin's map, with a pin for every place in the library" loading="lazy"></div>
   </div>
 </section>
 
@@ -321,8 +322,8 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
       <div class="card rv"><div class="ic">☾</div><h3><span class="l en">Light and dark</span><span class="l es">Claro y oscuro</span></h3><p><span class="l en">Follows your computer. The photographs stay the brightest thing on the screen.</span><span class="l es">Sigue a tu computadora. Las fotografías siguen siendo lo más brillante de la pantalla.</span></p></div>
     </div>
     <div class="shots">
-      <div class="art rv"><img src="screenshots/editor.png" alt="The Piklin photo editor" loading="lazy"></div>
-      <div class="art rv"><img src="screenshots/video-editor.png" alt="The Piklin video editor" loading="lazy"></div>
+      <div class="art rv"><img width="1800" height="913" src="screenshots/editor.png" alt="The Piklin photo editor" loading="lazy"></div>
+      <div class="art rv"><img width="1400" height="900" src="screenshots/video-editor.png" alt="The Piklin video editor" loading="lazy"></div>
     </div>
   </div>
 </section>
@@ -422,6 +423,27 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
   setLang(lang);
 
   if (location.hash === "#all") Array.prototype.forEach.call(document.querySelectorAll(".rv"), function (e) { e.classList.add("in"); });
+
+  // ---- a link lands exactly on the section it names: the heading just under the bar,
+  // corrected once the pictures above have taken their room
+  var BAR = 96;
+  function spot(id) {
+    var sec = document.getElementById(id); if (!sec) return null;
+    var t = sec.querySelector(".eyebrow") || sec;
+    return Math.max(0, t.getBoundingClientRect().top + window.pageYOffset - BAR);
+  }
+  function goTo(id, smooth) {
+    var y = spot(id); if (y === null) return;
+    window.scrollTo({ top: y, behavior: smooth ? "smooth" : "auto" });
+    [500, 1100, 1900].forEach(function (ms) { setTimeout(function () { var y2 = spot(id); if (y2 !== null && Math.abs(window.pageYOffset - y2) > 2) window.scrollTo({ top: y2, behavior: "auto" }); }, ms); });
+  }
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest ? ev.target.closest('a[href^="#"]') : null; if (!a) return;
+    var id = a.getAttribute("href").slice(1); if (!id || !document.getElementById(id)) return;
+    ev.preventDefault(); history.replaceState(null, "", "#" + id); goTo(id, !matchMedia("(prefers-reduced-motion:reduce)").matches);
+  });
+  if (location.hash.length > 1 && location.hash !== "#all") window.addEventListener("load", function () { goTo(location.hash.slice(1), false); });
+
   // ---- reveal on scroll
   var io = "IntersectionObserver" in window ? new IntersectionObserver(function (es) {
     es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
