@@ -4,7 +4,20 @@
 <meta charset="utf-8">
 <script>(function(){var l="en";try{l=localStorage.getItem("piklin-lang")||""}catch(e){}if(l!=="en"&&l!=="es")l=/^es/i.test(navigator.language||"")?"es":"en";var h=document.documentElement;h.setAttribute("data-lang",l);h.lang=l})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script>try{history.scrollRestoration="manual"}catch(e){}if(!location.hash)window.scrollTo(0,0)</script>
+<script>
+// The page starts at the top, whatever the browser remembers or the pictures do while loading:
+// until the visitor scrolls on their own, anything that moves the page is put back.
+(function(){
+  try{history.scrollRestoration="manual"}catch(e){}
+  var named=location.hash.length>1&&location.hash!=="#all", moved=false, t0=Date.now();
+  ["wheel","touchstart","keydown","mousedown"].forEach(function(n){addEventListener(n,function(){moved=true},{passive:true,capture:true})});
+  function top(){ if(!named&&!moved&&location.hash!=="#all"&&window.pageYOffset>0) window.scrollTo(0,0); }
+  top();
+  addEventListener("scroll",function(){ if(Date.now()-t0<4000) top(); },{passive:true});
+  [60,200,500,1000,2000,3500].forEach(function(ms){setTimeout(top,ms)});
+  addEventListener("load",top); addEventListener("pageshow",top);
+})();
+</script>
 <meta name="theme-color" content="#04040a">
 <title>Piklin 2.0.6 — your photos, understood. Free and private for Linux and Mac</title>
 <meta name="description" content="Piklin is a free, private photo and video library and editor for Linux and Mac. It finds the people in your photos with no cloud, understands what you search for, and keeps your photos where you want them. Nothing leaves your computer.">
@@ -63,8 +76,9 @@ main,header,footer{position:relative;z-index:1}
 .lang button[aria-pressed=true]{background:#fff;color:#04040a}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:999px;background:linear-gradient(90deg,var(--cy),var(--vi));color:#04040a!important;font-weight:700;font-size:14px;text-decoration:none;box-shadow:0 0 24px #46e6ff55}
 /* hero */
+.orb{isolation:isolate}
 .hero{min-height:min(100vh,940px);display:flex;align-items:center;padding:120px 0 50px}
-.hero .wrap{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:20px;align-items:center}
+.hero .wrap{max-width:1320px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.06fr);gap:20px;align-items:center}
 .chip{display:inline-flex;align-items:center;gap:10px;padding:7px 14px;border:1px solid var(--line);border-radius:999px;background:#ffffff0a;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:#cfd4ea}
 .chip i{width:8px;height:8px;border-radius:50%;background:var(--cy);box-shadow:0 0 10px #46e6ffaa;animation:pulse 2.4s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.35}}
@@ -77,8 +91,9 @@ h1{font-size:clamp(40px,6.4vw,84px);line-height:1.02;letter-spacing:-.035em;font
 .btn.go{background:linear-gradient(100deg,var(--cy),var(--vi) 60%,var(--pk));color:#04040a;border-color:transparent;box-shadow:0 0 40px #7a6bff66}
 .btn.go:hover{box-shadow:0 0 60px #7a6bffaa}
 .meta{margin-top:18px;font-size:13.5px;color:#7f86a3}
-.orb{position:relative;aspect-ratio:1344/752;margin-right:-6vw;align-self:end;margin-bottom:-36px}
-.orb img{width:100%;height:100%;object-fit:cover;animation:float 9s ease-in-out infinite;transition:transform .2s ease-out;will-change:transform}
+.orb{position:relative;aspect-ratio:900/724;width:min(100%,720px);justify-self:center;margin-right:-2vw}
+.orb::before{content:"";position:absolute;inset:6% 4%;border-radius:50%;background:radial-gradient(circle at 50% 50%,#7a6bff5c 0%,#46e6ff26 38%,transparent 68%);filter:blur(34px);z-index:-1}
+.orb img{display:block;width:100%;height:auto;-webkit-mask-image:radial-gradient(ellipse 52% 52% at 50% 50%,#000 72%,transparent 100%);mask-image:radial-gradient(ellipse 52% 52% at 50% 50%,#000 72%,transparent 100%);animation:float 9s ease-in-out infinite;transition:transform .2s ease-out;will-change:transform}
 @keyframes float{50%{translate:0 -14px}}
 .stats{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:40px;border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--line)}
 .stats div{background:#07070f;padding:22px 24px}
@@ -157,7 +172,7 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
 .rv{opacity:0;transform:translateY(34px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
 .rv.in{opacity:1;transform:none}
 .center{text-align:center}.center .lead{margin-inline:auto}
-@media(max-width:900px){.hero .wrap,.split,.split.flip{grid-template-columns:1fr}.split.flip .art{order:0}.orb{margin:0;align-self:auto}.grid{grid-template-columns:1fr}.dl{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.shots{grid-template-columns:1fr}.top nav a:not(.pill){display:none}section{padding:80px 0}.hero{padding-top:110px}}
+@media(max-width:900px){.hero .wrap,.split,.split.flip{grid-template-columns:1fr}.split.flip .art{order:0}.orb{margin:0 auto}.grid{grid-template-columns:1fr}.dl{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.shots{grid-template-columns:1fr}.top nav a:not(.pill){display:none}section{padding:80px 0}.hero{padding-top:110px}}
 
 @media(max-width:900px){
   .hero .wrap,.split,.split.flip{grid-template-columns:minmax(0,1fr)}
@@ -176,8 +191,8 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
   h1{font-size:clamp(38px,12vw,52px);margin:18px 0 16px}
   .sub{font-size:16.5px;margin-bottom:26px}
   .btns{flex-direction:column;align-items:stretch}.btn{justify-content:center;padding:15px 22px}
-  .orb{margin:0 auto;width:100%;max-width:440px;height:auto;aspect-ratio:auto;overflow:visible}
-  .orb img{aspect-ratio:900/724;position:static;width:100%;max-width:none;height:auto;transform:none;-webkit-mask-image:none;mask-image:none}
+  .orb{margin:0 auto;width:min(100%,440px);justify-self:center}
+  .orb img{width:100%;height:auto}
   .hero .wrap{gap:0}
   .stats{margin-top:-18px;position:relative;z-index:2}.stats div{padding:16px 16px}.stats b{font-size:24px}.stats span{font-size:12.5px}
   section{padding:64px 0}
@@ -249,7 +264,7 @@ details.credits{width:100%;margin-top:18px;font-size:13px;color:var(--mute)}deta
       </div>
       <p class="meta"><span class="l en">Free for any use · Linux and macOS · version </span><span class="l es">Gratis para cualquier uso · Linux y macOS · versión </span><b id="dl-version">2.0.6</b></p>
     </div>
-    <div class="orb" id="orb"><picture><source media="(max-width:600px)" srcset="art/hero-m.webp"><img width="1344" height="752" src="art/hero.webp" alt="A glass globe of photos orbiting in the dark"></picture></div>
+    <div class="orb" id="orb"><img width="900" height="724" src="art/hero-m.webp" alt="A glass globe of photos orbiting in the dark"></div>
     <div class="stats">
       <div><b>0</b><span class="l en">bytes sent to a cloud</span><span class="l es">bytes enviados a una nube</span></div>
       <div><b>150,000</b><span class="l en">photos, tested on a normal computer</span><span class="l es">fotos, probado en una computadora normal</span></div>
