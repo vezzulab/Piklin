@@ -1,0 +1,55 @@
+# Sign the packages of a release with Piklin's release key, then publish it.
+#
+# Each computer builds its own platform (Linux, Mac, Windows) and uploads the
+# unsigned packages to a draft release with packaging/upload-release.sh. This
+# workflow signs every one of them with the secret PIKLIN_RELEASE_KEY, checks the
+# signature the way the updater will, and publishes the release. The private key
+# never leaves GitHub's secrets, so any computer can make a release.
+name: Sign and publish a release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v2.0.7"
+        required: true
+      publish:
+        description: "Publish the release when every package is signed"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  sign:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the packages
+        run: |
+          mkdir pkgs
+          gh release download "$TAG" --dir pkgs --pattern '*.deb' --pattern '*.AppImage' --pattern '*.dmg' --pattern '*.msi'
+          ls -l pkgs
+
+      - name: Sign and check
+        env:
+          KEY: ${{ secrets.PIKLIN_RELEASE_KEY }}
+        run: |
+          [ -n "$KEY" ] || { echo "Secret PIKLIN_RELEASE_KEY is not set" >&2; exit 1; }
+          umask 077
+          printf '%s\n' "$KEY" > "$RUNNER_TEMP/release-key.pem"
+          export PIKLIN_RELEASE_KEY="$RUNNER_TEMP/release-key.pem"
+          for f in pkgs/*; do packaging/sign-release.sh "$f"; done
+          rm -f "$RUNNER_TEMP/release-key.pem"
+
+      - name: Attach the signatures
+        run: gh release upload "$TAG" pkgs/*.sha256 pkgs/*.sha256.sig --clobber
+
+      - name: Publish
+        if: ${{ inputs.publish }}
+        run: gh release edit "$TAG" --draft=false --latest
