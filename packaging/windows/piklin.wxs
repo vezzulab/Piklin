@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Piklin" Language="1033" Version="@VERSION@" Manufacturer="Vezzu Studio"
+           UpgradeCode="6D1F3A52-8B0E-4C7A-9F43-2A5E1B7C9D10">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"
+             Description="Piklin, a free and private photo and video library" />
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of Piklin is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <Condition Message="Piklin needs 64-bit Windows 10 or 11.">
+      <![CDATA[Installed OR VersionNT64 >= 603]]>
+    </Condition>
+    <Icon Id="Piklin.ico" SourceFile="Piklin.ico" />
+    <Property Id="ARPPRODUCTICON" Value="Piklin.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/vezzulab/Piklin" />
+    <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <UIRef Id="WixUI_InstallDir" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="Piklin" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder" />
+      <Directory Id="DesktopFolder" />
+    </Directory>
+
+    <DirectoryRef Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="B3A7C2E1-5D4F-4E8A-A1B6-7C9D0E2F4A31" Win64="yes">
+        <Shortcut Id="StartShortcut" Name="Piklin" Description="Your photos and videos, private"
+                  Target="[INSTALLFOLDER]runtime\bin\Piklin.exe" WorkingDirectory="INSTALLFOLDER"
+                  Icon="Piklin.ico" />
+        <RemoveFolder Id="RmStart" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Vezzu Studio\Piklin" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="C4B8D3F2-6E50-4F9B-B2C7-8DAE1F305B42" Win64="yes">
+        <Shortcut Id="DeskShortcut" Name="Piklin" Target="[INSTALLFOLDER]runtime\bin\Piklin.exe"
+                  WorkingDirectory="INSTALLFOLDER" Icon="Piklin.ico" />
+        <RegistryValue Root="HKCU" Key="Software\Vezzu Studio\Piklin" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="Main" Title="Piklin" Level="1" ConfigurableDirectory="INSTALLFOLDER">
+      <ComponentGroupRef Id="PiklinFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+  </Product>
+</Wix>

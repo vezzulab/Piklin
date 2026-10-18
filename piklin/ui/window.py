@@ -1,6 +1,7 @@
 """The main window: sidebar, grid, viewer and editor in one navigation stack."""
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from datetime import datetime
@@ -1104,6 +1105,8 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         self._device_records = []
         self._device_imported = set()
         started = [False]
+        index_of: dict[str, int] = {}                 # a photo's path -> its place in the list
+        done = [0]                                    # pictures made so far
 
         def still_here():
             return self._device is not None and self._device.id == device.id
@@ -1115,6 +1118,8 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
                         return False
                     start = len(self._device_records)
                     self._device_records.extend(batch)
+                    for k, rec in enumerate(batch, start):
+                        index_of[rec["path"]] = k
                     if not started[0]:
                         started[0] = True
                         self._fill_import_albums()
@@ -1128,7 +1133,22 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
                     return False
                 GLib.idle_add(apply)
 
-            records = devicemod.scan_device(device, on_batch=on_batch)
+            def on_previews(made):
+                # Pictures made after the tiles were drawn (a phone gives the list first).
+                def apply():
+                    if not still_here():
+                        return False
+                    done[0] += len(made)
+                    self.grid.refresh_device_pictures(
+                        [index_of[r["path"]] for r in made if r["path"] in index_of])
+                    self.scan_label.set_text(
+                        _("Getting pictures from {device}… {done} of {count}").format(
+                            device=device.name, done=f"{done[0]:,}",
+                            count=f"{len(self._device_records):,}"))
+                    return False
+                GLib.idle_add(apply)
+
+            records = devicemod.scan_device(device, on_batch=on_batch, on_previews=on_previews)
             already = devicemod.already_imported(self.catalog, records)
 
             def finish():
@@ -1137,10 +1157,22 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
                     return False
                 if not started[0]:
                     self.grid.load_records([], subtitle=device.name, root=device.path)
+                    if device.uri.startswith("wpd://"):
+                        # A locked phone, or one not yet told to share its files,
+                        # opens but shows nothing.
+                        self._show_toast(_("Nothing to show on {device}. Unlock it, allow access "
+                                           "to its files, and open it again.").format(device=device.name))
                 elif already:
                     self._device_imported = already
                     self.grid.load_records(self._device_records, subtitle=device.name,
                                            already=already, root=device.path)
+                if device.uri.startswith("wpd://") and devicemod.wpd.take_problem(
+                        device.uri.split("://", 1)[1]) == "locked":
+                    # An iPhone locks itself after a short while, and then lists its photos
+                    # but will not give them.
+                    self._show_toast(_("{device} locked itself, so some pictures could not be read. "
+                                       "Keep it unlocked while Piklin reads it, then open it again.")
+                                     .format(device=device.name))
                 self._on_selection_changed(self.grid)
                 return False
             GLib.idle_add(finish)
@@ -1311,7 +1343,8 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
             return
         album_id = self._import_album_ids[self._import_album.get_selected()] \
             if self._import_album.get_selected() < len(self._import_album_ids) else None
-        delete_after = self._import_delete.get_active()
+        delete_after = (self._import_delete.get_active()
+                        and getattr(self._device, "can_delete", True))
         device = self._device
 
         def done(result):
@@ -2365,9 +2398,10 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
             return
         record = getattr(item, "record", None) or {}
         if record.get("camera") and not Path(item.path).exists():
-            # Still on a Mac's camera or phone: copy this one off to open it.
+            # Still on a camera or phone Piklin reaches through the system (a Mac's
+            # Image Capture, Windows' portable devices): copy this one off to open it.
             def work():
-                ok = devicemod.imagecapture.fetch(item.path)
+                ok = devicemod.fetch(item.path)
                 GLib.idle_add(lambda: (self._open_fetched(item) if ok else self._show_toast(
                     _("Couldn't read this photo from {device}.").format(
                         device=getattr(self._device, "name", ""))), False)[1])
@@ -2530,6 +2564,22 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
                 dialog.show_failed()
             return False
         threading.Thread(target=work, daemon=True).start()
+
+    def _say_update_result(self):
+        """After an update on Windows: say how it went (the update ran while Piklin
+        was closed, so this is the first moment to)."""
+        from .. import logs, updates, winupdate
+        result = winupdate.take_result()
+        if result:
+            version = str(result.get("version", ""))
+            if result.get("ok"):
+                logs.get("update").info("Updated to %s", version)
+                self._show_toast(_("Piklin was updated to {version}.").format(version=version))
+            else:
+                logs.get("update").warning("Update to %s did not install (code %s)",
+                                           version, result.get("code"))
+                self._show_toast(_("Piklin couldn't be updated. Try again from Check for Updates."))
+        return GLib.SOURCE_REMOVE
 
     def _reopen_when_idle(self):
         """Reopen in the new version once nothing would be cut short: no
@@ -2741,9 +2791,12 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         # favouriting, filing or trashing it has nothing to act on -
         # importing is the only thing that makes sense here.
         self._import_btn.set_visible(on_device)
-        for w in (self._import_album, self._import_album_label,
-                  self._import_delete):
+        for w in (self._import_album, self._import_album_label):
             w.set_visible(on_device)
+        # Piklin never deletes anything from a phone on Windows: whoever wants
+        # it gone does it on the phone.
+        self._import_delete.set_visible(
+            on_device and getattr(self._device, "can_delete", True))
         if on_device:
             n_new = len(self._new_device_records())
             self._import_btn.set_label(
@@ -4233,6 +4286,8 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         GLib.timeout_add(5000, lambda: (self._arrange_from_files(),
                                         self._correct_dates_from_names(), False)[2])
         GLib.timeout_add(2500, self._maybe_offer_menu_entry)
+        if sys.platform == "win32":
+            GLib.timeout_add_seconds(2, self._say_update_result)
         from . import onboarding
         pending = onboarding.take_pending(self.library.root)
         if pending is not None:
@@ -4427,9 +4482,8 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
         dialog.add_response("later", _("Later"))
         if pictures.is_dir():
             dialog.add_response("pictures", _("Use {folder}").format(folder=pictures.name))
-            dialog.set_response_appearance("pictures",
-                                           Adw.ResponseAppearance.SUGGESTED)
         dialog.add_response("choose", _("Choose Folder…"))
+        dialog.set_response_appearance("choose", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_close_response("later")      # Escape means "Later"
 
         # The language comes first: nothing has happened yet, so picking one

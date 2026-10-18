@@ -3,6 +3,8 @@ to the one on offer, what the new one brings in a few words, and Install
 Now or Cancel. Installing, and how it went, are shown here too."""
 from __future__ import annotations
 
+import sys
+
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -156,10 +158,19 @@ class UpdateDialog(Adw.Dialog):
         self._stack.set_visible_child_name("message")
 
     def show_installed(self):
-        self._show_message(
-            "emblem-ok-symbolic",
-            _("Piklin {version} is installed").format(version=self._release.version),
-            _("Piklin will reopen in a moment."), [])
+        if sys.platform == "win32":
+            # Windows replaces Piklin's files only once it has closed: it asks for
+            # permission, installs, and opens Piklin again.
+            self._show_message(
+                "emblem-ok-symbolic",
+                _("Piklin {version} is ready to install").format(version=self._release.version),
+                _("Piklin will close, Windows will ask for permission, and Piklin "
+                  "reopens in the new version."), [])
+        else:
+            self._show_message(
+                "emblem-ok-symbolic",
+                _("Piklin {version} is installed").format(version=self._release.version),
+                _("Piklin will reopen in a moment."), [])
         GLib.timeout_add(2500, lambda: (self.force_close(), False)[1])
 
     def show_failed(self):

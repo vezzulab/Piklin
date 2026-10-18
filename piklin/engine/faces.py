@@ -30,6 +30,8 @@ def model_path() -> Path | None:
     candidates = [
         here.parent.parent.parent / "data" / "models" / MODEL_NAME,
         here.parent.parent / "data" / "models" / MODEL_NAME,
+        # installed on Windows: Piklin\app\piklin\engine, with Piklin\data beside app
+        here.parent.parent.parent.parent / "data" / "models" / MODEL_NAME,
         Path("/usr/share/piklin/models") / MODEL_NAME,
     ]
     import os

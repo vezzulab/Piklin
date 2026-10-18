@@ -1643,7 +1643,11 @@ def _find_font(bold: bool = False) -> str | None:
     names = (["DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf", "Arial_Bold.ttf"]
              if bold else
              ["DejaVuSans.ttf", "LiberationSans-Regular.ttf", "Arial.ttf"])
-    dirs = [_P(__file__).resolve().parent.parent.parent / "data" / "fonts"]
+    here = _P(__file__).resolve()
+    dirs = [here.parent.parent.parent / "data" / "fonts",
+            here.parents[3] / "data" / "fonts"]          # installed on Windows
+    if os.environ.get("WINDIR"):
+        dirs.append(_P(os.environ["WINDIR"]) / "Fonts")
     if os.environ.get("APPDIR"):
         dirs.append(_P(os.environ["APPDIR"]) / "usr/share/piklin/fonts")
     dirs += [_P("/usr/share/piklin/fonts"),

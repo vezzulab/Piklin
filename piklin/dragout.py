@@ -29,6 +29,8 @@ KEEP_FOR = 24 * 3600
 def cache_dir() -> Path:
     if sys.platform == "darwin":
         base = Path.home() / "Library" / "Caches" / "Piklin"
+    elif sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "Piklin" / "Cache"
     else:
         base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "piklin"
     return base / "dragged"

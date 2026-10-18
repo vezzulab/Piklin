@@ -1,0 +1,2 @@
+# Build scripts run in MSYS2/Linux shells: keep their line endings as LF on Windows.
+*.sh text eol=lf

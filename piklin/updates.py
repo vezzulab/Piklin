@@ -9,8 +9,9 @@ An installed .deb updates itself: /usr/lib/piklin/piklin-update, run through
 pkexec, downloads the new version, installs it only if it is signed with
 Vezzu Studio's release key, and Piklin then reopens. Piklin.app does the same
 on a Mac with the disk image (see the macOS part below), and the AppImage
-replaces its own file. Anywhere none can (running from source, an old
-package) Piklin points to the download.
+replaces its own file. On Windows Piklin checks the new .msi, closes, and has
+Windows install it after asking permission (see winupdate.py). Anywhere none
+can (running from source, an old package) Piklin points to the download.
 """
 from __future__ import annotations
 
@@ -21,6 +22,7 @@ import plistlib
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.request
@@ -52,13 +54,14 @@ def can_install_itself() -> bool:
     and for Piklin.app or the AppImage in a folder it is allowed to replace
     itself in.
 
-    Not on Windows: there Piklin is installed from its .msi, which is what
-    replaces it, and a program that overwrites its own installation behind
-    Windows Installer's back leaves it with a record of something that is
-    no longer there. Piklin still says when a new version exists.
+    On Windows, for the installed program: it checks the new .msi, closes, and
+    Windows Installer replaces it after the person gives permission - Piklin
+    cannot overwrite itself while it runs, and doing it behind Windows
+    Installer's back would leave it with a record of something no longer there.
     """
     if system.IS_WINDOWS:
-        return False
+        from . import winupdate
+        return winupdate.available()
     image = _appimage()
     if image is not None:
         return (image.is_file() and os.access(image, os.W_OK)
@@ -79,6 +82,13 @@ def install(version: str) -> None:
         return _install_appimage(version)
     if system.IS_MAC:
         return _install_mac(version)
+    if system.IS_WINDOWS:
+        # Checked and put aside, permission asked for here, in the window the person
+        # clicked in; installed once Piklin has closed (winupdate.py).
+        from . import winupdate
+        winupdate.stage(version)
+        winupdate.authorize()
+        return
     kinds = {3: "not-newer", 4: "download", 5: "verification", 6: "install",
              126: "cancelled", 127: "cancelled"}
     try:
@@ -176,6 +186,8 @@ def build_asset(version: str) -> str:
         return appimage_names(version)[0] + ".build"
     if system.IS_MAC:
         return f"Piklin-{version}.dmg.build"
+    if system.IS_WINDOWS:
+        return f"Piklin-{version}-x64.msi.build"
     return f"piklin_{version}_{_arch()}.deb.build"
 
 
@@ -186,6 +198,9 @@ def launcher() -> str:
     image = _appimage()
     if image is not None:
         return str(image)
+    if system.IS_WINDOWS:
+        from . import winupdate
+        return winupdate.launcher() or sys.executable
     app = _mac_app() if system.IS_MAC else None
     return str(app / "Contents" / "MacOS" / "Piklin") if app else LAUNCHER
 

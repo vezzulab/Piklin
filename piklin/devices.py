@@ -20,6 +20,7 @@ one code path covers all three shapes a camera actually arrives in:
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -30,7 +31,9 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
+from . import drives
 from . import imagecapture
+from . import wpd
 from . import imageio as iio
 from . import system
 from .i18n import _
@@ -50,6 +53,12 @@ class Device:
     icon: str = "camera-photo-symbolic"
     kind: str = "storage"        # storage | camera | phone
     mount: object = field(default=None, repr=False)
+
+    @property
+    def can_delete(self) -> bool:
+        """Whether Piklin may remove photos from it after importing them. Not from
+        a phone on Windows: what is on it is only ever removed by its owner."""
+        return not self.uri.startswith("wpd://")
 
     @property
     def available(self) -> bool:
@@ -83,6 +92,8 @@ def _is_external(mount, path: Path) -> bool:
             return True
     except Exception:
         pass
+    if sys.platform == "win32":
+        return drives.is_removable(path)
     return str(path).startswith(("/media/", "/run/media/"))
 
 
@@ -154,6 +165,8 @@ def list_devices() -> list[Device]:
         if kind == "storage":
             if path is None:
                 continue
+            if sys.platform == "win32" and not drives.is_removable(path):
+                continue                  # the computer's own disks are not devices
             if not _looks_like_camera(path):
                 if not _is_external(mount, path):
                     continue
@@ -195,6 +208,13 @@ def list_devices() -> list[Device]:
             id=uri, name=cam["name"] or _("Camera"), path=Path(cam["root"]), uri=uri,
             icon="phone-symbolic" if cam["phone"] else "camera-photo-symbolic",
             kind="phone" if cam["phone"] else "camera"))
+    # Phones and cameras on Windows (Windows Portable Devices).
+    for dev in wpd.devices():
+        uri = f"wpd://{dev['id']}"
+        devices.append(Device(
+            id=uri, name=dev["name"] or _("Camera"), path=Path(dev["root"]), uri=uri,
+            icon="phone-symbolic" if dev["phone"] else "camera-photo-symbolic",
+            kind="phone" if dev["phone"] else "camera"))
     return devices
 
 
@@ -209,7 +229,7 @@ def photo_dirs(device: Device) -> list[Path]:
 
 
 def scan_device(device: Device, limit: int = 10000,
-                read_metadata: bool = False, on_batch=None) -> list[dict]:
+                read_metadata: bool = False, on_batch=None, on_previews=None) -> list[dict]:
     """Read what is on the device, without touching the catalog.
 
     By default this only lists the files - name, size, modification time
@@ -224,6 +244,9 @@ def scan_device(device: Device, limit: int = 10000,
     if device.uri.startswith("imagecapture://"):
         return imagecapture.scan(device.uri.split("://", 1)[1], exts,
                                  on_batch=on_batch, limit=limit)
+    if device.uri.startswith("wpd://"):
+        return wpd.scan(device.uri.split("://", 1)[1], exts, on_batch=on_batch, limit=limit,
+                        on_previews=on_previews)
     records: list[dict] = []
     # ``on_batch`` receives what was found so far every few hundred files or
     # fraction of a second, so a big drive shows its first photos at once.
@@ -263,6 +286,14 @@ def scan_device(device: Device, limit: int = 10000,
                     return records
     hand_over()
     return records
+
+
+def fetch(path: str) -> bool:
+    """Copy one photo off a phone or camera that is not mounted as a folder
+    (a Mac's Image Capture, Windows' portable devices), so it can be opened."""
+    if wpd.is_camera_path(str(path)):
+        return wpd.fetch(str(path))
+    return imagecapture.fetch(str(path))
 
 
 def files_from_paths(paths, limit: int = 20000) -> list[dict]:
@@ -421,7 +452,7 @@ def import_photos(library, records: list[dict], on_progress=None,
         # folder standing in for the device, and removed from there after.
         staged = bool(rec.get("camera"))
         try:
-            if staged and not imagecapture.fetch(str(src)):
+            if staged and not fetch(str(src)):
                 return ("failed", src, None)
             # Filing by date means the date the shutter fired, not the
             # file's timestamp - so if this record came from the fast
@@ -667,6 +698,8 @@ def delete_from_device(paths) -> tuple[int, int]:
     if on_camera:
         removed, failed = imagecapture.delete(on_camera)
         paths = [p for p in paths if p not in on_camera]
+    # Never from a phone Windows reaches through WPD, whatever was asked.
+    paths = [p for p in paths if not wpd.is_camera_path(str(p))]
     for path in paths:
         try:
             Gio.File.new_for_path(str(path)).delete(None)
@@ -701,6 +734,8 @@ class DeviceWatcher:
                 self._folder_monitor = None
         # Cameras and phones on a Mac (Image Capture); nothing elsewhere.
         imagecapture.start(self._changed)
+        # Phones and cameras on Windows.
+        wpd.start(self._changed)
 
     def _changed(self, *_args):
         # A mount is announced before its filesystem is necessarily
@@ -722,6 +757,7 @@ class DeviceWatcher:
                 pass
         self._handlers = []
         imagecapture.stop_listening(self._changed)
+        wpd.stop_listening(self._changed)
         if self._folder_monitor is not None:
             self._folder_monitor.cancel()
             self._folder_monitor = None

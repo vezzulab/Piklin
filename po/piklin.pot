@@ -6787,3 +6787,41 @@ msgstr ""
 #: piklin/video_edit.py:601
 msgid "No frames to put in the GIF."
 msgstr ""
+
+#: piklin/ui/window.py:1149
+#, python-brace-format
+msgid "Nothing to show on {device}. Unlock it, allow access to its files, and open it again."
+msgstr ""
+
+#: piklin/ui/update_dialog.py
+#, python-brace-format
+msgid "Piklin {version} is ready to install"
+msgstr ""
+
+#: piklin/ui/update_dialog.py
+#, python-brace-format
+msgid "Piklin will close, Windows will ask for permission, and Piklin reopens in the new version."
+msgstr ""
+
+#: piklin/ui/update_dialog.py
+#, python-brace-format
+msgid "Piklin was updated to {version}."
+msgstr ""
+
+#: piklin/ui/update_dialog.py
+#, python-brace-format
+msgid "Piklin couldn't be updated. Try again from Check for Updates."
+msgstr ""
+
+#: piklin/ui/onboarding.py
+msgid "Only the Piklin Folder"
+msgstr ""
+
+#: piklin/ui/onboarding.py
+msgid "Start with what is in your Piklin library. Add other folders whenever you like"
+msgstr ""
+
+#: piklin/ui/window.py
+#, python-brace-format
+msgid "{device} locked itself, so some pictures could not be read. Keep it unlocked while Piklin reads it, then open it again."
+msgstr ""

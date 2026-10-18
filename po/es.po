@@ -6545,3 +6545,41 @@ msgstr "Un GIF puede durar como máximo {limit} segundos; este duraría {length}
 #: piklin/video_edit.py:601
 msgid "No frames to put in the GIF."
 msgstr "No hay fotogramas para el GIF."
+
+#: piklin/ui/window.py:1149
+#, python-brace-format
+msgid "Nothing to show on {device}. Unlock it, allow access to its files, and open it again."
+msgstr "No hay nada que mostrar en {device}. Desbloquéalo, permite el acceso a sus archivos y ábrelo de nuevo."
+
+#: piklin/ui/update_dialog.py
+#, python-brace-format
+msgid "Piklin {version} is ready to install"
+msgstr "Piklin {version} está listo para instalarse"
+
+#: piklin/ui/update_dialog.py
+#, python-brace-format
+msgid "Piklin will close, Windows will ask for permission, and Piklin reopens in the new version."
+msgstr "Piklin se cerrará, Windows pedirá permiso y Piklin se abrirá de nuevo en la versión nueva."
+
+#: piklin/ui/update_dialog.py
+#, python-brace-format
+msgid "Piklin was updated to {version}."
+msgstr "Piklin se actualizó a la versión {version}."
+
+#: piklin/ui/update_dialog.py
+#, python-brace-format
+msgid "Piklin couldn't be updated. Try again from Check for Updates."
+msgstr "No se pudo actualizar Piklin. Inténtalo de nuevo desde Buscar actualizaciones."
+
+#: piklin/ui/onboarding.py
+msgid "Only the Piklin Folder"
+msgstr "Solo la carpeta de Piklin"
+
+#: piklin/ui/onboarding.py
+msgid "Start with what is in your Piklin library. Add other folders whenever you like"
+msgstr "Empieza con lo que hay en tu biblioteca de Piklin. Añade otras carpetas cuando quieras"
+
+#: piklin/ui/window.py
+#, python-brace-format
+msgid "{device} locked itself, so some pictures could not be read. Keep it unlocked while Piklin reads it, then open it again."
+msgstr "{device} se bloqueó solo y no se pudieron leer algunas imágenes. Mantenlo desbloqueado mientras Piklin lo lee y ábrelo de nuevo."

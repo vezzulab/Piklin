@@ -3,13 +3,13 @@
 </p>
 
 <p align="center">
-  <strong>A free and private photo and video library for Linux and Mac.</strong><br>
+  <strong>A free and private photo and video library for Windows, Linux and Mac.</strong><br>
   Organize, edit and share your memories. They never leave your computer.
 </p>
 
 <p align="center">
-  <a href="https://github.com/vezzulab/Piklin/releases"><img src="https://img.shields.io/badge/download-.dmg%20%7C%20.deb%20%7C%20AppImage-0b0b0b?style=flat-square" alt="Download"></a>
-  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-0b0b0b?style=flat-square" alt="Platform: Linux and macOS">
+  <a href="https://github.com/vezzulab/Piklin/releases"><img src="https://img.shields.io/badge/download-.msi%20%7C%20.dmg%20%7C%20.deb%20%7C%20AppImage-0b0b0b?style=flat-square" alt="Download"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-0b0b0b?style=flat-square" alt="Platform: Windows, Linux and macOS">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Piklin%20License-0b0b0b?style=flat-square" alt="License: Piklin License"></a>
   <a href="https://ko-fi.com/vezzustudio"><img src="https://img.shields.io/badge/support-Ko--fi-0b0b0b?style=flat-square" alt="Support on Ko-fi"></a>
 </p>
@@ -157,6 +157,18 @@ Use Piklin on more than one computer with the same NAS or cloud folder, and each
 
 Download from **[Releases](https://github.com/vezzulab/Piklin/releases/latest)**. Piklin updates itself afterwards, and your library, albums, edits and backups stay as they are.
 
+### Windows
+
+1. Download `Piklin-<version>-x64.msi` and open it. It installs for every user of the computer, so Windows asks for permission once.
+2. Windows may say *"Windows protected your PC"* (SmartScreen). That is expected: Piklin is free and its installer is not signed with a paid certificate. Click **More info**, then **Run anyway**.
+3. Open Piklin from the Start menu or the desktop. Your library is created in your Pictures folder.
+
+**Supported systems:** Windows 10 and Windows 11, 64-bit. Piklin brings everything it needs, GTK 4 included.
+
+To update, download the newer `.msi` and open it: it replaces the old one and keeps your library, albums, edits and backups. To remove Piklin, use **Settings › Apps**; your photos and library are not deleted.
+
+Phones that connect as a media device (iPhone, Android) cannot be imported from inside Piklin on Windows yet. Copy the photos to a folder, or use a camera card, an external drive or a drag from File Explorer, and Piklin takes it from there.
+
 ### Linux
 
 Download the `.deb` for your computer - `amd64` for most PCs, `arm64` for 64-bit ARM computers - and, in the folder where you saved it, run:
@@ -237,6 +249,13 @@ The `.deb` for either architecture can also be built in Docker, on Linux or a Ma
 
 ```bash
 packaging/build-deb-docker.sh arm64     # or amd64
+```
+
+On Windows, with [MSYS2](https://www.msys2.org) (UCRT64 shell) and the [WiX Toolset 3.14](https://github.com/wixtoolset/wix3/releases) binaries unpacked in `C:\piklin-build\wix`:
+
+```bash
+pacman -S --needed $(grep -v '^#' packaging/windows/msys2-packages.txt)
+packaging/windows/build-windows.sh      # builds the program folder and dist/Piklin-<version>-x64.msi
 ```
 
 On a Mac with Xcode, Homebrew (Apple Silicon, plus Intel Homebrew in `/usr/local` for the Intel half) and Rust:

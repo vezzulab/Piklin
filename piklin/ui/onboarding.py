@@ -124,7 +124,10 @@ class FirstSteps(Adw.Dialog):
         self.choices = {
             "language": self._original_language,
             "library": self._current_library.parent,
-            "photos": "pictures" if self._pictures else "later",
+            # Only what is in Piklin's own folder, to begin with: the Pictures
+            # folder holds screenshots, wallpapers and everything else, and Piklin
+            # should not fill with it unless the person chooses it.
+            "photos": "later",
             "folders": [],
             "backup": "none",
         }
@@ -350,8 +353,8 @@ class FirstSteps(Adw.Dialog):
             ("restore", "document-revert-symbolic", _("Restore From a Backup"),
              _("Bring back a library from a drive, NAS or cloud service where Piklin "
                "made a backup")),
-            ("later", "document-open-recent-symbolic", _("Not Now"),
-             _("Start with an empty library and add folders whenever you like")),
+            ("later", "document-open-recent-symbolic", _("Only the Piklin Folder"),
+             _("Start with what is in your Piklin library. Add other folders whenever you like")),
         ]
         return self._frame(
             "image-x-generic-symbolic", _("Your Photos"),
@@ -395,7 +398,7 @@ class FirstSteps(Adw.Dialog):
                   "folder": _tilde(c["folders"][0]) if c["folders"] else "",
                   "drive": _tilde(c["folders"][0]) if c["folders"] else "",
                   "restore": _("Restore From a Backup"),
-                  "later": _("Not Now")}.get(c["photos"], "")
+                  "later": _("Only the Piklin Folder")}.get(c["photos"], "")
         backup = {"local": _("Folder or Drive"), "webdav": _("NAS or WebDAV Server"),
                   "rclone": _("Cloud Service")}.get(c["backup"], _("Not Now"))
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)

@@ -200,7 +200,11 @@ class PeopleView(Gtk.ScrolledWindow):
         threading.Thread(target=work, daemon=True, name="people-view").start()
 
     def _compute(self, forced: bool = True) -> dict:
-        data = {"enabled": bool(self.settings.get("people_enabled")),
+        enabled = bool(self.settings.get("people_enabled"))
+        if not enabled and self.catalog.scalar("SELECT COUNT(*) FROM people", (), 0):
+            enabled = True          # sent by another computer: see PeopleWatch.enabled
+            self.settings.set("people_enabled", True)
+        data = {"enabled": enabled,
                 "available": people.available()}
         if not (data["enabled"] and data["available"]):
             return data

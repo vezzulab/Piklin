@@ -12,6 +12,15 @@ if sys.platform == "darwin":
     # Its fontconfig backend finds fonts the way it does on Linux. Set before
     # anything loads Pango.
     os.environ.setdefault("PANGOCAIRO_BACKEND", "fontconfig")
+elif sys.platform == "win32":
+    # Pango draws with Windows' own font system, which never sees a font added
+    # for this process alone (Inter). Its fontconfig backend does.
+    os.environ.setdefault("PANGOCAIRO_BACKEND", "fc")
+    # GTK draws on the graphics card only through Direct Composition here; without
+    # it the window falls back to drawing with the processor (twice the time per
+    # frame, measured). If the card can't do it, GTK falls back by itself.
+    if "dcomp" not in os.environ.get("GDK_DEBUG", ""):
+        os.environ["GDK_DEBUG"] = (os.environ.get("GDK_DEBUG", "") + " dcomp").strip()
 
 # OpenCV's FFmpeg prints a line for every frame it cannot decode (AV1 on a
 # computer without the graphics card for it): the log is not for that.
@@ -543,6 +552,7 @@ def main(argv=None):
     # Before any thread starts: how memory is shared out between them.
     from . import system
     system.tune_malloc()
+    system.raise_timer_resolution()
     # The language comes first: every window and message is built in it.
     from . import i18n
     i18n.setup()
@@ -574,6 +584,12 @@ def main(argv=None):
     # Open Library...: the window is bound to one catalog, so another
     # library opens in a fresh process once this one has fully quit.
     target = getattr(app, "relaunch_library", None)
+    if target and sys.platform == "win32" and getattr(app, "relaunch_update", False):
+        # An update waiting to be installed: Windows replaces Piklin's files only
+        # once it has closed, so a script does it and opens Piklin again.
+        from . import winupdate
+        if winupdate.start_installer(target):
+            return status
     if target:
         from .updates import _appimage, launcher
         start = launcher()

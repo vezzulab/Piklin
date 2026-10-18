@@ -28,6 +28,8 @@ _ready = False
 
 
 def log_dir() -> Path:
+    if sys.platform == "win32":
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "Piklin" / "Logs"
     base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
     return Path(base) / "piklin"
 
@@ -94,6 +96,9 @@ def setup(version: str) -> None:
         chip = "Apple Silicon" if platform.machine() == "arm64" else "Intel"
         distro = f"macOS {platform.mac_ver()[0] or ''} ({chip})".replace("  ", " ")
         session = "Aqua"
+    elif sys.platform == "win32":
+        distro = f"Windows {platform.release()} ({platform.version()})"
+        session = "Windows"
     else:
         try:
             distro = platform.freedesktop_os_release().get("PRETTY_NAME", "Linux")

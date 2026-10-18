@@ -65,7 +65,11 @@ def relocate(library, catalog, settings) -> int:
     """
     new = str(library.root)
     old = str(settings.get(LAST_ROOT_KEY) or "").rstrip("/")
-    if not old or old == new:
+    # The same place spelled with '/' (a library opened on another system, or
+    # recorded by an older version) is not a move: treating it as one made
+    # every start go through the catalog and the library's files again.
+    same = bool(old) and os.path.normcase(os.path.normpath(old)) == os.path.normcase(os.path.normpath(new))
+    if not old or old == new or same:
         if old != new:
             settings.set(LAST_ROOT_KEY, new)
         return 0

@@ -811,7 +811,10 @@ class PhotoGrid(Gtk.Box):
             vb.add_css_class("pika-video-badge")
             vb.append(Gtk.Image(icon_name="media-playback-start-symbolic",
                                 pixel_size=9))
-            vb.append(Gtk.Label(label=format_duration(item.duration)))
+            # A video whose length is not known yet (on a phone, until it is
+            # copied) shows no length rather than a wrong 0:00.
+            if item.duration:
+                vb.append(Gtk.Label(label=format_duration(item.duration)))
             badges.append(vb)
         if getattr(item, "has_live", False):
             live = Gtk.Label(label="LIVE")
@@ -1060,7 +1063,15 @@ class PhotoGrid(Gtk.Box):
 
     def _texture_px(self) -> int:
         """Device pixels a tile is drawn with: its size times the screen's scale."""
-        return int(self.tile_px * max(1, self.get_scale_factor()))
+        # Asked of the window for every tile it was slow on Windows: kept.
+        scale = getattr(self, "_scale_seen", None)
+        if scale is None:
+            scale = self._scale_seen = max(1, self.get_scale_factor())
+            if not getattr(self, "_scale_watched", False):
+                self._scale_watched = True
+                self.connect("notify::scale-factor",
+                             lambda *_: setattr(self, "_scale_seen", None))
+        return int(self.tile_px * scale)
 
     def _request_thumb(self, item, picture, known=None):
         """Fetch the thumbnail and paint it. ``known``: the thumbnail file
@@ -1340,6 +1351,18 @@ class PhotoGrid(Gtk.Box):
                          "{count} items already in your library",
                          len(old)).format(count=len(old)) if i == 0 else "", chunk))
         self._items.extend(old)
+
+    def refresh_device_pictures(self, indexes) -> None:
+        """Photos on a device whose small picture has been made since their tile asked
+        for it (the list comes first, the pictures after): ask again, so they appear."""
+        for index in indexes:
+            item = self._by_id.get(-(index + 1))
+            widgets = self._tile_widgets.get(item.id) if item is not None else None
+            if not widgets:
+                continue                        # not on screen: it asks when it is
+            for w in widgets:
+                w.remove_css_class("pika-tile-missing")
+            self._request_thumb(item, widgets[0])
 
     def append_records(self, records, start) -> None:
         """More photos found on a device while it is still being read."""

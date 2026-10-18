@@ -780,6 +780,22 @@ ES = {
     "There is already a file named “{name}”.": "Ya hay un archivo llamado “{name}”.",
     "Couldn’t Rename": "No se pudo cambiar el nombre",
     "Couldn't read this photo from {device}.": "No se pudo leer esta foto de {device}.",
+    "{device} locked itself, so some pictures could not be read. Keep it unlocked while Piklin reads it, then open it again.":
+        "{device} se bloqueó solo y no se pudieron leer algunas imágenes. Mantenlo desbloqueado mientras Piklin lo lee y ábrelo de nuevo.",
+    "Only the Piklin Folder":
+        "Solo la carpeta de Piklin",
+    "Start with what is in your Piklin library. Add other folders whenever you like":
+        "Empieza con lo que hay en tu biblioteca de Piklin. Añade otras carpetas cuando quieras",
+    "Piklin {version} is ready to install":
+        "Piklin {version} está listo para instalarse",
+    "Piklin will close, Windows will ask for permission, and Piklin reopens in the new version.":
+        "Piklin se cerrará, Windows pedirá permiso y Piklin se abrirá de nuevo en la versión nueva.",
+    "Piklin was updated to {version}.":
+        "Piklin se actualizó a la versión {version}.",
+    "Piklin couldn't be updated. Try again from Check for Updates.":
+        "No se pudo actualizar Piklin. Inténtalo de nuevo desde Buscar actualizaciones.",
+    "Nothing to show on {device}. Unlock it, allow access to its files, and open it again.":
+        "No hay nada que mostrar en {device}. Desbloquéalo, permite el acceso a sus archivos y ábrelo de nuevo.",
     "OK": "Aceptar",
 
     # -- preferences -------------------------------------------------------------------------

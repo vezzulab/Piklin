@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 import uuid
@@ -1014,8 +1015,30 @@ class Catalog:
     def photo(self, photo_id: int) -> sqlite3.Row | None:
         return self.q1("SELECT * FROM photos WHERE id=?", (photo_id,))
 
+    def here(self, path: str) -> str:
+        """A photo path as this catalog spells it. On Windows a path can arrive
+        written another way - with '\' or '/' the other way round, or as another
+        computer's path to the library's Originals folder (Linux, Mac) - and
+        none of those would equal what is stored: album covers and folder
+        pictures made elsewhere then showed nothing."""
+        path = str(path)
+        if sys.platform != "win32":
+            return path
+        found = re.search(r"[\/]Originals[\/](.+)$", path)
+        if found is not None:
+            if getattr(self, "_originals", None) is None:
+                row = self.q1("SELECT path FROM roots WHERE in_library=1 LIMIT 1")
+                self._originals = row["path"] if row else ""
+            if self._originals and not os.path.normpath(path).startswith(
+                    os.path.normpath(self._originals)):
+                return os.path.normpath(os.path.join(self._originals, found.group(1)))
+        return os.path.normpath(path)
+
     def photo_by_path(self, path: str) -> sqlite3.Row | None:
-        return self.q1("SELECT * FROM photos WHERE path=?", (str(path),))
+        row = self.q1("SELECT * FROM photos WHERE path=?", (str(path),))
+        if row is None and sys.platform == "win32":
+            row = self.q1("SELECT * FROM photos WHERE path=?", (self.here(path),))
+        return row
 
     def browse(
         self,
@@ -1247,7 +1270,8 @@ class Catalog:
     def set_folder_cover(self, folder_id: int, path: str | None) -> None:
         """The photo shown for the folder; None goes back to its first album's cover."""
         with self.write() as cur:
-            cur.execute("UPDATE folders SET cover_path=? WHERE id=?", (path, folder_id))
+            cur.execute("UPDATE folders SET cover_path=? WHERE id=?",
+                        (self.here(path) if path else path, folder_id))
 
     def folder_cover_path(self, folder_id: int) -> str | None:
         """The chosen cover, while that photo is still in the library."""

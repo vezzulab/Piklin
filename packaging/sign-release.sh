@@ -3,10 +3,11 @@
 #
 #   packaging/sign-release.sh dist/piklin_1.0.4_amd64.deb
 #   packaging/sign-release.sh dist/Piklin-1.0.4.dmg
+#   packaging/sign-release.sh dist/Piklin-2.0.7-x64.msi
 #
 # Writes <file>.sha256 and <file>.sha256.sig beside it; upload both with the
 # package to the GitHub release (and the .build file the build wrote). Piklin's
-# updater refuses a package without a valid signature, on Linux and on a Mac.
+# updater refuses a package without a valid signature, on Linux, on a Mac and on Windows.
 #
 # The private key never enters the repository. It lives in
 #   ~/.config/vezzu-studio/piklin-release-key.pem   (or $PIKLIN_RELEASE_KEY)
@@ -23,7 +24,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
 KEY="${PIKLIN_RELEASE_KEY:-$HOME/.config/vezzu-studio/piklin-release-key.pem}"
 PUB="$HERE/deb/release-key.pem"
-FILE="${1:?usage: sign-release.sh path/to/piklin_VERSION_ARCH.deb | path/to/Piklin-VERSION.dmg}"
+FILE="${1:?usage: sign-release.sh path/to/piklin_VERSION_ARCH.deb | path/to/Piklin-VERSION.dmg | path/to/Piklin-VERSION-x64.msi}"
 
 [ -f "$FILE" ] || { echo "No such package: $FILE" >&2; exit 1; }
 [ -f "$KEY" ] || { echo "No release key at $KEY" >&2; exit 1; }
@@ -39,7 +40,7 @@ fi
 dir="$(cd "$(dirname "$FILE")" && pwd)"
 name="$(basename "$FILE")"
 if command -v sha256sum >/dev/null; then
-  (cd "$dir" && sha256sum "$name" > "$name.sha256")
+  (cd "$dir" && sha256sum --text "$name" > "$name.sha256")
 else
   (cd "$dir" && shasum -a 256 "$name" > "$name.sha256")
 fi
@@ -50,13 +51,13 @@ case "$name" in
   *.deb)
     python3 -I "$HERE/deb/piklin-update" --verify-only \
         "$(dpkg-deb -f "$FILE" Version)" "$dir" "$PUB" ;;
-  *.dmg|*.AppImage)
+  *.dmg|*.AppImage|*.msi)
     PYTHONPATH="$ROOT" python3 -c '
 import sys
 from pathlib import Path
 from piklin.updates import verify_signed
 verify_signed(Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3]).read_text())
 ' "$dir" "$name" "$PUB" ;;
-  *) echo "Not a .deb, .dmg or .AppImage: $name" >&2; exit 1 ;;
+  *) echo "Not a .deb, .dmg, .msi or .AppImage: $name" >&2; exit 1 ;;
 esac
 echo "Signed: $dir/$name.sha256 and $dir/$name.sha256.sig"

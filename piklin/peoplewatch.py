@@ -85,7 +85,18 @@ class PeopleWatch:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.settings.get("people_enabled"))
+        if self.settings.get("people_enabled"):
+            return True
+        # People another computer found and named arrive with the backup: they
+        # are already here to see, and nobody should have to turn People on and
+        # look at every photo again on each computer.
+        try:
+            if self.catalog.scalar("SELECT COUNT(*) FROM people", (), 0):
+                self.settings.set("people_enabled", True)
+                return True
+        except Exception:
+            pass
+        return False
 
     def set_enabled(self, on: bool) -> None:
         self.settings.set("people_enabled", bool(on))

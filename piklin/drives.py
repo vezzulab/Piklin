@@ -17,8 +17,66 @@ import sys
 from pathlib import Path
 
 
+def _windows_drives() -> list[Path]:
+    """The drive letters in use, other than the one Windows is on."""
+    import ctypes
+    own = (os.environ.get("SystemDrive") or "C:").upper()[:2]
+    mask = ctypes.windll.kernel32.GetLogicalDrives()
+    return [Path(f"{chr(65 + i)}:/") for i in range(26)
+            if mask & (1 << i) and f"{chr(65 + i)}:" != own]
+
+
+def _windows_label(root: str) -> str:
+    """The name a drive was given (Explorer shows it before the letter)."""
+    import ctypes
+    label = ctypes.create_unicode_buffer(261)
+    try:
+        if ctypes.windll.kernel32.GetVolumeInformationW(
+                ctypes.c_wchar_p(root), label, 261, None, None, None, None, 0):
+            return label.value
+    except (OSError, AttributeError):
+        pass
+    return ""
+
+
+def is_removable(path: Path | str) -> bool:
+    """Whether the drive holding this path is one that gets plugged in: a card
+    or a USB stick (a removable drive), or a disk on a USB cable. Windows does
+    not say so for the second kind - a USB hard disk is "fixed" to it - so the
+    bus the disk sits on is asked. Always False off Windows."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    from ctypes import wintypes
+    drive = Path(path).drive
+    if len(drive) != 2 or drive[1] != ":":
+        return False
+    k32 = ctypes.windll.kernel32
+    kind = k32.GetDriveTypeW(drive + "\\")
+    if kind == 2:                                   # DRIVE_REMOVABLE
+        return True
+    if kind != 3:                                   # not a local disk
+        return False
+    k32.CreateFileW.restype = wintypes.HANDLE
+    handle = k32.CreateFileW("\\.\\" + drive, 0, 3, None, 3, 0, None)
+    if handle in (None, wintypes.HANDLE(-1).value):
+        return False
+    try:
+        query = (ctypes.c_ubyte * 12)()             # StorageDeviceProperty, PropertyStandardQuery
+        out = (ctypes.c_ubyte * 1024)()
+        got = wintypes.DWORD(0)
+        if not k32.DeviceIoControl(handle, 0x2D1400, query, 12, out, 1024, ctypes.byref(got), None):
+            return False
+        bus = int.from_bytes(bytes(out[28:32]), "little")     # STORAGE_BUS_TYPE
+        return bus == 7                                       # BusTypeUsb
+    finally:
+        k32.CloseHandle(handle)
+
+
 def mount_points() -> list[Path]:
     """The folders in which a computer shows its drives."""
+    if sys.platform == "win32":
+        return _windows_drives()
     user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
     if sys.platform == "darwin":
         bases = ["/Volumes"]
@@ -50,6 +108,10 @@ def is_external(path: Path | str) -> bool:
     """Whether a folder is on a drive that can be unplugged (or a network
     share), judging by where it is mounted. The computer's own disk is not."""
     p = Path(path)
+    if sys.platform == "win32":
+        # Another drive letter than Windows' own, or a network share.
+        return bool(p.drive) and (p.drive.startswith("\\\\") or
+                                  p.drive.upper() != (os.environ.get("SystemDrive") or "C:").upper())
     for base in mount_points():
         if _under(p, base):
             rest = p.relative_to(base).parts
@@ -64,6 +126,9 @@ def name(path: Path | str) -> str:
     """The drive's name as the computer shows it: the folder under the mount
     point; for a folder elsewhere, the folder's own name."""
     p = Path(path)
+    if sys.platform == "win32" and p.drive:
+        label = "" if p.drive.startswith("\\\\") else _windows_label(p.drive + "\\")
+        return f"{label} ({p.drive})" if label else p.drive
     for base in mount_points():
         if _under(p, base):
             rest = p.relative_to(base).parts

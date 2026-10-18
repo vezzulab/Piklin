@@ -18,6 +18,8 @@ library of 100,000 photos with 400 favourites writes 400 entries, not
 from __future__ import annotations
 
 import json
+import os
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -141,7 +143,7 @@ def restore_photo_state(library, catalog) -> int:
     photos = data.get("photos") or {}
     restored = 0
     with catalog.write() as cur:
-        for path, entry in photos.items():
+        for path, entry in ((_here(library, k), v) for k, v in photos.items()):
             cur.execute(
                 "UPDATE photos SET favorite=?, rating=?, hidden=?, trashed_at=?, "
                 "title=?, caption=?, keywords=? WHERE path=?",
@@ -341,9 +343,31 @@ def write_removed(library, catalog) -> None:
         "photos": {r["path"]: r["removed_at"] for r in rows}})
 
 
+def _local_path(path: str) -> str:
+    """A stored photo path spelled the way this system writes paths: on Windows
+    a library copied from elsewhere (or written with '/') never matched what
+    the folder walk finds, so its photos counted as gone on every start."""
+    return os.path.normpath(path) if sys.platform == "win32" else path
+
+
+def _here(library, path: str) -> str:
+    """A photo path written by another computer (a Linux, Mac or Windows path to
+    the library's Originals folder) as it is on this one. Marks, places and
+    removals travel with the backup named by those paths; without this they
+    matched nothing here, and a library arrived without a single place on its map."""
+    from .library_move import _library_prefix, _parts
+    path = _local_path(path)
+    prefix = _library_prefix(path)
+    root = str(library.root)
+    if prefix is None or prefix == root:
+        return path
+    rest = _parts(path[len(prefix):])
+    return _local_path(os.path.join(root, *rest)) if rest else path
+
+
 def restore_removed(library, catalog) -> int:
     photos = _read_json(removed_path(library)).get("photos") or {}
-    entries = [(p, float(t)) for p, t in photos.items()
+    entries = [(_here(library, p), float(t)) for p, t in photos.items()
                if isinstance(p, str) and isinstance(t, (int, float))]
     catalog.set_removed(entries)
     return len(entries)

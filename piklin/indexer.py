@@ -18,6 +18,7 @@ does not leave a worker chewing through a network mount.
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -186,6 +187,9 @@ class Indexer:
             if covering:
                 root_ids[folder] = min(covering, key=lambda c: len(c[0].parts))[1]
 
+        if sys.platform == "win32":
+            self._normalize_paths()
+
         # What the catalog already knows, so unchanged files can be skipped
         # without opening them.
         known: dict[str, tuple[int, float, int]] = {
@@ -320,6 +324,35 @@ class Indexer:
         p.current = ""
         report()
         return p
+
+    def _normalize_paths(self) -> None:
+        """Rows stored with '/' on Windows (a library that came from another
+        system) never match what the folder walk finds ('\\'): every start
+        flagged them missing, added the same photos again and made their
+        previews again. Write them the way Windows spells them, keeping the
+        old row (it carries rating, albums and edits) over a fresh duplicate."""
+        # Whatever spelling this Python calls normal ('/' in MSYS2's, '\' in
+        # python.org's): rows written the other way never match the walk.
+        every = [(r["id"], r["path"]) for r in self.catalog.q("SELECT id, path FROM photos")]
+        rows = [{"id": i, "path": p} for i, p in every if os.path.normpath(p) != p]
+        with self.catalog.write() as cur:
+            for r in self.catalog.q("SELECT id, cover_path FROM folders "
+                                    "WHERE cover_path IS NOT NULL AND cover_path != ''"):
+                here = self.catalog.here(r["cover_path"])
+                if here != r["cover_path"]:
+                    cur.execute("UPDATE folders SET cover_path=? WHERE id=?", (here, r["id"]))
+        if not rows:
+            return
+        have = {p: i for i, p in every if os.path.normpath(p) == p}
+        with self.catalog.write() as cur:
+            for r in rows:
+                norm = os.path.normpath(r["path"])
+                dup = have.get(norm)
+                if dup is not None:
+                    cur.execute("DELETE FROM photos WHERE id=?", (dup,))
+                cur.execute("UPDATE photos SET path=?, thumb_state=CASE "
+                            "WHEN thumb_state=3 THEN 0 ELSE thumb_state END "
+                            "WHERE id=?", (norm, r["id"]))
 
     def _reconcile_missing(self, known: dict, seen_paths: set, p: Progress
                            ) -> None:

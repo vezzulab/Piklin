@@ -193,9 +193,8 @@ def _size(n: float) -> str:
 def free_space(path) -> int | None:
     """Room left where this library lives, or None if it can't be measured."""
     try:
-        st = os.statvfs(path)
-        return st.f_bavail * st.f_frsize
-    except (OSError, AttributeError, ValueError):
+        return shutil.disk_usage(path).free
+    except (OSError, ValueError):
         return None
 
 
@@ -1119,8 +1118,7 @@ class LocalBackend(Backend):
         if not os.access(b, os.W_OK):
             return TestResult(False, _("Piklin can't save files in this folder"), str(b))
         try:
-            st = os.statvfs(b)
-            free = st.f_bavail * st.f_frsize
+            free = shutil.disk_usage(b).free
         except OSError:
             free = None
         # A network mount that has dropped often still looks like a
