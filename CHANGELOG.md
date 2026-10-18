@@ -2,6 +2,9 @@
 
 ## 2.0.6
 
+### Sidebar
+- The foot of the sidebar says how much space is left on the disk ("212 GB free") instead of the size of the whole disk, and its meter shows how full the disk is
+
 ### Search
 - The suggestions understand several words ("viaje disney" offers the folder "Viaje Disney 2018"), list the folders first and then the albums, and a choice replaces all the words typed
 - A search that is only a folder (its name, or the words of it: "viaje disney", "viaje a disney 2018") shows the folder with its albums as cards, as clicking it in the sidebar does; typing the name of one album ("epcot") goes straight to its photos

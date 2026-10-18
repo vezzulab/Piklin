@@ -362,7 +362,7 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
 
         # What the library holds and what it costs on disk, quietly, at the
         # foot of the sidebar: "12,480 Photos · 36 Videos" and
-        # "41.2 GB of 512 GB", with a hairline meter.
+        # "212 GB free", with a hairline meter.
         self.footer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         self.footer.add_css_class("pika-sidebar-footer")
         self.footer_counts = Gtk.Label(xalign=0.0, ellipsize=3)
@@ -665,13 +665,14 @@ class MainWindow(PeopleActions, SearchActions, DriveActions, Adw.ApplicationWind
             + ngettext("{count} Video", "{count} Videos", videos).format(count=f"{videos:,}"))
         used = int(counts.get("bytes", 0))
         try:
-            total = _sh.disk_usage(self.library.root).total
+            disk = _sh.disk_usage(self.library.root)
+            total, free = disk.total, disk.free
         except OSError:
-            total = 0
+            total = free = 0
         if total:
-            self.footer_space.set_text(
-                _("{used} of {total}").format(used=self._human_bytes(used), total=self._human_bytes(total)))
-            self.footer_meter.set_value(min(1.0, used / total))
+            # what is left on the disk, not the size of the disk
+            self.footer_space.set_text(_("{size} free").format(size=self._human_bytes(free)))
+            self.footer_meter.set_value(min(1.0, max(0.0, 1.0 - free / total)))
             self.footer_meter.set_visible(True)
         else:
             self.footer_space.set_text(self._human_bytes(used))
