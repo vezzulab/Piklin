@@ -349,7 +349,7 @@ def _empty_over_backup(local: Path, rel: str, remote_index: dict) -> bool:
 # library's own files next to them, and never walks anything else: walking
 # a catalog of previews there took many minutes on every backup, and a
 # restore must never bring those files into the library.
-BACKUP_FOLDERS = ("Edits", "Albums", "Originals")
+BACKUP_FOLDERS = ("Edits", "Albums", "People", "Originals")
 
 
 # Backups go in a folder of their own inside the folder chosen for them,
@@ -448,7 +448,7 @@ STAGE_ARRANGEMENT, STAGE_PHOTOS, STAGE_VIDEOS = 0, 1, 2
 
 
 def stage_of(rel: str) -> int:
-    if "/" not in rel or rel.startswith(("Edits/", "Albums/")):
+    if "/" not in rel or rel.startswith(("Edits/", "Albums/", "People/")):
         return STAGE_ARRANGEMENT
     return STAGE_VIDEOS if is_video(rel) else STAGE_PHOTOS
 
@@ -1039,7 +1039,7 @@ class Backend:
                 # recorded as backed up: the next backup won't send it again
                 manifest[rel] = [result.st_size, result.st_mtime]
                 p.restored += 1
-                if rel in STATE_FILES or rel.startswith(("Albums/", "Edits/")):
+                if rel in STATE_FILES or rel.startswith(("Albums/", "Edits/", "People/")):
                     p.restored_state = True
             else:
                 p.errors += 1
@@ -2451,7 +2451,7 @@ class RcloneBackend(Backend):
                 p.errors += 1
                 continue
             p.restored += 1
-            if rel in STATE_FILES or rel.startswith(("Albums/", "Edits/")):
+            if rel in STATE_FILES or rel.startswith(("Albums/", "Edits/", "People/")):
                 p.restored_state = True
             manifest[rel] = [st.st_size, st.st_mtime]
         p.done_files = base_files + len(batch)

@@ -85,7 +85,7 @@ AUTO, CONFIRMED, REMOVED, IGNORED = 0, 1, 2, 3
 _local = threading.local()
 
 # When anything that other computers should hear about last changed (see peoplesync.py)
-changed_at = 0.0
+changed_at = time.time()      # at the start too: what was found before is written once, for the other computers
 
 
 def touch() -> None:
