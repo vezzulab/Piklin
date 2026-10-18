@@ -5965,7 +5965,7 @@ msgstr[1] ""
 
 #: piklin/ui/window.py:672
 #, python-brace-format
-msgid "{used} of {total}"
+msgid "{used} used  ·  {free} free"
 msgstr ""
 
 #: piklin/ui/window.py:871

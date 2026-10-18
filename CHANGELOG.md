@@ -3,7 +3,7 @@
 ## 2.0.6
 
 ### Sidebar
-- The foot of the sidebar says how much space is left on the disk ("212 GB free") instead of the size of the whole disk, and its meter shows how full the disk is
+- The foot of the sidebar says what the library takes and how much space is left on the disk ("41.2 GB used  ·  212 GB free"), instead of the size of the whole disk; the meter shows how full the disk is
 
 ### Search
 - The suggestions understand several words ("viaje disney" offers the folder "Viaje Disney 2018"), list the folders first and then the albums, and a choice replaces all the words typed

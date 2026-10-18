@@ -1116,7 +1116,7 @@ ES = {
     "Unselect": "Quitar selección",
     "{count} Photo": ("{count} foto", "{count} fotos"),
     "{count} Video": ("{count} video", "{count} videos"),
-    "{used} of {total}": "{used} de {total}",
+    "{used} used  ·  {free} free": "{used} usados  ·  {free} libres",
     "New Album or Folder": "Nuevo álbum o carpeta",
     "Devices": "Dispositivos",
     "Recently Deleted": "Eliminados recientemente",

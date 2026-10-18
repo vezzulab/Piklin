@@ -5732,8 +5732,8 @@ msgstr[1] "{count} videos"
 
 #: piklin/ui/window.py:672
 #, python-brace-format
-msgid "{used} of {total}"
-msgstr "{used} de {total}"
+msgid "{used} used  ·  {free} free"
+msgstr "{used} usados  ·  {free} libres"
 
 #: piklin/ui/window.py:871
 msgid "Sort albums"
