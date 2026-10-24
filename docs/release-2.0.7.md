@@ -122,7 +122,11 @@ sudo apt install ./piklin_2.0.7_amd64.deb
 SHA-256:
 
 ```
-@@HASHES@@
+7d00be9ce555748002bfd10e9a737c44312fca34f020c4035d01f03c71ed1e90  Piklin-2.0.7.dmg
+804f0f7fb3a3ddb07dbed7ee93a34ea2cf17a9a433ab84b377ba38b4ee625b36  piklin_2.0.7_amd64.deb
+0b67c61a0845a0527630ddfd7175131f83d9fbcf07b5de98709337dad2e57ab1  Piklin-2.0.7-x86_64.AppImage
+ddbcdc27f2f14e4f25422c8a81f1f06fa92651351d2a83386555dda22bc5ea96  piklin_2.0.7_arm64.deb
+4c56bd937c6933f6b46308515c519da68d083387405802af5f2b9cc28b677e75  Piklin-2.0.7-aarch64.AppImage
 ```
 
 The `.sha256` and `.sha256.sig` files are what Piklin's updater checks: each checksum, signed with Vezzu Studio's release key.
@@ -257,7 +261,11 @@ sudo apt install ./piklin_2.0.7_amd64.deb
 SHA-256:
 
 ```
-@@HASHES@@
+7d00be9ce555748002bfd10e9a737c44312fca34f020c4035d01f03c71ed1e90  Piklin-2.0.7.dmg
+804f0f7fb3a3ddb07dbed7ee93a34ea2cf17a9a433ab84b377ba38b4ee625b36  piklin_2.0.7_amd64.deb
+0b67c61a0845a0527630ddfd7175131f83d9fbcf07b5de98709337dad2e57ab1  Piklin-2.0.7-x86_64.AppImage
+ddbcdc27f2f14e4f25422c8a81f1f06fa92651351d2a83386555dda22bc5ea96  piklin_2.0.7_arm64.deb
+4c56bd937c6933f6b46308515c519da68d083387405802af5f2b9cc28b677e75  Piklin-2.0.7-aarch64.AppImage
 ```
 
 Los archivos `.sha256` y `.sha256.sig` son lo que comprueba el actualizador de Piklin: cada checksum, firmado con la clave de publicación de Vezzu Studio.
