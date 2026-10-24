@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/screenshots/hero.png" alt="Piklin 2.0.7: your photos, understood" width="900">
+  <img src="docs/screenshots/hero.png?v=207" alt="Piklin 2.0.7: your photos, understood" width="900">
 </p>
 
 <p align="center">
