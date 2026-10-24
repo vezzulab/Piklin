@@ -71,6 +71,13 @@ def _pixbuf_loaders() -> str:
 
 env["GDK_PIXBUF_MODULE_FILE"] = _pixbuf_loaders()
 
+# Started by Piklin itself to make one video smaller (piklin/encode_worker.py):
+# before anything graphical is loaded - a second Piklin must not appear in the
+# Dock - and before the update step below, which belongs to the real start.
+if env.get("PIKLIN_ENCODE_JOB"):
+    from piklin import encode_worker  # noqa: E402
+    sys.exit(encode_worker.run(env["PIKLIN_ENCODE_JOB"]))
+
 # An update swaps the new app in and keeps the old one until the new one
 # starts: this is the new one starting.
 import shutil  # noqa: E402

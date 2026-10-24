@@ -160,10 +160,11 @@ class SmartAlbumDialog(Adw.Dialog):
         body.append(self.count)
 
         buttons = Gtk.Box(spacing=8, halign=Gtk.Align.END, margin_top=6)
-        cancel = Gtk.Button(label=_("Cancel"))
+        cancel = Gtk.Button(label=_("Cancel"), css_classes=["pill"])
         cancel.connect("clicked", lambda *_: self.close())
         self.ok = Gtk.Button(label=_("OK"))
         self.ok.add_css_class("suggested-action")
+        self.ok.add_css_class("pill")
         self.ok.connect("clicked", self._on_ok)
         buttons.append(cancel)
         buttons.append(self.ok)

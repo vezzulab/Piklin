@@ -533,6 +533,149 @@ check("merged copies go to Recently Deleted, files kept",
       all(os.path.exists(cat5.photo(i)["path"]) for i in dup_ids))
 check("Duplicates view is empty after merging", cat5.counts()["duplicates"] == 0)
 cat5.untrash(res["trashed"])
+# Create is closed while it is made better; the switch for working on it is the environment.
+from piklin import paths as _paths_cr
+_cr_old = os.environ.pop("PIKLIN_CREATE", None)
+check("Create is closed for everyone", _paths_cr.create_ready() is False)
+if _cr_old is not None:
+    os.environ["PIKLIN_CREATE"] = _cr_old
+
+# Duplicates by what the picture is: the same photo saved smaller or again is a
+# duplicate; a moment later, a shift or another photo is not.
+from piklin import dupescan as _ds
+from PIL import Image as _DI, ImageChops as _DC
+_dv = os.path.join(TMP, "lookalike"); os.makedirs(_dv, exist_ok=True)
+_base = _DI.open(SRC[3]).convert("RGB"); _base.thumbnail((1400, 1400))
+_base.save(f"{_dv}/a.jpg", quality=92)
+_base.resize((_base.width // 2, _base.height // 2)).save(f"{_dv}/a_small.jpg", quality=70)
+shutil.copy2(f"{_dv}/a.jpg", f"{_dv}/a_copy.jpg")
+_DC.offset(_base, _base.width // 30, 0).save(f"{_dv}/a_next_shot.jpg", quality=92)
+_DI.open(SRC[4]).convert("RGB").save(f"{_dv}/other.jpg", quality=92)
+cat6 = Catalog(os.path.join(TMP, "c6.db"))
+Indexer(cat6, None, library_root=_dv).scan([_dv])
+_names = lambda groups: sorted(sorted(r["filename"] for r in g) for g in groups)
+_before = _names(cat6.duplicate_groups())
+check("before the scan only the identical copy is a candidate",
+      _before == [["a.jpg", "a_copy.jpg"]], str(_before))
+_res = _ds.scan(cat6)
+check("the same picture, made smaller or copied, is one group",
+      _names(_res.groups) == [["a.jpg", "a_copy.jpg", "a_small.jpg"]], str(_names(_res.groups)))
+check("a shot a moment later and another photo are not duplicates",
+      all("a_next_shot" not in r["filename"] and "other" not in r["filename"]
+          for g in _res.groups for r in g))
+check("a second pass has nothing new to look at", _ds.scan(cat6).to_look == 0)
+_cs = cat6.counts()["duplicates"]
+check("the sidebar counts the group's photos", _cs == 3, str(_cs))
+_before_bytes = {r["filename"]: r["bytes"] for g in _res.groups for r in g}
+_merged = cat6.merge_duplicates([r["id"] for g in _res.groups for r in g])
+check("merging keeps the largest file of the group",
+      len(_merged["kept"]) == 1 and len(_merged["trashed"]) == 2 and
+      cat6.photo(_merged["kept"][0])["bytes"] == max(_before_bytes.values()))
+cat6.untrash(_merged["trashed"])
+# A file that changes is looked at again and leaves its group.
+_DI.open(SRC[5]).convert("RGB").save(f"{_dv}/a_small.jpg", quality=80)
+Indexer(cat6, None, library_root=_dv).scan([_dv])
+_res = _ds.scan(cat6)
+check("a photo replaced by another leaves the group",
+      _names(_res.groups) == [["a.jpg", "a_copy.jpg"]], str(_names(_res.groups)))
+# The same video kept twice - another size, another encoding - is found too; another video, and
+# a video Piklin saved as an edited version, are not.
+import av as _dav, cv2 as _dcv
+def _dvideo(path, w, h, kind, bright=0):
+    _o = _dav.open(str(path), "w"); _st = _o.add_stream("mpeg4", rate=25); _st.width, _st.height, _st.pix_fmt = w, h, "yuv420p"
+    for _i in range(50):
+        _im = np.zeros((240, 320, 3), np.uint8)
+        if kind == "a":
+            _im[:] = np.linspace(40, 200, 320).astype(np.uint8)[None, :, None]
+            _dcv.circle(_im, (30 + _i * 5, 120), 40, (30, 60, 220), -1); _dcv.rectangle(_im, (200, 30 + _i), (290, 100 + _i), (240, 220, 40), -1)
+        else:
+            _im[::2] = (200, 200, 200); _im[:, ::40] = (20, 20, 20)
+            _dcv.circle(_im, (290 - _i * 5, 60), 45, (220, 30, 30), -1); _dcv.rectangle(_im, (20, 150 - _i), (120, 220), (30, 200, 60), -1)
+        _im = np.clip(_dcv.resize(_im, (w, h), interpolation=_dcv.INTER_AREA).astype(int) + bright, 0, 255).astype(np.uint8)
+        for _pk in _st.encode(_dav.VideoFrame.from_ndarray(_im, format="rgb24")): _o.mux(_pk)
+    for _pk in _st.encode(): _o.mux(_pk)
+    _o.close()
+_vd = os.path.join(TMP, "videodupes"); os.makedirs(_vd)
+_dvideo(f"{_vd}/clip.mp4", 320, 240, "a"); _dvideo(f"{_vd}/clip-2.mp4", 160, 120, "a")
+_dvideo(f"{_vd}/other.mp4", 320, 240, "c"); _dvideo(f"{_vd}/clip_edited.mp4", 320, 240, "a", bright=35)
+_cv = Catalog(os.path.join(TMP, "cvd.db")); Indexer(_cv, None, library_root=_vd).scan([_vd])
+_vres = _ds.scan(_cv)
+check("the same video in another size is one group; another video and an edited version are not",
+      _names(_vres.groups) == [["clip-2.mp4", "clip.mp4"]], str(_names(_vres.groups)))
+check("a second pass has no video left to look at", _ds.scan(_cv).to_look == 0)
+
+# The fingerprint follows a file that is replaced (a video made smaller).
+from piklin import photo_rename as _pr, imageio as _iio6
+_p0 = cat6.q1("SELECT id, path FROM photos WHERE filename='other.jpg'")
+_p1 = _p0["path"]; shutil.copy2(SRC[6], _p1)       # the file at this path is now another one
+_pr.repoint_photo(None, cat6, _p0["id"], Path(_p1), Path(_p1), bytes=os.path.getsize(_p1))
+check("replacing a file brings its fingerprint with it",
+      cat6.photo(_p0["id"])["fingerprint"] == _iio6.fingerprint(_p1))
+
+# Half-made files at a backup destination are cleared, and only those.
+from piklin import videospace as _vsx
+_DAY = 86400.0
+_listing = {
+    "Originals/2020/2020-01-01/IMG_1.mp4": (10, 0),
+    "Originals/2020/2020-01-01/.IMG_1.smaller.mp4.part": (5, 0),               # old, video beside it: goes
+    "Originals/2020/2020-01-01/.IMG_2.smaller.mp4.part": (5, 0),               # old, no video beside it: stays
+    "Originals/2020/2020-01-01/.IMG_1.smaller.mp4.part ": (5, 0),              # not our name: stays
+    "Originals/2021/2021-01-01/.IMG_3.smaller.mp4.part": (5, 3 * _DAY - 60),   # written a moment ago: stays
+    "Originals/2021/2021-01-01/IMG_3.mp4": (10, 0),
+    "Originals/2021/2021-01-01/P.jpg": (10, 0),
+    "Originals/2021/2021-01-01/P.jpg.part": (5, 0),                            # upload cut short, copy beside: goes
+    "Originals/2021/2021-01-01/Q.jpg.part": (5, 0),                            # no finished copy: stays
+    "Albums/A.json.part": (5, 0),                                              # outside Originals: stays
+}
+_stray = _vsx.stray_parts(_listing, now=3 * _DAY)
+check("only old half-made files with their finished file beside them are cleared",
+      _stray == ["Originals/2020/2020-01-01/.IMG_1.smaller.mp4.part",
+                 "Originals/2021/2021-01-01/P.jpg.part"], str(_stray))
+class _FakeDest:
+    class remote: id = "fake"
+    def __init__(self): self.deleted = []
+    def listing(self): return dict(_listing)
+    def delete(self, rel): self.deleted.append(rel); return True
+_lib = os.path.join(TMP, "LeftLib"); os.makedirs(_lib, exist_ok=True)
+_fd = _FakeDest()
+check("a destination is cleaned and the number is returned",
+      _vsx.clean_destination(_lib, _fd, now=3 * _DAY) == 2 and len(_fd.deleted) == 2)
+check("and not looked through again for a day",
+      _vsx.clean_destination(_lib, _fd, now=3 * _DAY + 3600) == 0 and len(_fd.deleted) == 2)
+check("but the next day it is, and the file written a moment ago has aged by then",
+      _vsx.clean_destination(_lib, _fd, now=4.5 * _DAY) == 3)
+
+# The backup says why it waits, how many videos are left, and about how long.
+from piklin import autobackup as _abx
+check("waits are told in plain words",
+      [_abx.duration_text(x) for x in (60, 25 * 60, 4 * 3600 + 13 * 60, 2 * 3600)]
+      == ["a few minutes", "25 minutes", "4 h 15 min", "2 h"],
+      str([_abx.duration_text(x) for x in (60, 25 * 60, 4 * 3600 + 13 * 60, 2 * 3600)]))
+class _FakeBackup:
+    _running = False; _syncing = False; _problem = ""; _waiting = "videos"
+    class settings:
+        @staticmethod
+        def get(key, default=None): return [{"id": 1}] if key == "remotes" else True
+    busy_detail = None
+    busy_with = None
+    _state = {}
+_fb = _FakeBackup()
+_plain = _abx.AutoBackup.status_text(_fb)
+_fb.busy_detail = lambda: (70, 70 * 240.0)
+_counted = _abx.AutoBackup.status_text(_fb)
+check("the waiting text counts the videos left and the time",
+      _plain == "Backup waits until the videos are made smaller" and
+      _counted == _plain + " \u2014 70 videos left, about 4 h 40 min", _counted)
+_fb.busy_detail = lambda: (1, 90.0)
+_fb.busy_detail = lambda: (5, 1200.0)
+_fb.busy_with = lambda: ""          # the videos are done: the old words go
+check("when what it waited for is over, the backup stops saying it waits",
+      "waits" not in _abx.AutoBackup.status_text(_fb) and _fb._waiting == "", _fb._waiting)
+_fb.busy_with = None; _fb._waiting = "videos"; _fb.busy_detail = lambda: (1, 90.0)
+check("one video left is said in the singular, and a short wait is not 'about'",
+      _abx.AutoBackup.status_text(_fb).endswith("1 video left, a few minutes"),
+      _abx.AutoBackup.status_text(_fb))
+
 # Filter menu: several choices show photos matching any of them.
 all_ids = {r["id"] for r in cat5.browse(scope="library")}
 fav_ids = {r["id"] for r in cat5.browse(scope="library", filters={"favorites"})}
@@ -604,9 +747,9 @@ with cat5.write() as cur:
 from piklin import sidecars as sc
 tid = cat5.q("SELECT id FROM photos WHERE filename='imported.jpg'")[0]["id"]
 cat5.set_text_fields([tid], title="Faro", caption="Atardecer en la costa",
-                     keywords="mar, viaje")
+                     keywords="mar, costero")
 check("caption is searchable", [r["id"] for r in cat5.browse(search="atardecer")] == [tid])
-check("keyword is searchable", [r["id"] for r in cat5.browse(search="viaje")] == [tid])
+check("keyword is searchable", [r["id"] for r in cat5.browse(search="costero")] == [tid])
 Indexer(cat5, None, library_root=libroot).scan([libroot + "/Originals"])
 os.utime(libroot + "/Originals/imported.jpg")          # force a re-probe
 Indexer(cat5, None, library_root=libroot).scan([libroot + "/Originals"])
@@ -622,7 +765,7 @@ Indexer(cat6, None, library_root=libroot).scan([libroot + "/Originals"])
 sc.restore_photo_state(fake, cat6)
 t6 = cat6.q("SELECT title, caption, keywords FROM photos WHERE filename='imported.jpg'")[0]
 check("typed words restored after a rebuild",
-      (t6["title"], t6["caption"], t6["keywords"]) == ("Faro", "Atardecer en la costa", "mar, viaje")
+      (t6["title"], t6["caption"], t6["keywords"]) == ("Faro", "Atardecer en la costa", "mar, costero")
       and len(cat6.browse(search="atardecer")) == 1)
 # Smart Albums: listed in the sidebar tree, filtered by their rules, and
 # mirrored to Albums/_smart.json so a rebuild brings them back.
@@ -815,7 +958,7 @@ check("restore never touches the open catalog",
 _gone2 = lib.edits/"x.jpg.json"
 _gone2.unlink(missing_ok=True)
 _real_statvfs = os.statvfs
-os.statvfs = lambda _p: type("S", (), {"f_bavail": 2, "f_frsize": 4096})()
+os.statvfs = lambda _p: type("S", (), {"f_bavail": 2, "f_frsize": 4096, "f_blocks": 4, "f_bfree": 2})()
 try:
     _tight = b.restore(lib.root)
 finally:
@@ -1719,11 +1862,54 @@ from piklin import system as _sysm
 _orig_batt = _sysm.on_battery; _sysm.on_battery = lambda: False
 try:
     _fw.autobackup = _FakeBackup(False)
-    check("videos are not made smaller before the backup has been read", _fw.waiting_for() == "reading", _fw.waiting_for())
+    # The work on this computer comes first: the videos do not wait for the whole
+    # backup to be read (each one reads what the others did, just before it starts).
+    check("videos are made smaller without waiting for the backup to be read", _fw.waiting_for() is None, _fw.waiting_for())
     _fw.autobackup = _FakeBackup(True)
-    check("and may be once it has", _fw.waiting_for() is None, _fw.waiting_for())
+    check("and the same once it has been read", _fw.waiting_for() is None, _fw.waiting_for())
+    _fw.autobackup._running = True
+    check("but not while a backup is sending", _fw.waiting_for() == "busy", _fw.waiting_for())
+    check("and the log says it is the backup", _fw.busy_with() == ["backup"], str(_fw.busy_with()))
+    _fw.autobackup._running = False; _fw.autobackup._owed = True
+    check("a backup or sync that has waited its time stops the next video",
+          _fw.waiting_for() == "busy" and _fw.busy_with() == ["backup or sync owed its turn"], str(_fw.busy_with()))
 finally:
     _sysm.on_battery = _orig_batt
+
+# The encoder in a process of its own: it makes the video, can be cancelled, and
+# where it cannot start the video is made in Piklin's own process.
+from piklin import encode_worker as _ew, video_edit as _vex
+import threading as _th
+if _ew.available():
+    _w_dst = os.path.join(_vdir, "worker.smaller.mp4")
+    _w_seen = []
+    _w_out = _ew.export(_clip, _w_dst, 2.0, fmt="mp4", on_progress=_w_seen.append)
+    check("the encoder in its own process makes the video and reports its progress",
+          Path(_w_out).is_file() and Path(_w_out).stat().st_size > 0 and _w_seen and _w_seen[-1] >= 0.99,
+          f"{_w_out} {_w_seen[-1:]}")
+    check("and its own half-made file is gone", not Path(_vdir, ".worker.smaller.mp4.part").exists())
+    Path(_w_out).unlink(missing_ok=True)
+    _w_stop = _th.Event(); _w_stop.set()
+    try:
+        _ew.export(_clip, _w_dst, 2.0, fmt="mp4", cancel=_w_stop)
+        _w_cancelled = False
+    except _vex.Cancelled:
+        _w_cancelled = True
+    check("it can be cancelled, and leaves nothing behind",
+          _w_cancelled and not Path(_w_dst).exists() and not Path(_vdir, ".worker.smaller.mp4.part").exists())
+    try:
+        _ew.export("/nonexistent/video.mp4", _w_dst, 2.0, fmt="mp4")
+        _w_failed = False
+    except RuntimeError:
+        _w_failed = True
+    check("a video it cannot read is a failure, not a hang", _w_failed)
+os.environ["PIKLIN_NO_WORKER"] = "1"
+try:
+    _w_out = _ew.export(_clip, _w_dst if _ew.available() else os.path.join(_vdir, "worker.smaller.mp4"), 2.0, fmt="mp4")
+    check("where there is no separate process the video is made in Piklin's own", Path(_w_out).is_file())
+    Path(_w_out).unlink(missing_ok=True)
+finally:
+    del os.environ["PIKLIN_NO_WORKER"]
 
 # A video OpenCV opens but cannot decode (AV1, on a system whose OpenCV has no
 # decoder for it) is read by PyAV instead of being taken for no video at all.
@@ -1954,9 +2140,9 @@ check("the set-apart originals are not part of the backup's listing",
 check("nothing more is due until its days have passed",
       not _vs.due(_bk_lib.root, "hold", now=_bk_now + 4 * 86400)
       and _vs.tend(_bk_lib.root, _bk, now=_bk_now + 4 * 86400)["deleted"] == 0 and _bk_held[0].exists())
-check("after five days it is due again", _vs.due(_bk_lib.root, "hold", now=_bk_now + 5 * 86400 + 60))
-_bk_c = _vs.tend(_bk_lib.root, _bk, now=_bk_now + 5 * 86400 + 60)
-check("after five days, with the smaller copy checked again, the original is let go",
+check("after its days it is due again", _vs.due(_bk_lib.root, "hold", now=_bk_now + _vs.HOLD_DAYS * 86400 + 60))
+_bk_c = _vs.tend(_bk_lib.root, _bk, now=_bk_now + _vs.HOLD_DAYS * 86400 + 60)
+check("after its days, with the smaller copy checked again, the original is let go",
       _bk_c["deleted"] == 1 and not _bk_held[0].exists() and _bk_new.exists(), _bk_c)
 _bk_restored = _L(os.path.join(TMP, "HoldRestored.piklin")).ensure()
 _bk.restore(_bk_restored.root)
@@ -1978,8 +2164,8 @@ _vs.record_conversion(_bk_lib.root, _bk_old2, _bk_new2, _bk_size2, float(_bk_row
 _bk.push(_bk_lib.root, rem.library_files(_bk_lib.root))
 _vs.tend(_bk_lib.root, _bk, now=_bk_now)
 _bk_new2.write_bytes(b"not a video any more")
-_bk_c = _vs.tend(_bk_lib.root, _bk, now=_bk_now + 6 * 86400)
-check("when the smaller copy does not check out after five days, the original is kept",
+_bk_c = _vs.tend(_bk_lib.root, _bk, now=_bk_now + (_vs.HOLD_DAYS + 1) * 86400)
+check("when the smaller copy does not check out after its days, the original is kept",
       _bk_c["problems"] == 1 and _bk_c["deleted"] == 0
       and list((_bk_nas / "Piklin" / _vs.CONVERTED_DIR).rglob("cake.MOV")), _bk_c)
 
@@ -2095,15 +2281,15 @@ check("with no backup, the original is set apart inside the library, not deleted
       _nb_res == "smaller" and _nb_hold.is_file() and not _nb_old.exists() and _nb_new.exists())
 check("and still kept after four days",
       _vs.tend_local(_nb_lib.root, now=_nb_now + 4 * 86400)["deleted"] == 0 and _nb_hold.is_file())
-check("and let go after five, with the smaller copy checked again",
-      _vs.tend_local(_nb_lib.root, now=_nb_now + 5 * 86400 + 60)["deleted"] == 1 and not _nb_hold.exists())
+check("and let go after its days, with the smaller copy checked again",
+      _vs.tend_local(_nb_lib.root, now=_nb_now + _vs.HOLD_DAYS * 86400 + 60)["deleted"] == 1 and not _nb_hold.exists())
 _nb2_lib, _nb2_cat, _nb2_old = _video_lib("NoBackupLib2.piklin")
 _nb2_rel = _nb2_old.resolve().relative_to(_nb2_lib.root).as_posix()
 _nb2_hold = _vs.set_apart_locally(_nb2_lib.root, _nb2_rel, now=_nb_now)
 _, _nb2_new, _ = _convert(_nb2_lib, _nb2_cat, _nb2_old, set_apart=_nb2_hold)
 _vs.note_local_hold(_nb2_lib.root, _nb2_rel, _nb2_hold, now=_nb_now)
 _nb2_new.unlink()
-_nb2_c = _vs.tend_local(_nb2_lib.root, now=_nb_now + 6 * 86400)
+_nb2_c = _vs.tend_local(_nb2_lib.root, now=_nb_now + (_vs.HOLD_DAYS + 1) * 86400)
 check("with no backup, an original whose smaller copy is gone is kept",
       _nb2_c["problems"] == 1 and _nb2_hold.is_file(), _nb2_c)
 
@@ -2655,6 +2841,7 @@ else:
     print("  SKIP  translation template check (no xgettext on this system)")
 
 # ===================================================================
+
 section("Removed photos stay removed")
 # Photos referenced from a watched folder: removing them from the library
 # leaves the files there, and a scan must not add them back as new photos.
@@ -2966,6 +3153,31 @@ try:
 finally:
     _i18n.setup("en")
 check("English is back", _i18n._("All Photos") == "All Photos")
+
+# -- a crash is written in the log by the next start --------------------------
+_cr_state = tempfile.mkdtemp(prefix="pika-crash-")
+_cr_env = {**os.environ, "XDG_STATE_HOME": _cr_state, "LOCALAPPDATA": _cr_state, "PYTHONPATH": os.path.dirname(os.path.abspath(__file__))}
+_cr_code = "from piklin import logs; logs.setup('t')\n"
+_sp.run([sys.executable, "-c", _cr_code + "print('clean')"], env=_cr_env, capture_output=True)
+_cr_log = Path(logs_dir := (Path(_cr_state) / ("Piklin/Logs" if sys.platform == "win32" else "piklin"))) / "piklin.log"
+check("a run that closes properly leaves no marker and no crash file",
+      not (logs_dir / "running.json").exists() and not (logs_dir / "crash.log").exists()
+      and "did not close properly" not in _cr_log.read_text(encoding="utf-8"))
+# The crash itself is made on purpose, and macOS shows "Python quit unexpectedly" and writes a
+# report each time: on a Mac it runs only when asked (PIKLIN_TEST_CRASH=1).
+if sys.platform != "darwin" or os.environ.get("PIKLIN_TEST_CRASH"):
+    _sp.run([sys.executable, "-c", _cr_code + "import faulthandler; faulthandler._sigsegv()"], env=_cr_env, capture_output=True)
+    check("a run killed by a crash leaves its marker and the stack", (logs_dir / "running.json").exists()
+          and "Segmentation fault" in (logs_dir / "crash.log").read_text(encoding="utf-8"))
+    _sp.run([sys.executable, "-c", _cr_code], env=_cr_env, capture_output=True)
+    _cr_text = _cr_log.read_text(encoding="utf-8")
+    check("the next start says so in the log, with the stack", "did not close properly" in _cr_text
+          and "Crash of the last run" in _cr_text and "Segmentation fault" in _cr_text, _cr_text[-400:])
+    _sp.run([sys.executable, "-c", _cr_code], env=_cr_env, capture_output=True)
+    check("and says it once", _cr_log.read_text(encoding="utf-8").count("did not close properly") == 1)
+else:
+    print("  SKIP  crash log test (it makes macOS report a crash; PIKLIN_TEST_CRASH=1 runs it)")
+shutil.rmtree(_cr_state, ignore_errors=True)
 _saved_cfg = os.environ.get("XDG_CONFIG_HOME"); os.environ["XDG_CONFIG_HOME"] = os.path.join(TMP, "langcfg")
 try:
     _before = _i18n.chosen_language()
@@ -2974,226 +3186,7 @@ try:
 finally:
     if _saved_cfg is None: os.environ.pop("XDG_CONFIG_HOME", None)
     else: os.environ["XDG_CONFIG_HOME"] = _saved_cfg
-section("Create: collages and posters")
-from piklin import create as _cr, creations as _crs
-_cdir = os.path.join(TMP, "create"); os.makedirs(_cdir)
-libCr = _L(os.path.join(_cdir, LIBRARY_NAME)).ensure()
-_cday = libCr.originals / "2024" / "2024-07-04"; _cday.mkdir(parents=True)
-for _i in range(6):
-    shutil.copy2(SRC[_i], _cday / f"c{_i}.jpg")
-cCr = _C(libCr.db); ixCr = _Ix(cCr, None, library_root=libCr.root)
-ixCr.add_files([str(p) for p in sorted(_cday.iterdir())])
-_crows = [dict(r) for r in cCr.q("SELECT id, path, width, height FROM photos ORDER BY path")]
 
-# -- the page underneath every creation
-_page = _cr.make_page(_crows, shape="square", style="mosaic")
-check("every photo gets a place on the page", len(_page.slots) == len(_crows))
-check("no photo falls off the page",
-      all(-1e-6 <= s.x and -1e-6 <= s.y and s.x + s.w <= 1.0001 and s.y + s.h <= 1.0001
-          for s in _page.slots))
-def _overlap(a, b):
-    return (min(a.x + a.w, b.x + b.w) - max(a.x, b.x) > 1e-3
-            and min(a.y + a.h, b.y + b.h) - max(a.y, b.y) > 1e-3)
-check("photos do not sit on top of each other",
-      not any(_overlap(a, b) for i, a in enumerate(_page.slots)
-              for b in _page.slots[i + 1:]))
-_rows_seen = {}
-for _s in _page.slots:
-    _rows_seen.setdefault(round(_s.y, 3), []).append(_s)
-check("a mosaic fills the page from top to bottom",
-      abs(sum(r[0].h for r in _rows_seen.values())
-          + _page.gap * (len(_rows_seen) - 1) - (1 - 2 * _page.margin)) < 0.02)
-# Photos of one shape must be shared out evenly: the bug this catches is
-# a row of seven stamps above a row of two billboards.
-_even = _cr.mosaic([1.5] * 12, 1.0, 0.012)
-_even_rows = {}
-for _x, _y, _w, _h in _even:
-    _even_rows.setdefault(round(_y, 4), []).append(_x)
-check("photos of the same shape are shared out evenly across rows",
-      max(len(v) for v in _even_rows.values())
-      - min(len(v) for v in _even_rows.values()) <= 1,
-      str([len(v) for v in _even_rows.values()]))
-_g = _cr.grid(7, 1.78, 0.012)
-_grows = {}
-for _x, _y, _w, _h in _g:
-    _grows.setdefault(round(_y, 4), []).append(_x)
-check("a grid of seven is 4 and 3, the short row centred",
-      [len(v) for v in _grows.values()] == [4, 3] and min(list(_grows.values())[-1]) > 0.01)
-check("one photo fills the page", len(_cr.grid(1, 1.0, 0.01)) == 1)
-
-# -- drawing it
-_shot = _cr.render(_page, 400)
-check("the page draws at the size asked for", _shot.size == (400, 400), str(_shot.size))
-_tall = _cr.make_page(_crows, shape="a4")
-check("a page keeps the shape of its paper",
-      abs(_cr.page_size(_tall, 600)[0] / _cr.page_size(_tall, 600)[1] - 210 / 297) < 0.01)
-_extra = _cr.Page(shape="square", slots=[_cr.Slot(path=str(_cday / "c0.jpg"), w=1.0, h=1.0)])
-_extra.slots.append(_cr.Slot(path=str(_cday / "missing.jpg"), x=0.5, w=0.5, h=0.5))
-check("a photo that will not open leaves its place empty, not the page",
-      _cr.render(_extra, 200) is not None)
-_jpg = os.path.join(_cdir, "out.jpg"); _cr.save([_page], _jpg, long_side=500)
-_pdf = os.path.join(_cdir, "out.pdf"); _cr.save([_page, _tall], _pdf, long_side=500)
-check("it writes a JPEG and a PDF", os.path.getsize(_jpg) > 5000 and
-      open(_pdf, "rb").read(4) == b"%PDF")
-check("nothing is left half-written", not os.path.exists(_jpg + ".part"))
-
-# -- faces stay in the picture
-if _cr.__name__ and __import__("piklin.engine.faces", fromlist=["x"]).available():
-    _wide = _cr.make_page(_crows, shape="wide", style="grid")
-    _before = [(s.cx, s.cy) for s in _wide.slots]
-    _moved = _cr.focus_slots(_wide)
-    check("photos are moved so the faces stay in", _moved > 0, f"{_moved} of {len(_wide.slots)}")
-    check("the crop stays inside the photo",
-          all(0.0 <= s.cx <= 1.0 and 0.0 <= s.cy <= 1.0 for s in _wide.slots))
-    # A place that is already the photo's own shape crops nothing, so
-    # there is nothing to move and the photo is left as it is.
-    _asis = _crows[0]["width"] / _crows[0]["height"]
-    _fits = _cr.Page(shape="wide" if abs(_asis - 16 / 9) < 0.1 else "square",
-                     slots=[_cr.Slot(path=_crows[0]["path"], w=1.0, h=1.0)])
-    if abs(_cr.shape_aspect(_fits.shape) - _asis) < 0.05:
-        check("a photo that is not cropped is left alone", _cr.focus_slots(_fits) == 0)
-
-# -- keeping it
-_made = _crs.new("collage", "Fourth of July")
-_made.pages = [_cr.make_page(_crows, shape="square")]
-_crs.save(libCr, cCr, _made, indexer=ixCr)
-_mrow = cCr.photo(_made.photo_id)
-check("a creation is saved into the library as a photo",
-      _mrow is not None and os.path.exists(_mrow["path"])
-      and "Originals" in _mrow["path"])
-check("it is written down so it can be opened again", _crs.count(cCr) == 1
-      and _crs.get(cCr, _made.uuid).name == "Fourth of July")
-check("the library gains one photo, not two",
-      cCr.scalar("SELECT COUNT(*) FROM photos") == len(_crows) + 1)
-_first_size = os.path.getsize(_mrow["path"])
-_made.pages = [_cr.make_page(_crows, shape="wide", style="grid")]
-_crs.save(libCr, cCr, _made, indexer=ixCr)
-check("saving it again changes the same picture, not a second one",
-      cCr.scalar("SELECT COUNT(*) FROM photos") == len(_crows) + 1
-      and cCr.photo(_made.photo_id)["width"] > cCr.photo(_made.photo_id)["height"])
-check("the catalog follows the new picture",
-      cCr.photo(_made.photo_id)["bytes"] == os.path.getsize(_mrow["path"]))
-check("Creations shows what was made",
-      [r["id"] for r in cCr.browse(scope="creations")] == [_made.photo_id]
-      and cCr.counts().get("creations") == 1)
-
-# -- and travels
-_sidecar = _crs.sidecar_path(libCr)
-check("the recipe is written beside the library", _sidecar.is_file())
-_cdir2 = os.path.join(_cdir, "other"); os.makedirs(_cdir2)
-libCr2 = _L(os.path.join(_cdir2, LIBRARY_NAME)).ensure()
-shutil.copytree(libCr.originals, libCr2.originals, dirs_exist_ok=True)
-shutil.copy2(_sidecar, _crs.sidecar_path(libCr2))
-cCr2 = _C(libCr2.db)
-_Ix(cCr2, None, library_root=libCr2.root).scan([libCr2.originals])
-_n = _crs.restore_sidecar(libCr2, cCr2)
-_there = _crs.all_creations(cCr2)[0]
-check("another computer takes the creation in", _n == 1 and _there.name == "Fourth of July")
-check("its photos point at that computer's own library",
-      all(str(libCr2.root) in s.path and s.photo_id for s in _there.pages[0].slots))
-check("and it can be drawn again there",
-      _cr.render(_there.pages[0], 200) is not None)
-_crs.restore_sidecar(libCr2, cCr2)
-check("taking it in twice does not make a second copy", _crs.count(cCr2) == 1)
-_crs.forget(cCr2, _there.uuid)
-check("forgetting a creation leaves its picture in the library",
-      _crs.count(cCr2) == 0 and cCr2.photo(_there.photo_id) is not None)
-
-# -- themes
-check("every theme is a whole look, and the page keeps it",
-      len(_cr.THEMES) >= 9 and set(_cr.THEME_ORDER) == set(_cr.THEMES))
-for _key in _cr.THEME_ORDER:
-    _tp = _cr.make_page(_crows, shape="square")
-    _tp.texts.append(_cr.Text(text="A day out", size=0.038))
-    _tp.text_room = 0.11
-    _cr.apply_theme(_tp, _key)
-    _cr.arrange(_tp, [1.5] * len(_crows), "mosaic")
-    _low = max(s.y + s.h for s in _tp.slots)
-    if not check(f"theme {_key}: words get a band of their own, photos stay above it",
-                 _low <= _tp.texts[0].y + 1e-6 and _tp.texts[0].y < 1.0,
-                 f"photos to {_low:.2f}, words at {_tp.texts[0].y:.2f}"):
-        break
-    if not check(f"theme {_key} draws", _cr.render(_tp, 260) is not None):
-        break
-_saved = _cr.Page.from_dict(_tp.to_dict())
-check("a theme survives being written down and read back",
-      _saved.theme == _tp.theme and _saved.background == _tp.background
-      and _saved.sprinkle == _tp.sprinkle and _saved.text_room == _tp.text_room)
-_tilted = _cr.make_page(_crows, shape="square")
-_cr.apply_theme(_tilted, "polaroid")
-check("a leaning photo is drawn inside the page, not over its edge",
-      _cr.render(_tilted, 300) is not None and _tilted.tilt > 0)
-_grad = _cr.Page(background="#000000,#ffffff")
-_wash = _cr.render(_grad, 100)
-check("a two-colour background is a wash from one to the other",
-      sum(_wash.getpixel((50, 2))) < 40 and sum(_wash.getpixel((50, 97))) > 720)
-_plain = _cr.render(_cr.Page(background="#336699"), 60)
-check("a one-colour background stays that colour",
-      _plain.getpixel((30, 30)) == (51, 102, 153))
-check("the words follow the theme, not the last theme",
-      _tp.texts[0].color == _cr.THEMES[_tp.theme].get("text_color", "#111111"))
-# The preview's own marks must never reach a file.
-_marked = _cr.render(_page, 300, highlight=0, edge=True)
-check("the preview can mark the photo being worked on", _marked is not None)
-
-# -- words land on the page
-# Piklin shares a process with GTK, whose HarfBuzz disagreed with the one
-# Pillow lays text out with: letter widths came back in the millions of
-# pixels and every title was drawn a mile off the side of the page.
-_f = _cr.font("bold", 53)
-_width = _f.getlength("Aniella")
-check("a word is measured in pixels, not in millions of them",
-      0 < _width < 53 * 20, f"{_width:.0f}px")
-_wordy = _cr.Page(shape="square", background="#ffffff", text_room=0.14)
-_wordy.texts.append(_cr.Text(text="Aniella", size=0.08, y=0.8, color="#111111",
-                             tracking=0.08))
-_shot = _cr.render(_wordy, 500)
-_band = np.asarray(_shot.convert("L"), dtype=float)[int(0.78 * 500):, :]
-check("the words are drawn where the page keeps room for them",
-      int((_band < 160).sum()) > 50, f"{int((_band < 160).sum())} px")
-_dark = _cr.Page(shape="square", background="#111111")
-_dark.texts.append(_cr.Text(text="Aniella", size=0.1, y=0.45, color="#111111"))
-_lit = np.asarray(_cr.render(_dark, 400).convert("L"), dtype=float)
-check("words that would vanish into the page are turned readable",
-      int((_lit > 160).sum()) > 50,
-      _cr.readable_on("#111111", "#111111"))
-# -- the typefaces Piklin carries
-check("Piklin carries a choice of typefaces",
-      len(_cr.FAMILIES) >= 10 and set(_cr.FAMILY_ORDER) == set(_cr.FAMILIES))
-_bad = []
-for _key in _cr.FAMILY_ORDER:
-    _ff = _cr.font("bold", 40, _key)
-    _w = _ff.getlength("Aniella · 15 años")
-    if not (0 < _w < 40 * 30):
-        _bad.append((_key, _w))
-check("every typeface draws, at a sane width, accents and all", not _bad, str(_bad))
-check("each typeface has its licence beside it",
-      all((_cr.family_file(k) or Path("x")).parent.glob("*.txt")
-          for k in _cr.FAMILY_ORDER if _cr.family_file(k)))
-_one = _cr.Page(shape="square", background="#ffffff", text_room=0.2)
-_one.texts.append(_cr.Text(text="Aniella", size=0.09, y=0.82, family="greatvibes"))
-_two = _cr.Page.from_dict(_one.to_dict())
-check("a page remembers which typeface its words are in",
-      _two.texts[0].family == "greatvibes")
-_a1 = np.asarray(_cr.render(_one, 400).convert("L"), dtype=float)
-_one.texts[0].family = "bebas"
-_a2 = np.asarray(_cr.render(_one, 400).convert("L"), dtype=float)
-check("changing the typeface changes the lettering",
-      int((np.abs(_a1 - _a2) > 10).sum()) > 100)
-_themed = _cr.Page()
-_themed.texts.append(_cr.Text(text="Hola"))
-_cr.apply_theme(_themed, "polaroid")
-check("a theme brings its own lettering", _themed.texts[0].family == "caveat")
-_themed.texts[0].family, _themed.texts[0].chosen_family = "oswald", True
-_cr.apply_theme(_themed, "winter")
-check("a typeface chosen by hand survives a change of theme",
-      _themed.texts[0].family == "oswald")
-
-check("words that already read are left in their own colour",
-      _cr.readable_on("#3a332b", "#e9e4dc") == "#3a332b"
-      and _cr.readable_on("#ffffff", "#111111") == "#ffffff")
-
-# ===================================================================
 section("Edit Info: one photo or a group")
 from piklin.ui.info_dialog import apply_edits as _ae, merge_keywords as _mk, parse_when as _pw
 _libE = _L(os.path.join(TMP, "Info Library.piklin")).ensure()
@@ -3758,6 +3751,7 @@ try:
     _f = _F(); _f._scope = "ids"; _f._album_id = None; _f._search = None; _f._order = "taken_desc"
     _f._smart_id = None; _f._selected = {7}; _f._photo_ids = [4, 5, 6]; _calls = []
     _f.load = lambda *a, **k: _calls.append(k)
+    _f.first_visible_id = lambda: None; _f.reveal_photo = lambda *_a: None
     _gm.PhotoGrid.refresh(_f)
     check("loading a person's photos again keeps their photos (it showed 'No photos')",
           _calls and _calls[0].get("photo_ids") == [4, 5, 6])
@@ -4035,6 +4029,64 @@ check("suggestions: names, places, months and cameras",
       [x[1] for x in _ss.suggest(_cs, "an")][:1] == ["Ana"] and any(x[0] == "camera" for x in _ss.suggest(_cs, "iph"))
       and any(x[1] == "October" for x in _ss.suggest(_cs, "octu")))
 check("a first name finds whoever has it", _ss.vocabulary(_cs).firsts.get("luis") == [2])
+
+
+
+section("Modals: one formula")
+import ast as _ast
+_bad, _made = [], 0
+for _f in sorted(glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), "piklin", "**", "*.py"), recursive=True)):
+    for _fn in _ast.walk(_ast.parse(open(_f).read())):
+        if not isinstance(_fn, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            continue
+        _calls = [c for c in _ast.walk(_fn) if isinstance(c, _ast.Call)]
+        _n = lambda c: c.func.attr if isinstance(c.func, _ast.Attribute) else getattr(c.func, "id", "")
+        if not any(isinstance(c.func, _ast.Attribute) and c.func.attr == "AlertDialog" for c in _calls):
+            continue
+        _made += 1
+        _adds = sum(1 for c in _calls if _n(c) == "add_response")
+        _loop = any(isinstance(x, (_ast.For, _ast.While)) and any(_n(c) == "add_response" for c in _ast.walk(x) if isinstance(c, _ast.Call)) for x in _ast.walk(_fn))
+        if (_adds >= 2 or _loop) and not any(_n(c) == "set_response_appearance" for c in _calls):
+            _bad.append(f"{os.path.basename(_f)}:{_fn.name}")
+check("there are alerts to check", _made >= 20, str(_made))
+check("every alert with several answers marks the one that does the thing, so it is the black pill",
+      not _bad, ", ".join(_bad))
+_css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "piklin", "ui", "style.css")).read()
+check("the style gives the answers of every alert air between them and a black pill for the main one",
+      "dialog.alert .response-area > button {" in _css and "margin: 4px" in _css.split("dialog.alert .response-area > button {")[1].split("}")[0]
+      and all(f"button.{k}" in _css.split("/* The answer that does the thing")[1].split("/* -- first steps")[0]
+              for k in ("suggested", "suggested-action", "destructive", "destructive-action")))
+check("alerts made with modal.alert() get that formula without asking for it",
+      "set_response_appearance" in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "piklin", "ui", "modal.py")).read())
+
+section("Search: a folder or album asked for in other words")
+_cn = _Cat6(os.path.join(TMP, "names.db"))
+for _fname in ("Aniella - Cumpleaños", "Cumpleaños", "Lauren - Cumpleanios", "Navidad 2018", "Cumpleanios Jose"):
+    _fid = _cn.create_folder(_fname)
+    _cn.create_album(_fname + " album", folder_id=_fid)
+_ss.vocabulary(_cn).refresh(True)
+def _chips(text):
+    return [(t.kind, t.label) for t in _ss.parse(_cn, text).terms]
+check("a folder named with a person and a word is found by those words, in any order",
+      _chips("cumpleaños de aniella") == [("folder", "Aniella - Cumpleaños")]
+      and _chips("aniella cumpleaños") == [("folder", "Aniella - Cumpleaños")])
+check("the beginning of a word is enough", _chips("cumple aniella") == [("folder", "Aniella - Cumpleaños")])
+check("a name written without the tilde is found with it, and the other way round",
+      _chips("cumpleaños lauren") == [("folder", "Lauren - Cumpleanios")]
+      and _chips("cumpleanios aniella") == [("folder", "Aniella - Cumpleaños")])
+check("a word that is a whole folder stays that folder", _chips("cumpleaños") == [("folder", "Cumpleaños")])
+check("a year after it is still a year",
+      _chips("cumpleaños de aniella 2019") == [("folder", "Aniella - Cumpleaños"), ("date", "2019")])
+check("a name written exactly keeps its reading", _chips("navidad 2018") == [("folder", "Navidad 2018")])
+check("words an exact name takes are not taken again by another",
+      _chips("navidad 2018 aniella")[0] == ("folder", "Navidad 2018"))
+check("one letter off in a long name is forgiven", _chips("cumpleanios") == [("folder", "Cumpleaños")])
+check("taking the chip out leaves the rest of what was typed",
+      _ss.without("cumpleaños de aniella 2019", _ss.parse(_cn, "cumpleaños de aniella 2019").terms[0]) == "2019")
+
+
+# ===================================================================
+# -- Memories: photographs into a film, and what Piklin has been taught about making one
 
 print("\n" + "="*64)
 print(f"  {len(PASS)} passed, {len(FAIL)} failed")

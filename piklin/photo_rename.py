@@ -114,6 +114,14 @@ def repoint_photo(library, catalog, photo_id: int, old: Path, new: Path,
     path at it. ``columns`` updates other fields too, such as bytes or ext."""
     old, new = Path(old), Path(new)
     sets = {"path": str(new), "filename": new.name, **columns}
+    if "bytes" in columns and "fingerprint" not in columns:
+        # The file at this path is another one (a video made smaller): the
+        # fingerprint of the old file would make it look like a copy of it.
+        try:
+            from . import imageio as iio
+            sets["fingerprint"] = iio.fingerprint(new)
+        except OSError:
+            pass
     names = ", ".join(f"{k}=?" for k in sets)
     with catalog.write() as cur:
         cur.execute(f"UPDATE photos SET {names}, "

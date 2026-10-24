@@ -35,7 +35,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from .paths import APP_ID, LIBRARY_EXT, Library, remember_library
 
-VERSION = "2.0.6"
+VERSION = "2.0.7"
 
 
 def _load_bundled_icons():
@@ -272,6 +272,8 @@ class PikaliciousApp(Adw.Application):
             library_move.mark_package(library.root)
             self.window = MainWindow(self, library)
             self._apply_theme(library)
+            from . import watchdog
+            watchdog.start()
         self.window.present()
 
     def do_open(self, files, n_files, hint):
@@ -436,9 +438,6 @@ def rebuild_index(library: Library, on_progress=None) -> int:
     print(f"  restored {n_folders} folders")
     n_smart = sidecars.restore_smart_albums(library, catalog)
     print(f"  restored {n_smart} smart albums")
-    from . import creations as _creations
-    n_made = _creations.restore_sidecar(library, catalog)
-    print(f"  restored {n_made} creations")
 
     # Re-attach albums to the folders they belonged to, by uuid.
     import json as _json
@@ -534,6 +533,12 @@ def _rebuild_showing_progress(library: Library) -> int:
 
 
 def main(argv=None):
+    job = os.environ.get("PIKLIN_ENCODE_JOB")
+    if job:
+        # Started by Piklin itself to make one video smaller, in a process of its
+        # own (encode_worker.py): no window, nothing else.
+        from . import encode_worker
+        raise SystemExit(encode_worker.run(job))
     parser = argparse.ArgumentParser(
         prog="piklin", description="Photo library and editor")
     parser.add_argument("paths", nargs="*", help="folders or photos to open")

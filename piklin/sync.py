@@ -268,7 +268,6 @@ def _merge_converted(mine, theirs):
 
 _LISTS = {
     "converted-videos.json": _merge_converted,
-    "creations.json": lambda a, b: merge_list(a, b, "creations"),
     "Albums/_folders.json": lambda a, b: merge_list(a, b, "folders"),
     "Albums/_smart.json": lambda a, b: merge_list(a, b, "smart_albums"),
     "Albums/_deleted.json": merge_deleted_albums,
@@ -651,9 +650,6 @@ def apply(library, catalog, new_photos: bool = False, edits=()) -> None:
         if uuid_ in smart_rows and uuid_ not in smart_wanted:
             catalog.delete_smart_album(smart_rows[uuid_]["id"])
 
-    # creations: collages and posters another computer made or changed
-    from . import creations as _creations
-    _creations.restore_sidecar(library, catalog)
 
     # albums
     files = {}

@@ -42,3 +42,6 @@ window.piklin .pika-brand-sidebar label.pika-app-title {
   font-weight: 700;
   letter-spacing: -0.01em;
 }
+
+/* The Mac rounds its own windows: the content is not rounded a second time. */
+window.piklin, window.piklin.csd { border-radius: 0; }

@@ -553,4 +553,17 @@ class ExportDialog(Adw.Dialog):
                                          errors).format(count=errors)
         self.status_row.set_subtitle(detail)
         self.progress.set_fraction(1.0)
+        # The result is said where it cannot be missed: a note on the window, and the dialog out of the way. Left open, the
+        # line in it sat below the fold and the person was left wondering whether anything had been done. With some
+        # files failed the dialog stays, so the failure can be read.
+        window = self.get_root()
+        if done and not errors:
+            note = ngettext("Exported {count} item to {folder}", "Exported {count} items to {folder}",
+                            done).format(count=done, folder=self.destination)
+            toast = getattr(window, "show_toast", None)
+            self.force_close()
+            if toast is not None:
+                toast(note)
+        elif errors and getattr(window, "show_toast", None) is not None:
+            window.show_toast(ngettext("{count} failed", "{count} failed", errors).format(count=errors))
         return False

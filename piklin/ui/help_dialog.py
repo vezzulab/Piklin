@@ -104,7 +104,7 @@ GUIDE = (
         ("view-conceal-symbolic", N_("Hidden"),
          N_("Photos you hide with Ctrl+L leave your library and wait here.")),
         ("edit-copy-symbolic", N_("Duplicates"),
-         N_("Finds photos that are exact copies, so you can keep just one.")),
+         N_("Finds photos that are the same picture, saved again or made smaller, so you can keep just one.")),
         ("user-trash-symbolic", N_("Recently Deleted"),
          N_("Get deleted photos back within 30 days.")),
     )),

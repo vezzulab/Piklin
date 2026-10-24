@@ -438,6 +438,109 @@ def _month_name(n: int) -> str:
     return datetime(2000, n, 1).strftime("%B")
 
 
+# -- names that are said a little differently ----------------------------------------
+def _edit1(a: str, b: str) -> bool:
+    """Whether two words differ by one letter more, less or changed."""
+    if a == b:
+        return True
+    if abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) > len(b):
+        a, b = b, a
+    i = 0
+    while i < len(a) and a[i] == b[i]:
+        i += 1
+    if len(a) == len(b):
+        return a[i + 1:] == b[i + 1:]
+    return a[i:] == b[i + 1:]
+
+
+def _same_word(typed: str, named: str) -> bool:
+    """A typed word for a word of a name: the same, the beginning of it
+    ("cumple" for "cumpleanos"), or one letter off in a long word
+    ("cumpleanios", written as it was, for "cumpleanos")."""
+    if typed == named:
+        return True
+    if len(typed) >= 4 and named.startswith(typed):
+        return True
+    return len(typed) >= 6 and len(named) >= 6 and _edit1(typed, named)
+
+
+def _name_words(key: str) -> list[str]:
+    return [w for w in re.split(r"[^a-z0-9]+", key) if w and w not in STOPWORDS]
+
+
+def _all_names(vocab):
+    """Every name of the library that a search can mean, by what it is, with
+    the words it is made of: (key, words)."""
+    seen = vocab.__dict__.get("_named_words")
+    if seen is not None and seen[0] == vocab._at:
+        return seen[1]
+    out = []
+    for source in (vocab.sidefolders, vocab.albums, vocab.events, vocab.dirs):
+        for key in source:
+            words = _name_words(key)
+            if words:
+                out.append((key, words))
+    vocab._named_words = (vocab._at, out)
+    return out
+
+
+def _cover_names(vocab, folded, used, toks) -> list[tuple[int, int, str]]:
+    """Names the typed words ask for even when they are not written as the name is:
+    "cumpleanos de aniella" for the folder "Aniella - Cumpleanos", the words in another
+    order, with little words between, beginning or one letter off. What the name is
+    made of must all be there, and nothing but little words may sit between them,
+    so a chip can be taken away cleanly. Returns [(first token, past the last, key)]."""
+    word_at = {i: w for i, w in enumerate(folded)
+               if not used[i] and w and w not in STOPWORDS and ":" not in w
+               and not toks[i][0].startswith(("-", '"'))}
+    if len(word_at) < 2:
+        return []
+    # Names written exactly, in a run of the typed words, are read as they always were;
+    # what they take is not taken again here ("navidad 2018 aniella" is the folder
+    # "Navidad 2018" and Aniella, not "Aniella 2018" using the same 2018).
+    keys = {k for k, _w in _all_names(vocab)}
+    exact = [(a, b) for a in range(len(folded)) for b in range(a + 2, min(len(folded), a + 6) + 1)
+             if " ".join(folded[a:b]) in keys]
+    found = []
+    for key, words in _all_names(vocab):
+        if len(words) < 2 or len(words) > len(word_at):
+            continue
+        picked: list[int] = []
+        for nw in words:
+            hit = next((i for i, tw in word_at.items() if i not in picked and _same_word(tw, nw)), None)
+            if hit is None:
+                break
+            picked.append(hit)
+        else:
+            lo, hi = min(picked), max(picked) + 1
+            between = [i for i in range(lo, hi) if i not in picked]
+            if any(used[i] or folded[i] not in STOPWORDS for i in between):
+                continue
+            if " ".join(folded[lo:hi]) == key:
+                continue            # written exactly as it is: the plain reading handles it
+            if any(lo < b and a < hi for a, b in exact):
+                continue            # it would take words an exact name already uses
+            found.append((lo, hi, key, len(words)))
+    found.sort(key=lambda f: (-f[3], f[0]))
+    return [(a, b, k) for a, b, k, _n in found]
+
+
+def _fuzzy_named(vocab, key: str, only=None):
+    """A name one letter off from what was typed, only when nothing is called exactly that."""
+    words = key.split()
+    if not words or any(len(w) < 6 for w in words):
+        return []
+    for cand, cwords in _all_names(vocab):
+        if len(cwords) == len(words) and all(_edit1(w, c) for w, c in zip(words, cwords)):
+            found = _named(vocab, cand, only, fuzzy=False)
+            if found:
+                return found
+    return []
+
+
+
 def parse(catalog, text: str, today: date | None = None) -> Parsed:
     """Read what was typed. ``today`` is for tests."""
     today = today or date.today()
@@ -456,8 +559,19 @@ def parse(catalog, text: str, today: date | None = None) -> Parsed:
     def year_of(w: str) -> int | None:
         return int(w) if re.fullmatch(r"(19|20)\d\d", w) else None
 
+    # A folder or album the words ask for as a whole, however they are ordered
+    for lo, hi, key in _cover_names(vocab, folded, used, toks):
+        if any(used[lo:hi]):
+            continue
+        found = _named(vocab, key, fuzzy=False)
+        if found:
+            take(lo, hi, _named_term(found))
+
     i = 0
     while i < len(toks):
+        if used[i]:
+            i += 1
+            continue
         w = folded[i]
         raw = toks[i][0]
         # -word: not this word
@@ -690,6 +804,7 @@ def parse(catalog, text: str, today: date | None = None) -> Parsed:
     kept = [x for x in out.words if x not in STOPWORDS]
     if kept or out.terms:
         out.words = kept
+    out.terms.sort(key=lambda t: t.start)
     return out
 
 
@@ -711,7 +826,7 @@ def forget_preferences() -> None:
     _prefer.clear()
 
 
-def _named(vocab, key, only=None):
+def _named(vocab, key, only=None, fuzzy=True):
     """What a name stands for: the albums, the folders of the sidebar and the folders
     on disk called that: [(kind, shown, condition, values)]. only: "album" or "folder"."""
     out = []
@@ -729,6 +844,8 @@ def _named(vocab, key, only=None):
         shown, spans = vocab.events[key]
         cond = "(" + " OR ".join("(p.taken_at>=? AND p.taken_at<?)" for _s in spans) + ")"
         out.append(("event", shown, cond, [x for lo, hi in spans for x in (lo, hi + 0.001)], []))
+    if not out and fuzzy:
+        return _fuzzy_named(vocab, key, only)
     return out
 
 

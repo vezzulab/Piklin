@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 import gi
-from ..i18n import _, N_
+from ..i18n import _, N_, ngettext
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
@@ -61,6 +61,8 @@ class EditorView(Gtk.Box):
 
         self.photo_path: Path | None = None
         self.photo_id: int | None = None
+        self.group: list[tuple[Path, int | None]] = []     # the photos edited together: one edit for all of them
+        self.group_index = 0
         self.source: np.ndarray | None = None       # preview-resolution source
         self.full_size = (0, 0)
         self.stack = EditStack()
@@ -100,6 +102,7 @@ class EditorView(Gtk.Box):
         box.add_css_class("pika-editor-canvas")
         box.append(self._build_canvas_bar())
         box.append(self.canvas_overlay)
+        box.append(self._build_strip())
         box.set_hexpand(True)
         self.append(box)
 
@@ -114,6 +117,100 @@ class EditorView(Gtk.Box):
         self._crop_handle = None
         self._stroke = None
         self._canvas_mode = None
+
+    def _build_strip(self):
+        """When several photos are edited together, all of them lie in a row under the picture, as the boards of a
+        document do: the one in use is ringed, and what is done to it is done to every one."""
+        self.strip_rev = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_UP, reveal_child=False)
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, margin_top=8, margin_bottom=10,
+                        margin_start=12, margin_end=12)
+        outer.add_css_class("pika-strip")
+        self.strip_note = Gtk.Label(xalign=0.5)
+        self.strip_note.add_css_class("pika-dim")
+        self.strip_note.add_css_class("caption")
+        outer.append(self.strip_note)
+        self.strip_box = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        scroller = Gtk.ScrolledWindow(vscrollbar_policy=Gtk.PolicyType.NEVER, hscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+                                      propagate_natural_height=True)
+        scroller.set_child(self.strip_box)
+        outer.append(scroller)
+        self.strip_rev.set_child(outer)
+        self.strip_rev.set_visible(False)
+        self._strip_tiles: list[Gtk.Button] = []
+        return self.strip_rev
+
+    def _fill_strip(self):
+        while (c := self.strip_box.get_first_child()) is not None:
+            self.strip_box.remove(c)
+        self._strip_tiles = []
+        many = len(self.group) > 1
+        self.strip_rev.set_visible(many)
+        self.strip_rev.set_reveal_child(many)
+        if not many:
+            return
+        self.strip_note.set_text(ngettext("{count} photo share this edit", "{count} photos share this edit",
+                                          len(self.group)).format(count=len(self.group)))
+        for i, (path, _pid) in enumerate(self.group):
+            btn = Gtk.Button()
+            btn.add_css_class("flat")
+            btn.add_css_class("pika-strip-tile")
+            pic = Gtk.Picture(content_fit=Gtk.ContentFit.COVER, can_shrink=True)
+            pic.set_size_request(84, 60)
+            pic.set_overflow(Gtk.Overflow.HIDDEN)
+            pic.add_css_class("pika-strip-pic")
+            btn.set_child(pic)
+            btn.set_tooltip_text(Path(path).name)
+            btn.connect("clicked", lambda _b, i=i: self.switch_to(i))
+            self.strip_box.append(btn)
+            self._strip_tiles.append(btn)
+
+            def done(thumb, pic=pic):
+                def put():
+                    try:
+                        pic.set_paintable(Gdk.Texture.new_from_filename(str(thumb)))
+                    except Exception:
+                        pass
+                    return False
+                if thumb:
+                    GLib.idle_add(put)
+            try:
+                self._thumbs.request(path, 160, done)
+            except Exception:
+                pass
+        self._sync_strip()
+
+    def _sync_strip(self):
+        for i, btn in enumerate(self._strip_tiles):
+            (btn.add_css_class if i == self.group_index else btn.remove_css_class)("selected")
+
+    def open_many(self, photos, start: int = 0):
+        """Edit several photos together: ``photos`` is [(path, photo_id)]. They all take the edit of the first one
+        and keep taking whatever is done from here on."""
+        photos = [(Path(p), i) for p, i in photos]
+        if not photos:
+            return
+        start = max(0, min(start, len(photos) - 1))
+        self.open(photos[start][0], photos[start][1])
+        self.group = photos
+        self.group_index = start
+        self._fill_strip()
+        self._autosave()                       # the others take the edit at once, not only after the next change
+
+    def switch_to(self, index: int):
+        """Another photo of the group in the canvas, with the edit they share."""
+        if not (0 <= index < len(self.group)) or index == self.group_index or self.source is None:
+            return
+        self.flush()
+        self.group_index = index
+        path, pid = self.group[index]
+        self.photo_path, self.photo_id = Path(path), pid
+        self.title_label.set_text(self.photo_path.name)
+        self.renderer.invalidate()
+        self.source = None
+        self.active_index = None
+        self._close_params()
+        self._sync_strip()
+        self._load_source()
 
     def _build_canvas_bar(self):
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6,
@@ -344,24 +441,48 @@ class EditorView(Gtk.Box):
             "head_pose": "smiley", "double_exposure": "stack",
             "text": "text-t", "frames": "frame-corners",
         }
+        # The tools in rows that are always whole: six in two rows of three, four in two of two, and so on. Whatever a new
+        # tool brings that is not named here goes to the end of its own group.
+        layout = (
+            (N_("Adjust"), ("tune", "details", "curves", "white_balance", "black_white", "tonal_contrast")),
+            (N_("Effects"), ("hdr", "glamour", "drama", "vignette", "lens_blur", "double_exposure")),
+            (N_("Geometry"), ("crop", "rotate", "perspective", "expand")),
+            (N_("Local"), ("selective", "brush", "healing")),
+            (N_("Portrait"), ("portrait", "head_pose")),
+            (N_("Overlay"), ("text", "frames")),
+        )
+        by_id = {t.id: t for ts in tools.groups().values() for t in ts}
+        placed: set[str] = set()
+        sections = []
+        for title, ids in layout:
+            got = [by_id[i] for i in ids if i in by_id]
+            placed.update(t.id for t in got)
+            sections.append((title, got))
         for group, tool_list in tools.groups().items():
+            rest = [t for t in tool_list if t.id in by_id and t.id not in placed]
+            if rest:
+                sections.append((group, rest))
+        for group, tool_list in sections:
+            if not tool_list:
+                continue
             header = Gtk.Label(label=_(group), xalign=0.0)
             header.add_css_class("pika-tool-group")
             box.append(header)
+            cols = 3 if len(tool_list) % 3 == 0 or len(tool_list) > 4 else 2
             flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE,
-                               max_children_per_line=3,
-                               min_children_per_line=3,
-                               homogeneous=True, row_spacing=2,
-                               column_spacing=2)
+                               max_children_per_line=cols,
+                               min_children_per_line=cols,
+                               homogeneous=True, row_spacing=6,
+                               column_spacing=6)
             for tool in tool_list:
                 btn = Gtk.Button()
                 btn.add_css_class("flat")
                 btn.add_css_class("pika-tool-tile")
-                inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+                inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
                 img = Gtk.Image(icon_name="pk-%s-symbolic" % icons.get(
                                     tool.id, "sliders-horizontal"),
                                 pixel_size=22)
-                name = Gtk.Label(label=_(tool.name), wrap=True, justify=2,
+                name = Gtk.Label(label=_(tool.name), wrap=True, justify=Gtk.Justification.CENTER,
                                  max_width_chars=11)
                 name.add_css_class("pika-tool-name")
                 inner.append(img)
@@ -397,6 +518,16 @@ class EditorView(Gtk.Box):
         box.append(flow)
         scroller.set_child(box)
         return scroller
+    
+    def _on_apply_look(self, _btn, name):
+        if self.source is None:
+            return
+        self.stack.apply_look(name)
+        self._refresh_layers()
+        self._request_render(draft=False)
+        self._autosave()
+        self._update_history_buttons()
+    
 
     def _build_layers_page(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6,
@@ -466,8 +597,13 @@ class EditorView(Gtk.Box):
 
         sidecar = self.library.edit_sidecar(self.photo_path)
         self.stack = EditStack.load(sidecar)
+        self.group = [(self.photo_path, photo_id)]
+        self.group_index = 0
+        self._fill_strip()
         self._refresh_layers()
+        self._load_source()
 
+    def _load_source(self):
         max_side = int(self.settings.get("preview_max_side", 1600))
         self.spinner.start()
 
@@ -549,16 +685,17 @@ class EditorView(Gtk.Box):
     def _autosave(self):
         if not self.settings.get("edit_autosave", True) or not self.photo_path:
             return
-        sidecar = self.library.edit_sidecar(self.photo_path)
-        try:
-            if len(self.stack):
-                self.stack.save(sidecar, str(self.photo_path))
-            elif sidecar.exists():
-                sidecar.unlink()
-            if self.photo_id is not None:
-                self.catalog.note_edit(self.photo_id, len(self.stack))
-        except Exception:
-            pass
+        for path, pid in (self.group or [(self.photo_path, self.photo_id)]):      # one edit, kept for each photo of the group
+            sidecar = self.library.edit_sidecar(path)
+            try:
+                if len(self.stack):
+                    self.stack.save(sidecar, str(path))
+                elif sidecar.exists():
+                    sidecar.unlink()
+                if pid is not None:
+                    self.catalog.note_edit(pid, len(self.stack))
+            except Exception:
+                pass
 
     # ==================================================================
     # tools
@@ -982,6 +1119,8 @@ class EditorView(Gtk.Box):
             heading=_("Remove all edits?"),
             body=_("Your original photo is untouched either way — this just "
                  "clears the adjustments you have made to it."))
+        if len(self.group) > 1:
+            dialog.set_body(_("The photos are untouched either way — this clears the adjustments they share."))
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("revert", _("Remove Edits"))
         dialog.set_response_appearance("revert",
@@ -1002,8 +1141,9 @@ class EditorView(Gtk.Box):
         from .export_dialog import ExportDialog
         if self.photo_path is None:
             return
+        paths = [p for p, _i in self.group] or [self.photo_path]
         ExportDialog(self.get_root(), self.library, self.settings,
-                     [self.photo_path], stack=self.stack, catalog=self.catalog).present(self.get_root())
+                     paths, stack=self.stack, catalog=self.catalog).present(self.get_root())
 
     # ==================================================================
     # canvas interaction

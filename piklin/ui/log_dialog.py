@@ -55,11 +55,12 @@ class LogDialog(Adw.Dialog):
         buttons = Gtk.Box(spacing=8)
         copy = Gtk.Button(label=_("Copy"))
         copy.add_css_class("suggested-action")
+        copy.add_css_class("pill")
         copy.connect("clicked", self._on_copy)
-        report = Gtk.Button(label=_("Report a Problem…"))
+        report = Gtk.Button(label=_("Report a Problem…"), css_classes=["pill"])
         report.set_tooltip_text(_("Opens a new problem report on GitHub in your browser"))
         report.connect("clicked", self._on_report)
-        folder = Gtk.Button(label=_("Open Folder"))
+        folder = Gtk.Button(label=_("Open Folder"), css_classes=["pill"])
         folder.connect("clicked", self._on_folder)
         clear = Gtk.Button(label=_("Clear"), hexpand=True, halign=Gtk.Align.END)
         clear.add_css_class("flat")
@@ -73,8 +74,11 @@ class LogDialog(Adw.Dialog):
         self.set_child(view)
         self._load()
 
+    def _read(self) -> str:
+        return logs.read_all()
+
     def _load(self):
-        content = logs.read_all() or _("Nothing has been noted yet.")
+        content = self._read() or _("Nothing has been noted yet.")
         self._buffer.set_text(content)
 
         def to_end():
@@ -84,7 +88,7 @@ class LogDialog(Adw.Dialog):
         GLib.idle_add(to_end)
 
     def _on_copy(self, _btn):
-        Gdk.Display.get_default().get_clipboard().set(logs.read_all())
+        Gdk.Display.get_default().get_clipboard().set(self._read())
         self._toasts.add_toast(Adw.Toast(title=_("Log copied")))
 
     def _on_report(self, _btn):

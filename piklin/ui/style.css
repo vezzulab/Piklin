@@ -967,9 +967,8 @@ statuspage description { color: @pika_text_dim; }
  * softer fills read as the same palette, just less severe.
  * ==================================================================== */
 
-/* Window corners, generous rather than square. */
-window.piklin { border-radius: 12px; }
-window.piklin.csd { border-radius: 12px; }
+/* The window's own corners are the system's: none are drawn here. A radius on top of the one the desktop gives the window
+ * (or the Mac's own) showed as a second, different curve. */
 
 
 
@@ -1953,33 +1952,46 @@ window.piklin dialog.alert .message-area { padding: 28px 28px 14px 28px; }
 window.piklin dialog.alert .message-area .title-2,
 window.piklin dialog.alert .message-area label.heading { font-size: 1.25rem; font-weight: 800; }
 window.piklin dialog.alert .response-area {
-  padding: 8px 20px 20px 20px;
-  border-spacing: 8px;
+  padding: 8px 16px 18px 16px;
 }
 window.piklin dialog.alert .response-area > separator { min-width: 0; min-height: 0; background: none; opacity: 0; }
+/* The answers sit in a gizmo, not a box, so there is no spacing to ask for: each carries
+   its own margin, and two pills side by side, or one above the other, have air between. */
 window.piklin dialog.alert .response-area > button {
-  min-height: 38px;
-  margin: 0;
+  min-height: 40px;
+  margin: 4px;
+  padding: 0 18px;
   border: none;
   border-radius: 999px;
-  background-color: alpha(#000000, 0.06);
+  background-color: alpha(#000000, 0.07);
   background-image: none;
   box-shadow: none;
   font-weight: 600;
   transition: background-color 140ms ease-out;
 }
-window.piklin dialog.alert .response-area > button:hover { background-color: alpha(#000000, 0.10); }
-window.piklin dialog.alert .response-area > button:active { background-color: alpha(#000000, 0.14); }
-window.piklin dialog.alert .response-area > button.suggested-action {
+window.piklin dialog.alert .response-area > button:hover { background-color: alpha(#000000, 0.11); }
+window.piklin dialog.alert .response-area > button:active { background-color: alpha(#000000, 0.15); }
+/* The answer that does the thing - Create, Rename, Delete, Leave - is the black pill,
+   whichever name libadwaita gives it. */
+window.piklin dialog.alert .response-area > button.suggested,
+window.piklin dialog.alert .response-area > button.suggested-action,
+window.piklin dialog.alert .response-area > button.destructive,
+window.piklin dialog.alert .response-area > button.destructive-action {
   background-color: #111113;
   background-image: linear-gradient(to bottom, #3a3a3e 0%, #1c1c1f 48%, #0b0b0c 100%);
   box-shadow: inset 0 1px 0 alpha(#ffffff, 0.22), 0 1px 2px alpha(#000000, 0.22),
               0 4px 12px alpha(#000000, 0.14);
 }
-window.piklin dialog.alert .response-area > button.suggested-action:hover {
+window.piklin dialog.alert .response-area > button.suggested:hover,
+window.piklin dialog.alert .response-area > button.suggested-action:hover,
+window.piklin dialog.alert .response-area > button.destructive:hover,
+window.piklin dialog.alert .response-area > button.destructive-action:hover {
   background-image: linear-gradient(to bottom, #4a4a4f 0%, #28282c 48%, #141416 100%);
 }
-window.piklin dialog.alert .response-area > button.suggested-action label { color: #ffffff; }
+window.piklin dialog.alert .response-area > button.suggested label,
+window.piklin dialog.alert .response-area > button.suggested-action label,
+window.piklin dialog.alert .response-area > button.destructive label,
+window.piklin dialog.alert .response-area > button.destructive-action label { color: #ffffff; }
 
 /* -- first steps ------------------------------------------------------------
  * Numbered steps at the top, one question in the middle, Back and Continue
@@ -2120,57 +2132,6 @@ window.piklin button.suggested-action.pika-primary-pill:disabled { opacity: 0.35
 window.piklin .pika-steps-footer button.suggested-action.pika-primary-pill,
 window.piklin .pika-steps-footer button.pika-step-back { margin: 0; padding-left: 0; padding-right: 0; }
 
-/* -- Create: the panel at the right, and the workshop ------------------
- * The panel is the sidebar's twin on the other edge, so the window keeps
- * its symmetry when it is open. */
-.pika-create-panel {
-  background: @pika_sidebar;
-  border-left: 1px solid @pika_hairline;
-}
-.pika-create-panel label { color: @pika_text; }
-window.piklin button.pika-create-kind {
-  border: 1px solid @pika_hairline;
-  border-radius: 12px;
-  background: @pika_wall;
-  box-shadow: none;
-  padding: 0;
-}
-window.piklin button.pika-create-kind:hover { background: alpha(#000000, 0.04); }
-window.piklin button.pika-create-kind:disabled { opacity: 0.45; }
-.pika-create-controls {
-  background: @pika_sidebar;
-  border-right: 1px solid @pika_hairline;
-}
-.pika-create-controls label { color: @pika_text; }
-/* The name sits in the middle of the bar, reading as a title until it is
-   clicked, not as a form field. */
-window.piklin entry.pika-create-name {
-  background: none;
-  border: none;
-  box-shadow: none;
-  font-weight: 600;
-  min-height: 28px;
-}
-window.piklin entry.pika-create-name:focus {
-  background: alpha(#000000, 0.05);
-  border-radius: 8px;
-}
-/* The place photos go into: an empty box with a + in it. */
-window.piklin button.pika-tray-add {
-  border: 1px dashed alpha(currentColor, 0.35);
-  border-radius: 8px;
-  background: none;
-  box-shadow: none;
-  color: @pika_text_dim;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-}
-window.piklin button.pika-tray-add:hover {
-  background: alpha(#000000, 0.05);
-  border-color: alpha(currentColor, 0.6);
-}
-window.piklin button.pika-tray-tile { padding: 0; min-width: 0; min-height: 0; }
 
 /* ---- the map ------------------------------------------------------- */
 /* How many photos that one pin stands for, inside its head. */
@@ -2286,3 +2247,136 @@ window.piklin .pika-sidebar row:selected image.pika-trash-full,
 
 .pika-event-cover { border-radius: 16px; overflow: hidden; background: #1c1c20; }
 .pika-event-cover picture { border-radius: 16px; }
+
+
+/* ---- the picker: a photo that is marked ------------------------------ */
+.pika-pick-mark {
+  background: alpha(#000000, 0.22);
+  border: 3px solid #ffffff;
+  border-radius: 6px;
+}
+.pika-pick-mark image { color: #ffffff; -gtk-icon-shadow: 0 1px 4px alpha(#000000, 0.6); }
+
+/* A quiet way out under a set of cards ("Not Now"): a soft grey pill, not a button to look for. */
+window.piklin button.pika-quiet-pill {
+  min-height: 38px;
+  padding: 0 26px;
+  border: none;
+  border-radius: 999px;
+  background-color: alpha(#000000, 0.07);
+  background-image: none;
+  box-shadow: none;
+  font-weight: 600;
+}
+window.piklin button.pika-quiet-pill:hover { background-color: alpha(#000000, 0.11); }
+
+window.piklin .pika-offer-badge { min-width: 60px; min-height: 60px; border-radius: 999px; background: alpha(#000000, 0.055); }
+window.piklin .pika-offer-badge image { color: #000000; }
+
+/* The number of a photo chosen in the picker: a white round badge, in the order they were chosen. */
+.pika-pick-number {
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #000000;
+  font-weight: 800;
+  font-size: 0.9rem;
+  box-shadow: 0 1px 5px alpha(#000000, 0.35);
+}
+
+
+/* -- dialogs: one frame -----------------------------------------------------------------------
+ * Every window that opens over the app (settings, export, info, the picker, the guide, the log, an update, a film's size)
+ * is the same card as an alert: the same round corners, a bar of one height with the same air on both sides, the way out
+ * on one side and the main answer on the other, both 32 px tall, so the bar is balanced. The main answer is the black pill
+ * of the alerts; any other word in the bar is a soft grey pill. Written once here: never restyle one dialog on its own. */
+dialog-host > dialog sheet { border-radius: 18px; }
+dialog-host > dialog sheet headerbar {
+  min-height: 46px;
+  padding: 0 14px;
+  border-bottom: 1px solid alpha(#000000, 0.07);
+  box-shadow: none;
+}
+dialog-host > dialog sheet headerbar windowhandle > box { padding: 0; border-spacing: 8px; }
+dialog-host > dialog sheet headerbar > windowhandle > box > box.start,
+dialog-host > dialog sheet headerbar > windowhandle > box > box.end { min-width: 84px; }
+dialog-host > dialog sheet headerbar > windowhandle > box > box.end { }
+window.piklin dialog-host > dialog sheet headerbar .start > button:not(.circular):not(.image-button):not(.close):not(.suggested-action),
+window.piklin dialog-host > dialog sheet headerbar .end > button:not(.circular):not(.image-button):not(.close):not(.suggested-action) {
+  min-height: 32px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: none;
+  background: alpha(#000000, 0.06);
+  box-shadow: none;
+}
+window.piklin dialog-host > dialog sheet headerbar .start > button:not(.circular):not(.image-button):not(.close):not(.suggested-action):hover,
+window.piklin dialog-host > dialog sheet headerbar .end > button:not(.circular):not(.image-button):not(.close):not(.suggested-action):hover { background: alpha(#000000, 0.11); }
+window.piklin dialog-host > dialog sheet headerbar .start > button.circular,
+window.piklin dialog-host > dialog sheet headerbar .start > button.close,
+window.piklin dialog-host > dialog sheet headerbar .end > button.circular {
+  min-width: 32px; min-height: 32px; padding: 0; border-radius: 999px;
+}
+dialog-host > dialog sheet button.suggested-action {
+  min-height: 32px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: none;
+  background-color: #111113;
+  background-image: none;
+  box-shadow: none;
+}
+dialog-host > dialog sheet button.suggested-action:hover { background-color: #333336; }
+dialog-host > dialog sheet button.suggested-action:disabled { background-color: alpha(#111113, 0.35); }
+dialog-host > dialog sheet button.suggested-action label { color: #ffffff; font-weight: 650; }
+dialog-host > dialog sheet button.pill:not(.suggested-action) {
+  min-height: 32px; padding: 0 20px; border-radius: 999px; border: none; background: alpha(#000000, 0.06); box-shadow: none;
+}
+dialog-host > dialog sheet button.pill:not(.suggested-action):hover { background: alpha(#000000, 0.11); }
+/* The Save of a dialog's bar: the same height as the way out opposite it, a little lighter, and when there is nothing to
+ * save yet it reads as a quiet grey pill with grey words, not white words on grey. */
+window.piklin dialog-host > dialog sheet headerbar .end > button.suggested-action,
+window.piklin dialog-host > dialog sheet headerbar .start > button.suggested-action {
+  min-height: 30px;
+  padding: 0 18px;
+  margin: 0;
+}
+window.piklin dialog-host > dialog sheet headerbar button.suggested-action label { font-weight: 600; font-size: 0.95em; }
+window.piklin dialog-host > dialog sheet headerbar button.suggested-action:disabled { background-color: alpha(#000000, 0.07); }
+window.piklin dialog-host > dialog sheet headerbar button.suggested-action:disabled label { color: alpha(#000000, 0.4); }
+window.piklin dialog-host > dialog sheet headerbar .start > button:not(.circular):not(.image-button):not(.close):not(.suggested-action),
+window.piklin dialog-host > dialog sheet headerbar .end > button:not(.circular):not(.image-button):not(.close):not(.suggested-action) {
+  min-height: 30px; padding: 0 16px;
+}
+window.piklin dialog-host > dialog sheet headerbar .start > button,
+window.piklin dialog-host > dialog sheet headerbar .end > button { margin-top: 0; margin-bottom: 0; }
+
+/* The editor's tool tiles: equal cards with a hairline, an icon over a name, both centred. */
+.pika-tool-tile { min-height: 74px; border: 1px solid alpha(#000000, 0.07); background: alpha(#000000, 0.02); }
+.pika-tool-tile:hover { background: alpha(#000000, 0.06); border-color: alpha(#000000, 0.12); }
+.pika-tool-name { margin-top: 0; }
+
+/* The row of photos under the editor's picture when several are edited together. */
+.pika-strip { border-top: 1px solid alpha(#000000, 0.07); }
+.pika-strip-tile { padding: 3px; border-radius: 10px; }
+.pika-strip-tile:hover { background: alpha(#000000, 0.06); }
+.pika-strip-tile.selected { background: alpha(#000000, 0.06); }
+.pika-strip-pic { border-radius: 9px; background: alpha(#000000, 0.06); }
+.pika-strip-tile.selected .pika-strip-pic { box-shadow: 0 0 0 2px #111113; }
+
+
+
+/* "Coming Soon": a small pill, in the sidebar row and at the top of Create */
+.pika-soon {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: alpha(@pika_text, 0.09);
+  color: @pika_text_dim;
+}
+.pika-soon-large { font-size: 0.8rem; padding: 3px 12px; }
+.pika-sidebar row:selected .pika-soon { background: alpha(#ffffff, 0.22); color: #ffffff; }

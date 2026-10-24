@@ -797,6 +797,7 @@ class Backend:
             on_progress(p)
 
         inflight: dict[str, int] = {}      # rel -> bytes of it sent so far
+        failed: list[str] = []             # the first few that failed, logged with their reason
         finished_bytes = 0
         since_saved = 0
 
@@ -817,7 +818,12 @@ class Backend:
             self._on_bytes = sent
             try:
                 return bool(self.put(f, rel))
-            except Exception:
+            except Exception as exc:
+                # The stop says only how many files failed; this says which and why.
+                if len(failed) < 20:
+                    failed.append(rel)
+                    from . import logs
+                    logs.get("backup").warning("Upload of %s failed: %s: %s", rel, type(exc).__name__, exc)
                 return False
             finally:
                 self._on_bytes = None
@@ -2239,6 +2245,7 @@ class RcloneBackend(Backend):
                                 stderr=subprocess.STDOUT, text=True, env=self._env(),
                                 **extra)
         last = ""
+        reported = 0
         for line in proc.stdout or []:
             if self.cancel.is_set():
                 proc.terminate()
@@ -2259,6 +2266,12 @@ class RcloneBackend(Backend):
                 p.errors = int(stats.get("errors", 0))
             elif entry.get("level") == "error":
                 last = str(entry.get("msg", ""))[:200]
+                # The stop says only how many files failed; this says which and why.
+                if reported < 20:
+                    reported += 1
+                    from . import logs
+                    logs.get("backup").warning("rclone: %s%s", entry.get("object") or "",
+                                               (": " if entry.get("object") else "") + str(entry.get("msg", ""))[:300])
             if on_progress:
                 on_progress(p)
         proc.wait(timeout=60)
@@ -2748,7 +2761,11 @@ def library_files(root: Path, include_originals: bool = True,
     if include_originals:
         d = root / "Originals"
         if d.is_dir():
-            found = sorted(p for p in d.rglob("*") if p.is_file())
+            # Not the temporary files of a copy or an encode in progress
+            # (".X.smaller.mp4.part"): they are half a file, and not ours to keep.
+            found = sorted(p for p in d.rglob("*")
+                           if p.is_file() and not p.name.endswith((".part", ".incoming"))
+                           and not (p.name.startswith(".") and p.name.endswith(".smaller.mp4")))
             # photos before videos: a video takes minutes, a photo seconds,
             # so what can be seen is across first
             ordered += [p for p in found if not is_video(p)]

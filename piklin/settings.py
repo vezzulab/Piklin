@@ -26,8 +26,8 @@ DEFAULTS: dict[str, Any] = {
     "storage_video_profile": "original",   # original | h264
     # Videos copied in as they are, still to be made smaller (paths).
     "videos_to_shrink": [],
+    "videos_skipped": {},        # videos that came out no smaller, or failed (videospace.skipped)
     # Videos chosen in Free Up Space, still to be made smaller: {id, bit_rate}.
-    "create_panel_open": False,
     "create_tray": [],
     "videos_to_convert": [],
     "videos_convert_paused": False,

@@ -314,6 +314,8 @@ class PhotoGrid(Gtk.Box):
         self._by_group = False        # an album shown under its named groups
         self._search = None
         self._order = "taken_desc"
+        self._order_other = "taken_desc"      # the order of the library and its views, as the person chose it
+        self._order_album = "taken_asc"       # an album reads from the oldest photograph to the newest, as it happened
         # The toolbar's Filter menu and Aspect Ratio button: both apply to
         # whatever view is open and survive moving between views.
         self._filters: set[str] = set()
@@ -1427,8 +1429,8 @@ class PhotoGrid(Gtk.Box):
                                           "here.")),
         "videos": (N_("No Videos"), N_("Videos in your folders and from your camera "
                                 "appear here.")),
-        "duplicates": (N_("No Duplicates"), N_("Photos that are exact copies of each "
-                                        "other are gathered here.")),
+        "duplicates": (N_("No Duplicates"), N_("Photos that are the same picture, "
+                                        "whatever the file, are gathered here.")),
         "imports": (N_("No Imports"), N_("Photos you import from a camera appear here, "
                                   "newest import first.")),
     }
@@ -1607,6 +1609,14 @@ class PhotoGrid(Gtk.Box):
         self._by_group = bool(scope == "album" and album_id is not None
                               and self.catalog.album_has_groups(album_id))
         self._search = search or None
+        if scope == "album":                 # an album has its own order, kept apart from the library's (never the order they were imported in)
+            if order:
+                self._order_album = order
+            order = self._order_album
+        else:
+            if order:
+                self._order_other = order
+            order = self._order_other
         self._order = order or self._order
         self._offset = 0
         self._exhausted = False

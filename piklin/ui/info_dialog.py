@@ -163,10 +163,10 @@ class InfoDialog(Adw.Dialog):
             place.add(row)
             page.add(place)
 
-        self.save = Gtk.Button(label=_("Save"), sensitive=False,
+        self.save = Gtk.Button(label=_("Save"), sensitive=False, valign=Gtk.Align.CENTER,
                                css_classes=["suggested-action"])
         self.save.connect("clicked", self._on_save)
-        cancel = Gtk.Button(label=_("Cancel"))
+        cancel = Gtk.Button(label=_("Cancel"), valign=Gtk.Align.CENTER)
         cancel.connect("clicked", lambda *_a: self.close())
         bar = Adw.HeaderBar(show_end_title_buttons=False, show_start_title_buttons=False)
         bar.pack_start(cancel)

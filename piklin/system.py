@@ -184,6 +184,50 @@ def lower_thread_priority() -> None:
         pass
 
 
+def lower_encoder_priority() -> None:
+    """For a process of its own that only encodes video: it gives way to
+    everything the person is doing. On a Mac the processor priority is the
+    middle one (the lowest would keep it on the slow cores only, and a video
+    would take hours), and the disk is throttled: a copy of photos made at the
+    same time was slowed to a crawl by the encoder's reads and writes."""
+    lower_thread_priority()                 # the threads the encoder starts inherit it
+    try:
+        if IS_MAC:
+            # IOPOL_TYPE_DISK, IOPOL_SCOPE_PROCESS, IOPOL_THROTTLE
+            ctypes.CDLL(None).setiopolicy_np(1, 0, 3)
+        elif IS_LINUX:
+            import platform
+            number = {"x86_64": 251, "aarch64": 30}.get(platform.machine())
+            if number:                      # ioprio_set: best effort, the lowest level
+                ctypes.CDLL(None, use_errno=True).syscall(number, 1, 0, (2 << 13) | 7)
+    except (OSError, AttributeError, ValueError):
+        pass
+
+
+def hide_from_dock() -> None:
+    """A helper process started from Piklin's own program is not an app: on a
+    Mac it would show in the Dock as a second Piklin. Marks this process as one
+    with no icon and no menu."""
+    if not IS_MAC:
+        return
+    try:
+        import ctypes.util
+
+        class _Psn(ctypes.Structure):
+            _fields_ = [("high", ctypes.c_uint32), ("low", ctypes.c_uint32)]
+        services = ctypes.CDLL(ctypes.util.find_library("ApplicationServices"))
+        services.TransformProcessType(ctypes.byref(_Psn(0, 2)), 4)   # current process -> UI element
+    except (OSError, AttributeError, TypeError):
+        pass
+
+
+def encoder_threads() -> int:
+    """How many cores the video encoder may use: all but two on a computer with
+    six or more, so the window, the photos and the copies still have theirs."""
+    cores = os.cpu_count() or 2
+    return max(1, cores - 2 if cores >= 6 else cores - 1 if cores >= 3 else cores)
+
+
 def _nice_child() -> None:
     try:
         os.nice(10)

@@ -194,7 +194,7 @@ class SettingsDialog(Adw.PreferencesDialog):
                               "dark": Adw.ColorScheme.FORCE_DARK}
                              .get(value, Adw.ColorScheme.DEFAULT))
 
-    # ==================================================================
+
     def _storage_page(self):
         page = Adw.PreferencesPage(title=pgettext("preferences tab", "Storage"), name="storage",
                                    icon_name="drive-harddisk-symbolic")
@@ -1543,7 +1543,7 @@ class SettingsDialog(Adw.PreferencesDialog):
                           "anything."))
         dupes = Adw.ActionRow(
             title=_("Find Duplicate Photos"),
-            subtitle=_("Reads every photo and video, whole, to find exact copies"))
+            subtitle=_("Looks at every photo and reads every video, to find the ones that are the same"))
         dbtn = Gtk.Button(label=_("Find"), valign=Gtk.Align.CENTER)
         dbtn.connect("clicked", self._on_find_dupes, dupes)
         dupes.add_suffix(dbtn)
@@ -1631,6 +1631,9 @@ class SettingsDialog(Adw.PreferencesDialog):
                 text = _("Reading every file — {done} of {total}  ·  {size} of {all}").format(
                     done=f"{p.read:,}", total=f"{p.to_read:,}",
                     size=_fmt(p.bytes_read), all=_fmt(p.bytes_total))
+            elif p.phase == "looking":
+                text = _("Looking at the pictures — {done} of {total}").format(
+                    done=f"{p.looked:,}", total=f"{p.to_look:,}")
             else:
                 text = _("Checking {count} files…").format(count=f"{p.files:,}")
             GLib.idle_add(row.set_subtitle, text)

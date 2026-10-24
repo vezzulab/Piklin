@@ -570,7 +570,7 @@ def shrink_video(library, catalog, photo_id: int, on_progress=None,
                  cancel: threading.Event | None = None, bit_rate: int | None = None,
                  verify=None, set_apart: Path | None = None,
                  fmt: str = "mp4", crfs: tuple = (), max_side: int | None = None,
-                 preset: int | None = None) -> str:
+                 preset: int | None = None, pause=None) -> str:
     """Make a video already in the library smaller, in place: H.264 at a capped
     rate, or AV1 by quality (``fmt="av1"``), trying each quality in ``crfs``
     from the smallest file until one passes ``verify``. ``max_side`` brings a
@@ -581,7 +581,7 @@ def shrink_video(library, catalog, photo_id: int, on_progress=None,
     removed once the smaller copy is complete and the catalog points at it,
     so the video is never lost; albums, favourites and edits stay with it.
     """
-    from . import video_edit as ve
+    from . import encode_worker, video_edit as ve
     from .photo_rename import repoint_photo
     from .video import stream_info
     row = catalog.photo(photo_id)
@@ -590,7 +590,9 @@ def shrink_video(library, catalog, photo_id: int, on_progress=None,
     src = Path(row["path"])
     if not src.is_file():
         return "gone"
-    work = src.with_name(f"{src.stem}.smaller.mp4")
+    # Hidden while it is made: the scan of the library lists every visible file,
+    # and listed this one as another video - a copy of the one being replaced.
+    work = src.with_name(f".{src.stem}.smaller.mp4")
     Path(work.with_name(f".{work.name}.part")).unlink(missing_ok=True)   # left by a closed app
     try:
         duration = float(row["duration"] or 0.0) or \
@@ -603,11 +605,12 @@ def shrink_video(library, catalog, photo_id: int, on_progress=None,
         # Each quality is tried in turn, the smallest file first: the first
         # smaller copy that is the same video is the one that is kept.
         for crf in (list(crfs) if fmt == "av1" and crfs else [None]):
-            out = ve.export(src, work, ve.VideoEdit(duration=duration), fmt=fmt,
-                            max_side=max_side, preset=preset, keep_location=True,
-                            meta={"taken_at": row["taken_at"], "location": location},
-                            on_progress=on_progress, cancel=cancel,
-                            bit_rate=None if fmt == "av1" else bit_rate, crf=crf)
+            # In a process of its own, stopped while photos are copied (pause)
+            out = encode_worker.export(
+                src, work, duration, fmt=fmt, max_side=max_side, preset=preset,
+                keep_location=True, meta={"taken_at": row["taken_at"], "location": location},
+                on_progress=on_progress, cancel=cancel,
+                bit_rate=None if fmt == "av1" else bit_rate, crf=crf, pause=pause)
             if out.stat().st_size >= st.st_size * 0.9:
                 out.unlink(missing_ok=True)
                 return "kept"

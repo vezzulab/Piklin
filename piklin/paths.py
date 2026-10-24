@@ -33,6 +33,11 @@ from pathlib import Path
 # instead of handing everything to it. Reopening Piklin keeps the setting.
 APP_ID = os.environ.get("PIKLIN_APP_ID") or "com.envy.Piklin"
 APP_NAME = "Piklin"
+def create_ready() -> bool:
+    """Create is coming soon: for now nothing of it opens."""
+    return False
+
+
 # Where "Support on Ko-fi" in the sidebar leads. Empty hides the button.
 SUPPORT_URL = "https://ko-fi.com/vezzustudio"
 # The app was called Pikalicious before; a library created then stays

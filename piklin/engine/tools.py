@@ -1824,9 +1824,16 @@ register(Tool(
     apply=_frames))
 
 
+
+
+RETIRED = frozenset()
+
+
 def groups() -> dict[str, list[Tool]]:
     """Tools bucketed by group, in registration order, for the UI."""
     out: dict[str, list[Tool]] = {}
     for t in REGISTRY.values():
+        if t.id in RETIRED:
+            continue
         out.setdefault(t.group, []).append(t)
     return out

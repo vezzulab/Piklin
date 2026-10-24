@@ -20,6 +20,7 @@ case "$ARCH" in
 esac
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
+SRC="${PIKLIN_SRC:-$ROOT}"                  # what is packed: the whole project, or the public edition
 OWNER="$(id -u):$(id -g)"
 say() { printf '\033[1;36m==>\033[0m [%s] %s\n' "$ARCH" "$*"; }
 
@@ -36,7 +37,10 @@ if [ "$ARCH" = arm64 ] && ! ls "$HERE/wheel-local-$WHEEL_ARCH"/miniaudio-*cp314*
 fi
 
 say "FFmpeg, PyAV and the .deb in Ubuntu 24.04"
-docker run --rm --platform "linux/$ARCH" -v "$ROOT":/src -w /src \
+MOUNT_SRC=()
+[ "$SRC" != "$ROOT" ] && MOUNT_SRC=(-v "$SRC":/pub:ro -e PIKLIN_SRC=/pub)
+[ -n "${PIKLIN_BUILD_ID:-}" ] && MOUNT_SRC+=(-e PIKLIN_BUILD_ID)
+docker run --rm --platform "linux/$ARCH" -v "$ROOT":/src "${MOUNT_SRC[@]}" -w /src \
     -e MAINTAINER -e ARCH="$ARCH" -e DEBIAN_FRONTEND=noninteractive ubuntu:24.04 bash -euc "
   apt-get update -qq
   apt-get install -y -qq --no-install-recommends python3-venv python3-pip python3-dev \

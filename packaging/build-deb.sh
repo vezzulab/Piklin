@@ -17,6 +17,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
+SRC="${PIKLIN_SRC:-$ROOT}"                  # what is packed: the whole project, or the public edition (tools/public_edition.py)
 STAGE="$HERE/deb-root"
 WHEELS="$HERE/wheel-cache"
 ARCH="${ARCH:-$(dpkg --print-architecture 2>/dev/null || echo amd64)}"
@@ -32,7 +33,7 @@ esac
 # built by build-deb-docker.sh in a manylinux container.
 LOCAL_WHEELS="$HERE/wheel-local-$WHEEL_ARCH"
 PKG=piklin
-VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$ROOT/piklin/app.py")"
+VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$SRC/piklin/app.py")"
 MAINTAINER="${MAINTAINER:-Vezzu Studio <maintainer@example.com>}"
 # Ubuntu 24.04 / Mint 22: 3.12. Debian 13, Ubuntu 25.x: 3.13. Newer: 3.14.
 PYVERS="${PYVERS:-3.12 3.13 3.14}"
@@ -59,16 +60,16 @@ mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/bin" "$SHARE/data" "$LIB/common" "$DOC" \
 
 # ---------------------------------------------------------------- app code
 say "Copying application"
-cp -r "$ROOT/piklin" "$SHARE/"
+cp -r "$SRC/piklin" "$SHARE/"
 # Which build this is. A version can be published again with fixes; the
 # updater compares this id (also uploaded as <deb>.build) to tell them apart.
-BUILD_ID="$(git -C "$ROOT" rev-parse --short=12 HEAD 2>/dev/null || echo local)-$(date -u +%Y%m%d%H%M%S)"
+BUILD_ID="${PIKLIN_BUILD_ID:-$(git -C "$SRC" rev-parse --short=12 HEAD 2>/dev/null || echo local)}-$(date -u +%Y%m%d%H%M%S)"
 printf '%s\n' "$BUILD_ID" > "$SHARE/piklin/BUILD_ID"
 find "$SHARE" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-for d in fonts icons models; do cp -r "$ROOT/data/$d" "$SHARE/data/"; done
+for d in fonts icons models; do cp -r "$SRC/data/$d" "$SHARE/data/"; done
 # The world's towns, for naming the places on the map without asking
 # anyone where a photograph was taken.
-install -m 644 "$ROOT/data/places.tsv.gz" "$SHARE/data/places.tsv.gz"
+install -m 644 "$SRC/data/places.tsv.gz" "$SHARE/data/places.tsv.gz"
 install -m 755 "$HERE/deb/piklin" "$STAGE/usr/bin/piklin"
 
 # ------------------------------------------------------------ python libs
@@ -168,9 +169,9 @@ install -D -m 644 "$HERE/deb/studio.vezzu.piklin.update.policy" \
 
 # ------------------------------------------------------------- desktop bits
 say "Desktop entry, icons and metadata"
-install -m 644 "$ROOT/data/piklin.desktop" "$STAGE/usr/share/applications/"
+install -m 644 "$SRC/data/piklin.desktop" "$STAGE/usr/share/applications/"
 for s in 16 24 32 48 64 128 256 512; do
-  install -D -m 644 "$ROOT/data/icons/piklin-$s.png" \
+  install -D -m 644 "$SRC/data/icons/piklin-$s.png" \
       "$STAGE/usr/share/icons/hicolor/${s}x${s}/apps/piklin.png"
 done
 
@@ -216,7 +217,7 @@ for info in "$LIB"/python"${PYVERS%% *}"/*.dist-info "$LIB"/common/*.dist-info; 
 done
 cp "$LIB"/common/cv2/LICENSE*.txt "$DOC/third-party/"opencv*/ 2>/dev/null || true
 # Every typeface Piklin carries brings its licence with it.
-for d in "$ROOT"/data/fonts/*/; do
+for d in "$SRC"/data/fonts/*/; do
   cp "$d"*.txt "$DOC/third-party/$(basename "$d")-LICENCE.txt" 2>/dev/null || true
 done
 mkdir -p "$DOC/third-party/ffmpeg"
@@ -267,6 +268,7 @@ Files: usr/share/piklin/data/models/face_recognition_sface_2021dec.onnx
 License: Apache-2.0
 Comment: SFace face recognition model, from the OpenCV model zoo; licence in data/models/SFACE-LICENSE.txt.
 
+${CREATE_MODELS:-}
 Files: usr/share/piklin/data/icons/hicolor/*
 License: MIT
 Comment: Phosphor Icons (https://phosphoricons.com), MIT licence in data/icons/PHOSPHOR-LICENSE.txt.

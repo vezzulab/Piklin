@@ -22,6 +22,8 @@ LOCAL_TEND_SECONDS = 3600
 # In "compressed" mode: how often the library looks for videos that came in
 # since, and the least a pass is worth starting for.
 PLAN_EVERY_SECONDS = 6 * 3600
+# the videos give way to a backup or a scan for this long, at most
+BUSY_PATIENCE = 10 * 60
 
 
 class VideoWatch:
@@ -41,6 +43,14 @@ class VideoWatch:
         self._last_tend = 0.0
         self._planning = False
         self._pruned = False
+        self._began = 0.0
+        self._thread: threading.Thread | None = None
+        self._noted = ""
+        self._busy_since = 0.0
+        # Set by the window: True while photos are being copied in. The encoder is
+        # stopped for as long as it says so, and goes on after.
+        self.hold = None
+        self._spent: list[float] = []       # seconds each video took in this session
         # There is no button to pause it any more: it looks after itself. One
         # left paused by an earlier version would stay so for good.
         if settings.get("videos_convert_paused"):
@@ -65,6 +75,15 @@ class VideoWatch:
         self.settings.set("videos_convert_paused", False)
         self._freed = self._done = 0
         GLib.idle_add(self._kick)
+
+    def add_paths(self, paths) -> list[str]:
+        """Videos just copied in, to be made smaller with all the others: one
+        at a time, only when it is the right moment, checked and with the
+        original kept. Returns the paths the catalog does not know yet."""
+        found, unknown = videospace.plan_paths(self.catalog, self.library.originals, paths)
+        if found:
+            self.start(found)
+        return unknown
 
     # -- the mode: keep the originals, or keep videos small -------------------
     @property
@@ -96,7 +115,8 @@ class VideoWatch:
         def work():
             try:
                 found = videospace.plan(self.catalog, self.library.originals,
-                                        profile="compressed")
+                                        profile="compressed",
+                                        skip=self.settings.get("videos_skipped") or {})
             except Exception:
                 found = []
             GLib.idle_add(self._planned, found)
@@ -139,18 +159,37 @@ class VideoWatch:
             return "power"
         if system.on_battery():
             return "battery"
-        # What the other computers already did is in the backup: read it all
-        # first, then decide what is left to do. Starting before that made
-        # videos smaller that another computer had made smaller already.
-        if not getattr(self.autobackup, "nas_read", True):
-            return "reading"
-        ab, hw = self.autobackup, self.health_watch
-        thread = getattr(self.indexer, "_thread", None)
-        if (getattr(ab, "_running", False) or getattr(ab, "_syncing", False)
-                or getattr(hw, "_running", False)
-                or (thread is not None and thread.is_alive())):
+        # The work on this computer comes first; the sync and the backup follow.
+        # Nothing is lost by not reading the backup first: before each video,
+        # make_smaller takes the turn and reads what the other computers have
+        # done (videospace.open_turn), so none is made smaller twice.
+        if self.busy_with():
             return "busy"
         return None
+
+    def busy_with(self) -> list[str]:
+        """What is reading the disk now that the videos should give way to:
+        a backup, a sync, the photo check, or a scan of the library."""
+        ab, hw = self.autobackup, self.health_watch
+        thread = getattr(self.indexer, "_thread", None)
+        return [name for name, on in (
+            ("backup or sync owed its turn", getattr(ab, "_owed", False)),
+            ("backup", getattr(ab, "_running", False)),
+            ("sync", getattr(ab, "_syncing", False)),
+            ("photo check", getattr(hw, "_running", False)),
+            ("library scan", thread is not None and thread.is_alive())) if on]
+
+    def remaining(self) -> tuple[int, float]:
+        """How many videos are left and about how many seconds they take: at the
+        pace of this session's last videos, else four minutes each."""
+        each = sum(self._spent[-10:]) / len(self._spent[-10:]) if self._spent else 240.0
+        left = len(self.queue)
+        return left, left * each
+
+    def working(self) -> bool:
+        """Whether a video is being made smaller now, or the next one is about
+        to be: the backup waits for it, or it sends half-made videos."""
+        return self._running or (bool(self.queue) and self.waiting_for() is None)
 
     def _kick(self):
         """Look now, once: _tick itself asks to be called again, which from an
@@ -160,11 +199,44 @@ class VideoWatch:
 
     def _first(self):
         self._tick()
+        # half-made files from a Piklin closed in the middle of a video
+        threading.Thread(target=self._clear_leftovers, daemon=True).start()
         return GLib.SOURCE_REMOVE
 
+    def _clear_leftovers(self):
+        try:
+            videospace.clear_leftovers(self.library.originals)
+        except Exception:
+            pass
+
+    def _note(self, state: str) -> None:
+        """Say in the log why the videos are not going on, once for each reason:
+        a person asking why nothing happens can be answered from it."""
+        if state != self._noted:
+            self._noted = state
+            from . import logs
+            logs.get("videos").info("Videos: %s (%d waiting)", state, len(self.queue))
+
     def _tick(self):
+        """One look at the queue. An error in it is logged and the timer goes on:
+        a timer that raises is removed by GLib, and the videos would wait for good."""
+        try:
+            return self._look()
+        except Exception:
+            from . import logs
+            logs.get("videos").exception("The videos' timer met an error")
+            self._running = False
+            return GLib.SOURCE_CONTINUE
+
+    def _look(self):
         if not self._timer and self._cancel.is_set():
             return GLib.SOURCE_REMOVE
+        if (self._running and self._thread is not None and not self._thread.is_alive()
+                and time.monotonic() - self._began > 30):
+            # the video's thread ended without saying so: do not wait for it for good
+            from . import logs
+            logs.get("videos").warning("A video's work ended without a result; going on")
+            self._running = False
         now = time.time()
         if now - self._last_tend >= LOCAL_TEND_SECONDS:
             self._last_tend = now
@@ -180,12 +252,30 @@ class VideoWatch:
             self._pruned = True
             self._prune_queue()
         if self._running or not self.queue:
+            self._note("encoding" if self._running else "nothing waiting")
             return GLib.SOURCE_CONTINUE
         why = self.waiting_for()
+        if why == "busy":
+            # Give way to a backup or a scan - but not for good: what is only
+            # marked as busy would hold the videos, and the backup that waits for
+            # them, for ever.
+            began = self._busy_since or time.monotonic()
+            self._busy_since = began
+            if time.monotonic() - began > BUSY_PATIENCE and not (
+                    {"backup", "backup or sync owed its turn"} & set(self.busy_with())):
+                from . import logs
+                logs.get("videos").warning("Videos waited %d minutes for %s; going on",
+                                           BUSY_PATIENCE // 60, ", ".join(self.busy_with()))
+                why = None
+        else:
+            self._busy_since = 0.0
         if why is not None:
+            self._note(f"waiting, {why}" + (f" ({', '.join(self.busy_with())})" if why == "busy" else ""))
             self.on_status({"state": "waiting", "why": why, "left": len(self.queue)})
             return GLib.SOURCE_CONTINUE
+        self._note("starting")
         self._running = True
+        self._began = time.monotonic()
         self._cancel.clear()
         item = self._next_item()
         remotes = list(getattr(self.autobackup, "remotes", []) or [])
@@ -193,7 +283,10 @@ class VideoWatch:
 
         def work():
             from . import logs, system
-            system.lower_thread_priority()
+            try:
+                system.lower_thread_priority()
+            except Exception:
+                pass
 
             def progress(fraction, d=self._done, t=total):
                 GLib.idle_add(self.on_status, {"state": "converting", "done": d + 1,
@@ -201,13 +294,14 @@ class VideoWatch:
             try:
                 result, freed = videospace.make_smaller(
                     self.library, self.catalog, remotes, item,
-                    cancel=self._cancel, on_progress=progress)
+                    cancel=self._cancel, on_progress=progress, pause=self.hold)
             except Exception as exc:
                 logs.get("videos").warning("A video was not made smaller: %s", exc)
                 result, freed = "failed", 0
             GLib.idle_add(self._finished, item, result, freed)
 
-        threading.Thread(target=work, name="videos", daemon=True).start()
+        self._thread = threading.Thread(target=work, name="videos", daemon=True)
+        self._thread.start()
         return GLib.SOURCE_CONTINUE
 
     def _prune_queue(self) -> None:
@@ -262,6 +356,17 @@ class VideoWatch:
             self.on_status({"state": "waiting", "why": "paused", "left": len(self.queue)})
             return False
         self.settings.set("videos_to_convert", [q for q in self.queue if q["id"] != item["id"]])
+        self._spent.append(max(1.0, time.monotonic() - self._began))
+        if result in ("kept", "failed"):
+            # Not looked at again at every pass through the library (see
+            # videospace.skipped): each try is minutes of work.
+            row = self.catalog.photo(item["id"])
+            if row is not None:
+                self.settings.set("videos_skipped", videospace.note_skipped(
+                    self.settings.get("videos_skipped") or {}, item["id"],
+                    int(row["bytes"] or 0), result))
+            if result == "failed":
+                logs.get("videos").warning("A video could not be made smaller (it stays as it is)")
         self._done += 1
         if result == "smaller":
             self._freed += freed

@@ -71,7 +71,8 @@ NAMED = {
 KEEP = re.compile(
     r"pika-player|pika-viewer-stage|pika-stage|pika-video-badge|pika-live-badge|"
     r"pika-badge|pika-select-check|pika-drag-count|pika-timeline|pika-scrubber|"
-    r"pika-map-(?:count|badge)|pika-tile-overlay|pika-copy-stop|pika-fullscreen|dimming")
+    r"pika-map-(?:count|badge)|pika-tile-overlay|pika-copy-stop|pika-fullscreen|dimming|"
+    r"pika-welcome-btn")        # the greeting lies on a cream picture in either look: its button stays black
 
 _HEX = re.compile(r"#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b")
 _ALPHA = re.compile(r"alpha\(\s*(#[0-9a-fA-F]{3,8})\s*,")

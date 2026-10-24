@@ -63,6 +63,12 @@ CREATE TABLE IF NOT EXISTS photos (
     -- hashed_key still equals bytes:mtime
     content_hash TEXT,
     hashed_key   TEXT,
+    -- what the picture looks like, found by the duplicate scan (dupescan.py):
+    -- a small grey copy, the group of look-alikes it belongs to, and what the
+    -- file looked like (bytes:mtime) when it was read
+    look_sig     BLOB,
+    look_key     TEXT,
+    looked_key   TEXT,
     width        INTEGER NOT NULL DEFAULT 0,
     height       INTEGER NOT NULL DEFAULT 0,
     orientation  INTEGER NOT NULL DEFAULT 1,
@@ -159,20 +165,6 @@ CREATE TABLE IF NOT EXISTS photo_text (
 );
 CREATE INDEX IF NOT EXISTS photo_text_hay ON photo_text(haystack);
 
--- Something made out of photos: a collage, a poster, a calendar. What is
--- kept is the recipe - which photos, where on the page, in what words -
--- and not only the picture it produced, so a creation can be opened and
--- changed again months later, on this computer and on the others.
-CREATE TABLE IF NOT EXISTS creations (
-    id         INTEGER PRIMARY KEY,
-    uuid       TEXT NOT NULL UNIQUE,
-    name       TEXT NOT NULL,
-    kind       TEXT NOT NULL DEFAULT 'collage',
-    doc        TEXT NOT NULL DEFAULT '{}',    -- JSON: the pages
-    photo_id   INTEGER REFERENCES photos(id) ON DELETE SET NULL,
-    created_at REAL NOT NULL,
-    updated_at REAL NOT NULL
-);
 
 -- People: faces found in the photos and grouped, all on this computer (see
 -- people.py). A person has a name once the user gives one. A face's state is
@@ -445,10 +437,15 @@ SCREENSHOT_SQL = ("(lower(p.filename) LIKE 'screenshot%' "
                   "OR lower(p.filename) LIKE 'captura de pantalla%' "
                   "OR lower(p.filename) LIKE 'screencapture%')")
 def dup_key(alias: str) -> str:
-    """What two photos must share to be duplicates: the hash of the whole
-    file when it has been read and is unchanged, else the quick fingerprint."""
+    """What two photos must share to be duplicates: the group of look-alikes
+    the scan found for them (the same picture, whatever the file), else the
+    hash of the whole file when it has been read and is unchanged, else the
+    quick fingerprint. Each is trusted only while the file is as it was."""
     a = alias
-    return (f"CASE WHEN {a}.content_hash IS NOT NULL "
+    return (f"CASE WHEN {a}.look_key IS NOT NULL "
+            f"AND {a}.looked_key = {a}.bytes || ':' || {a}.mtime "
+            f"THEN {a}.look_key "
+            f"WHEN {a}.content_hash IS NOT NULL "
             f"AND {a}.hashed_key = {a}.bytes || ':' || {a}.mtime "
             f"THEN {a}.content_hash ELSE {a}.fingerprint END")
 
@@ -610,6 +607,9 @@ class Catalog:
             cur.execute("ALTER TABLE photos ADD COLUMN content_hash TEXT")
         if "hashed_key" not in pcols:
             cur.execute("ALTER TABLE photos ADD COLUMN hashed_key TEXT")
+        for col, kind in (("look_sig", "BLOB"), ("look_key", "TEXT"), ("looked_key", "TEXT")):
+            if col not in pcols:
+                cur.execute(f"ALTER TABLE photos ADD COLUMN {col} {kind}")
 
         cols = {row[1] for row in cur.execute("PRAGMA table_info(albums)")}
         if "folder_id" not in cols:
@@ -1070,6 +1070,7 @@ class Catalog:
         order: str = "taken_desc",
         filters: Iterable[str] | None = None,
         photo_ids: Sequence[int] | None = None,
+        folder_ids: Sequence[int] | None = None,
         by_group: bool = False,
         limit: int | None = None,
         offset: int = 0,
@@ -1101,15 +1102,17 @@ class Catalog:
             where.append(DUPLICATE_SQL)
         elif scope == "imports":
             where.append(IMPORT_SQL)
-        elif scope == "creations":
-            # The pictures Piklin's own Create made, newest first.
-            where.append("p.id IN (SELECT photo_id FROM creations "
-                         "WHERE photo_id IS NOT NULL)")
         elif scope == "ids":
             # A named set of photos: what a place on the map stands for.
             chosen = list(photo_ids or ())
             where.append(f"p.id IN ({','.join('?' * len(chosen))})" if chosen else "0")
             params.extend(chosen)
+        elif scope == "folders" and folder_ids:
+            # The photos of the albums in these folders (a folder and what is inside it).
+            where.append("p.id IN (SELECT ai.photo_id FROM album_items ai JOIN albums a "
+                         "ON a.id=ai.album_id WHERE a.folder_id IN ("
+                         + ",".join("?" * len(folder_ids)) + "))")
+            params.extend(folder_ids)
         elif scope == "album" and album_id is not None:
             joins += " JOIN album_items ai ON ai.photo_id=p.id AND ai.album_id=?"
             params.append(album_id)
@@ -1256,8 +1259,6 @@ class Catalog:
             FROM photos WHERE paired_to IS NULL""")
         out = {k: int(row[k] or 0) for k in row.keys()}
         out.update({k: int(extra[k] or 0) for k in extra.keys()})
-        out["creations"] = int(self.scalar(
-            "SELECT COUNT(*) FROM creations WHERE photo_id IS NOT NULL", default=0) or 0)
         return out
 
     def date_buckets(self, scope: str = "library") -> list[sqlite3.Row]:
@@ -1557,6 +1558,10 @@ class Catalog:
                 "WHERE id=?",
                 (name, json.dumps(rules), match_mode, smart_id))
 
+    def rename_smart_album(self, smart_id: int, name: str) -> None:
+        with self.write() as cur:
+            cur.execute("UPDATE smart_albums SET name=? WHERE id=?", (name, smart_id))
+
     def delete_smart_album(self, smart_id: int) -> None:
         with self.write() as cur:
             cur.execute("DELETE FROM smart_albums WHERE id=?", (smart_id,))
@@ -1573,7 +1578,9 @@ class Catalog:
         rows = self.q(
             f"SELECT id, path, bytes FROM photos WHERE id IN ({marks}) "
             f"AND NOT (content_hash IS NOT NULL "
-            f"AND hashed_key = bytes || ':' || mtime)", list(photo_ids))
+            f"AND hashed_key = bytes || ':' || mtime) "
+            f"AND NOT (look_key IS NOT NULL "
+            f"AND looked_key = bytes || ':' || mtime)", list(photo_ids))
         for r in rows:
             try:
                 digest = dupescan.hash_file(r["path"])
@@ -1601,7 +1608,7 @@ class Catalog:
         marks = ",".join("?" * len(ids))
         rows = self.q(
             f"SELECT p.id, {dup_key('p')} AS fingerprint, p.favorite, p.rating, p.bytes, "
-            f"p.added_at, p.edit_version, "
+            f"p.width * p.height AS pixels, p.added_at, p.edit_version, "
             f"(SELECT COUNT(*) FROM album_items ai WHERE ai.photo_id=p.id) AS n_albums "
             f"FROM photos p WHERE p.id IN ({marks}) AND p.trashed_at IS NULL "
             f"AND {dup_key('p')} IS NOT NULL", ids)
@@ -1615,7 +1622,7 @@ class Catalog:
                     continue
                 group.sort(key=lambda r: (-(r["favorite"] or 0),
                                           -(r["edit_version"] > 0),
-                                          -r["n_albums"], -r["bytes"],
+                                          -r["n_albums"], -(r["pixels"] or 0), -r["bytes"],
                                           r["added_at"], r["id"]))
                 keeper, others = group[0], group[1:]
                 other_ids = [o["id"] for o in others]

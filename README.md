@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/screenshots/hero.png" alt="Piklin 2.0.6: your photos, understood" width="900">
+  <img src="docs/screenshots/hero.png" alt="Piklin 2.0.7: your photos, understood" width="900">
 </p>
 
 <p align="center">
@@ -13,6 +13,16 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Piklin%20License-0b0b0b?style=flat-square" alt="License: Piklin License"></a>
   <a href="https://ko-fi.com/vezzustudio"><img src="https://img.shields.io/badge/support-Ko--fi-0b0b0b?style=flat-square" alt="Support on Ko-fi"></a>
 </p>
+
+## New in 2.0.7
+
+- **Videos made smaller without slowing Piklin.** The work is done by a helper of its own, so the window stays smooth, photos you copy in come first, and one video is made smaller at a time, checked before it replaces the original.
+- **Duplicates, by what the picture is.** The same photo or video saved again, made smaller or sent through a chat is found even when the files differ; shots of a burst and edited versions are not taken for copies.
+- **Your computers share what they do in minutes.** The backup says what it waits for and how long, and after 20 minutes the sync and the backup take their turn between videos.
+- **Events:** the days and trips in your photos, found by themselves, named, and shown as cards.
+- **Every detail of a photo:** all the metadata, with its meaning in words, in the viewer's Info panel.
+- **Search, dialogs and the sidebar:** folders and albums found when asked for in other words, "Put it in" when you make an album or folder, and the Piklin mark at the very top.
+- **Edit several photos together** in the photo editor.
 
 ## New in 2.0.6
 

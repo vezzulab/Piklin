@@ -21,8 +21,7 @@ def _build_label(build: str) -> str:
 
 class UpdateDialog(Adw.Dialog):
     def __init__(self, release, current: str, current_build: str, on_install):
-        super().__init__(title=_("Update Piklin"), content_width=520,
-                         content_height=600)
+        super().__init__(title=_("Update Piklin"), content_width=520, follows_content_size=True)
         self._release = release
         self._on_install = on_install
         view = Adw.ToolbarView()
@@ -78,19 +77,20 @@ class UpdateDialog(Adw.Dialog):
                 row.append(Gtk.Label(label="•", valign=Gtk.Align.START))
                 row.append(Gtk.Label(label=text, xalign=0.0, wrap=True, hexpand=True))
                 changes.append(row)
-        page.append(Gtk.ScrolledWindow(vexpand=True, child=changes,
-                                       hscrollbar_policy=Gtk.PolicyType.NEVER))
+        page.append(Gtk.ScrolledWindow(child=changes, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True,
+                                       min_content_height=60, max_content_height=300))
 
         later = Gtk.Label(label=_("You can update later with Update Available, in the sidebar."),
                           xalign=0.0, wrap=True)
         later.add_css_class("pika-dim")
         page.append(later)
         buttons = Gtk.Box(spacing=8, halign=Gtk.Align.END)
-        cancel = Gtk.Button(label=_("Cancel"))
+        cancel = Gtk.Button(label=_("Cancel"), css_classes=["pill"])
         cancel.connect("clicked", lambda *_: self.close())
         buttons.append(cancel)
         install = Gtk.Button(label=_("Install Now"))
         install.add_css_class("suggested-action")
+        install.add_css_class("pill")
         if updates.can_install_itself():
             install.connect("clicked", lambda *_: self._on_install())
         else:

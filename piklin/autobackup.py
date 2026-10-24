@@ -34,6 +34,7 @@ RETRY_MINUTES = (5, 15, 60)
 BUSY_MINUTES = 5
 # How often another computer's changes are looked for while Piklin is open.
 SYNC_MINUTES = 10
+MAX_DEFERRED = 20 * 60          # seconds the backup and the sync wait for copies or videos; then they are owed their turn
 
 
 @dataclass
@@ -62,6 +63,19 @@ def _tend_videos(root: Path, backend, problems: list) -> None:
     if counts["problems"]:
         logs.get("backup").warning("Converted videos: %d original(s) kept, the smaller "
                                    "copy did not check out", counts["problems"])
+
+
+def _clean_leftovers(root: Path, backend) -> None:
+    """Half-made files at the destination (an encode or an upload cut short)
+    are removed, once a day, when their finished file is beside them."""
+    from . import logs, videospace
+    try:
+        gone = videospace.clean_destination(root, backend)
+    except Exception as exc:
+        logs.get("backup").warning("Half-made files not cleared: %s", exc)
+        return
+    if gone:
+        logs.get("backup").info("Half-made files cleared from the backup: %d", gone)
 
 
 def run_backup(root: Path, remotes: list, keep_days: int = 30,
@@ -115,9 +129,11 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
                 continue
             if not backend.has_local_changes(root, light):
                 _tend_videos(root, backend, problems)
+                _clean_leftovers(root, backend)
                 continue
         elif not backend.has_local_changes(root, light):
             _tend_videos(root, backend, problems)
+            _clean_leftovers(root, backend)
             continue
 
         def report(p, name=r.name):
@@ -154,6 +170,7 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
                 except Exception:
                     pass
                 _tend_videos(root, backend, problems)
+                _clean_leftovers(root, backend)
             if p.phase != "done" or p.errors:
                 message = p.message or ngettext("{count} file couldn't be uploaded",
                                                 "{count} files couldn't be uploaded",
@@ -166,6 +183,19 @@ def run_backup(root: Path, remotes: list, keep_days: int = 30,
     if problems:
         return Outcome(False, unreachable, "; ".join(problems), uploaded)
     return Outcome(True, uploaded=uploaded, busy=", ".join(dict.fromkeys(waiting)))
+
+
+def duration_text(seconds: float) -> str:
+    """A wait in plain words: "a few minutes", "25 minutes", "4 h 10 min"."""
+    minutes = int(round(seconds / 60.0))
+    if minutes < 5:
+        return _("a few minutes")
+    if minutes < 60:
+        return ngettext("{count} minute", "{count} minutes", minutes).format(count=minutes)
+    minutes = int(round(minutes / 5.0)) * 5               # not 4 h 13 min: nobody counts that closely
+    hours, rest = divmod(minutes, 60)
+    return _("{hours} h {minutes} min").format(hours=hours, minutes=rest) if rest else \
+        _("{hours} h").format(hours=hours)
 
 
 def describe_last(ts: float) -> str:
@@ -202,7 +232,18 @@ class AutoBackup:
         self._running = False
         self._again = False
         self._retry = 0
-        self._waiting = ""              # "" | "network" | "power"
+        self._waiting = ""              # "" | "network" | "power" | "copying" | "videos"
+        # Set by the window: says what is changing the library right now
+        # ("copying", "videos") or "" when nothing is. A backup never runs
+        # while photos are being copied or videos made smaller.
+        self.busy_with: Callable[[], str] | None = None
+        self._deferred_since = 0.0
+        self._sync_deferred_since = 0.0
+        self._owed = False           # it has waited its time: the videos let it have its turn
+        # and how much is left of it: (videos left, seconds), for the status text
+        self.busy_detail: Callable[[], tuple[int, float] | None] | None = None
+        # whether a video is being made (or photos copied) at this very moment
+        self.encoding_now: Callable[[], bool] | None = None
         self._problem = ""
         self._progress = ""
         # Kept in .cache, outside the backup: noting that a backup is due
@@ -274,6 +315,22 @@ class AutoBackup:
                 or not self._network.get_network_available()
                 or (self._power is not None and self._power.get_power_saver_enabled())):
             return GLib.SOURCE_CONTINUE
+        why = self.busy_with() if self.busy_with is not None else ""
+        if why:
+            # The work on this computer comes first: photos being copied in,
+            # videos being made smaller. The sync follows, and is not given up on.
+            if not self._sync_deferred_since:
+                from . import logs
+                self._sync_deferred_since = time.monotonic()
+                logs.get("backup").info("Sync waits: %s", why)
+            if time.monotonic() - self._sync_deferred_since <= MAX_DEFERRED:
+                return GLib.SOURCE_CONTINUE
+            self._owed = True
+            if self.encoding_now is not None and self.encoding_now():
+                GLib.timeout_add_seconds(15, lambda: (self._sync_tick(), False)[1])
+                return GLib.SOURCE_CONTINUE
+        self._sync_deferred_since = 0.0
+        self._owed = False
         self._syncing = True
         remotes = self.remotes
 
@@ -398,6 +455,32 @@ class AutoBackup:
         if self._syncing:
             self._schedule(QUIET_SECONDS)       # after the update in progress
             return False
+        why = self.busy_with() if self.busy_with is not None else ""
+        if why and self._deferred_since and time.monotonic() - self._deferred_since > MAX_DEFERRED:
+            # It has waited its time. The videos stop at the end of the one they are
+            # making (they see _owed), and the backup goes then: the other computers
+            # see what this one did in minutes, not at the end of a long queue.
+            self._owed = True
+            if self.encoding_now is not None and self.encoding_now():
+                self._schedule(10)
+                return False
+            from . import logs
+            logs.get("backup").info("Automatic backup waited %d minutes for %s; going now",
+                                    MAX_DEFERRED // 60, why)
+            why = ""
+        if why:
+            # Files are being written or replaced: sending them now would
+            # send half of them. Ask again after a quiet minute.
+            if not self._deferred_since:
+                from . import logs
+                self._deferred_since = time.monotonic()
+                logs.get("backup").info("Automatic backup waits: %s", why)
+            self._waiting = why
+            self._schedule(QUIET_SECONDS)
+            self.refresh_status()
+            return False
+        self._deferred_since = 0.0
+        self._owed = False
         if self._power is not None and self._power.get_power_saver_enabled():
             self._waiting = "power"
             self.refresh_status()
@@ -473,6 +556,9 @@ class AutoBackup:
     def status_text(self) -> str:
         if not self.settings.get("remotes"):
             return ""
+        if (self._waiting in ("copying", "videos") and self.busy_with is not None
+                and not self.busy_with()):
+            self._waiting = ""          # what it waited for is over: do not go on saying so
         if self._running:
             return self._progress or _("Backing up…")
         if self._syncing:
@@ -483,6 +569,17 @@ class AutoBackup:
         if self._waiting == "busy":
             return _("{name} is backing up to the same place, waiting").format(
                 name=self._problem)
+        if self._waiting == "copying":
+            return _("Backup waits until the photos are copied")
+        if self._waiting == "videos":
+            text = _("Backup waits until the videos are made smaller")
+            left = self.busy_detail() if self.busy_detail is not None else None
+            if left and left[0] > 0:
+                text += " — " + ngettext("{count} video left", "{count} videos left",
+                                         left[0]).format(count=f"{left[0]:,}")
+                text += ", " + (_("a few minutes") if left[1] < 270 else
+                                _("about {time}").format(time=duration_text(left[1])))
+            return text
         if self._waiting == "power":
             return _("Backup waits until battery saver is off")
         if self._waiting == "network":

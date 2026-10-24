@@ -1,6 +1,7 @@
 """The main window: sidebar, grid, viewer and editor in one navigation stack."""
 from __future__ import annotations
 
+import os
 import sys
 import threading
 import time
@@ -19,7 +20,7 @@ from .. import devices as devicemod
 from .. import sidecars
 from ..catalog import Catalog
 from ..indexer import Indexer
-from ..paths import Library
+from ..paths import Library, create_ready
 from ..settings import Settings
 from ..thumbs import SIZES as THUMB_SIZES, ThumbCache
 from .editor import EditorView
@@ -139,11 +140,6 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         self.stack.add_named(self.viewer, "viewer")
         self.stack.add_named(self.editor, "editor")
         self.stack.add_named(self.video_editor, "video-editor")
-        from .creation_view import CreationView
-        self.creation_view = CreationView(self)
-        self.creation_view.connect("closed", lambda *_a: self._show("grid"))
-        self.creation_view.connect("saved", self._on_creation_saved)
-        self.stack.add_named(self.creation_view, "create")
         self.toasts = Adw.ToastOverlay()
         # The copy progress card floats over the bottom right of the window.
         overlay = Gtk.Overlay()
@@ -176,6 +172,11 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         from ..videowatch import VideoWatch
         self.video_watch = VideoWatch(library, self.catalog, self.settings, self.autobackup,
                                       self.indexer, self.health_watch, self._on_video_space)
+        self.autobackup.busy_with = self._backup_must_wait
+        self.autobackup.busy_detail = lambda: self.video_watch.remaining()
+        self.video_watch.hold = lambda: getattr(self, "_copy_cancel", None) is not None
+        self.autobackup.encoding_now = lambda: bool(
+            self.video_watch._running or getattr(self, "_copy_cancel", None) is not None)
         self._start_people()
         self._start_search_index()
         self._start_drive_watch()
@@ -200,31 +201,11 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         self.split.set_start_child(sidebar)
         self.split.set_resize_start_child(False)
         self.split.set_shrink_start_child(False)
-        # Create sits in a divider of its own, so the room it takes comes
-        # out of the photos beside it and never out of the sidebar: when
-        # the two shared one box, opening Create squeezed album names into
-        # ellipses, and Piklin then remembered that narrower sidebar.
-        from .create_panel import CreatePanel
-        self.create_panel = CreatePanel(self)
-        self.create_panel.set_visible(bool(self.settings.get("create_panel_open")))
-        self.create_split = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL,
-                                      wide_handle=False)
-        self.create_split.add_css_class("pika-split")
         content = self._build_content()
         content.set_hexpand(True)
-        self.create_split.set_start_child(content)
-        self.create_split.set_resize_start_child(True)
-        # Never below its own minimum: allowing that let GTK clip the
-        # photos instead of reflowing them, so the first column and the
-        # buttons under it disappeared off the left edge.
-        self.create_split.set_shrink_start_child(False)
-        self.create_split.set_end_child(self.create_panel)
-        self.create_split.set_resize_end_child(False)
-        self.create_split.set_shrink_end_child(False)
         self._panel_save = 0
         self._panel_moved_at = 0.0
-        self.create_split.connect("notify::position", self._on_panel_width)
-        self.split.set_end_child(self.create_split)
+        self.split.set_end_child(content)
         self.split.set_resize_end_child(True)
         self.split.set_shrink_end_child(False)
         width = int(self.settings.get("sidebar_width", 280) or 280)
@@ -407,7 +388,7 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
                                 tooltip_text=_("Support Piklin"))
             coffee.add_css_class("pika-support")
             inner = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
-            inner.append(Gtk.Image(icon_name="emblem-favorite-symbolic",
+            inner.append(Gtk.Image(icon_name="pk-heart-fill-symbolic",
                                    pixel_size=15))
             inner.append(Gtk.Label(label=_("Support on Ko-fi")))
             coffee.set_child(inner)
@@ -491,6 +472,14 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
 
         header.pack_end(self.search)
 
+        # Where to look: the library as the sidebar shows it, to choose a folder
+        # or an album from instead of typing its name. Built when first opened.
+        self.where_btn = Gtk.MenuButton(icon_name="folder-symbolic",
+                                        tooltip_text=_("Search in a folder or album"))
+        self.where_btn.add_css_class("flat")
+        self.where_btn.set_create_popup_func(self._build_where)
+        header.pack_end(self.where_btn)
+
         # Filter: a pop-up of what to show, several
         # at once, inside whichever view is open.
         self.filter_btn = Gtk.MenuButton(label=_("Filter"),
@@ -529,15 +518,6 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         self.aspect_btn.connect("toggled", self._on_aspect_toggled)
         header.pack_start(self.aspect_btn)
 
-        # Create: what can be made out of the photos chosen, at the right.
-        self.create_btn = Gtk.ToggleButton(
-            icon_name="applications-graphics-symbolic",
-            tooltip_text=_("Create (Ctrl+Shift+C)"),
-            active=bool(self.settings.get("create_panel_open")))
-        self.create_btn.add_css_class("flat")
-        self.create_btn.connect("toggled",
-                                lambda b: self.show_create_panel(b.get_active()))
-        header.pack_end(self.create_btn)
 
         self.action_bar = Gtk.ActionBar()
         self.action_bar.add_css_class("pika-toolbar")
@@ -624,6 +604,7 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         self.content_stack.add_named(self.folder_view, "folder")
         self._build_people_view()
         self._build_events_view()
+        self.create_page = None
         # The library on a map: every photo that recorded where it was
         # taken, grouped into a pin per place. The map needs libshumate,
         # which a build may not carry; without it the rest of Piklin still
@@ -704,7 +685,7 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
 
         def add(key, label, icon, count=None, album_id=None, indent=0,
                 folder_id=None, smart_id=None, cover=None, placed=None,
-                count_key=None):
+                count_key=None, soon=False):
             if section_state["collapsed"]:
                 return None
             # A folder in the tree is purely organisational - there is no
@@ -759,6 +740,10 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
                 box.append(Gtk.Image(icon_name=icon))
             box.append(Gtk.Label(label=label, xalign=0.0, hexpand=True,
                                  ellipsize=3))
+            if soon:
+                tag = Gtk.Label(label=_("Coming Soon"))
+                tag.add_css_class("pika-soon")
+                box.append(tag)
             # A dot when the album is on the map: filled once every photo
             # has a place, hollow while only some do.
             if placed is not None:
@@ -914,16 +899,16 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
                 count_key="located")
         add("events", _("Events"), "x-office-calendar-symbolic")
         add("people", _("People"), "pk-user-symbolic")
+        add("create", _("Create"), "pk-sparkle-symbolic", soon=True)
         add("trash", _("Recently Deleted"), "user-trash-symbolic",
             counts.get("trash"), count_key="trash")
 
-        header(_("Types"))
+
+        header(_("Utilities"))
         add("videos", _("Videos"), "video-x-generic-symbolic",
             counts.get("videos"), count_key="videos")
         add("screenshots", _("Screenshots"), "video-display-symbolic",
             counts.get("screenshots"), count_key="screenshots")
-
-        header(_("Utilities"))
         add("hidden", _("Hidden"), "view-conceal-symbolic", counts.get("hidden"),
             count_key="hidden")
         add("duplicates", _("Duplicates"), "edit-copy-symbolic",
@@ -932,12 +917,6 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             counts.get("edited"), count_key="edited")
         add("imports", _("Imports"), "document-save-symbolic",
             counts.get("imports"), count_key="imports")
-        if counts.get("creations"):
-            # Only once there is something to find here: an empty row
-            # would be one more thing to explain on a new library.
-            add("creations", _("Creations"), "applications-graphics-symbolic",
-                counts.get("creations"))
-
         divider = Gtk.ListBoxRow(selectable=False, activatable=False,
                                  focusable=False)
         divider.add_css_class("pika-sidebar-divider")
@@ -1225,7 +1204,12 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             self.copy_percent.set_text("")
         return False
 
+    def _sync_after_local_work(self):
+        """The work on this computer is done: the sync that waited for it goes now."""
+        GLib.timeout_add_seconds(5, lambda: (self.autobackup._sync_tick(), False)[1])
+
     def _copy_finished(self):
+        self._sync_after_local_work()
         self.copy_card.set_visible(False)
         self.copy_stop.set_sensitive(True)
         self._copy_cancel = None
@@ -1817,6 +1801,9 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         if key == "events":
             self._show_events()
             return
+        if key == "create":
+            self._show_create()
+            return
         if key == "map":
             self._show_map()
             return
@@ -1882,7 +1869,7 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             "check-updates": lambda *_: self._check_updates(quiet=False),
             "rotate-cw": lambda *_: self._on_rotate(1),
             "rotate-ccw": lambda *_: self._on_rotate(-1),
-            "create": lambda *_: self.toggle_create_panel(),
+            "create": lambda *_: self.open_scope("create"),
         })
         for name, cb in actions.items():
             act = Gio.SimpleAction.new(name, None)
@@ -2262,74 +2249,22 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             pass
         self._backup_soon()
 
-    # ==================================================================
-    # Create
-    # ==================================================================
-    PANEL_MIN, PANEL_MAX = 260, 460
-
-    def _on_panel_width(self, paned, _pspec):
-        """Remember how wide Create was dragged, the way the sidebar is."""
-        if getattr(self, "_panel_moving", False) or not self.create_panel.get_visible():
-            return
-        width = max(0, paned.get_width() - paned.get_position())
-        if width < self.PANEL_MIN or width > self.PANEL_MAX:
-            return
-        if self._panel_save:
-            GLib.source_remove(self._panel_save)
-
-        def save():
-            self._panel_save = 0
-            self.settings.set("create_panel_width", width)
-            return False
-        self._panel_save = GLib.timeout_add(400, save)
-
-    def show_create_panel(self, on: bool) -> None:
-        import time as _time
-        on = bool(on)
-        want_sidebar = max(SIDEBAR_MIN, min(SIDEBAR_MAX,
-                           int(self.settings.get("sidebar_width", 280) or 280)))
-        keep = want_sidebar if not on else self.split.get_position()
-        self._panel_moving = True
-        self._panel_moved_at = _time.monotonic()
-        self.create_panel.set_visible(on)
-        if self.create_btn.get_active() != on:
-            self.create_btn.set_active(on)
-        self.settings.set("create_panel_open", on)
-        if on:
-            self.create_panel.refresh()
-
-        def place(done=False):
-            if on:
-                want = int(self.settings.get("create_panel_width", 320) or 320)
-                want = max(self.PANEL_MIN, min(self.PANEL_MAX, want))
-                total = self.create_split.get_width()
-                if total > want:
-                    self.create_split.set_position(total - want)
-            # The sidebar keeps whatever width it had: only a drag of its
-            # own edge may change it.
-            if self.split.get_position() != keep:
-                self.split.set_position(keep)
-            # The photos have less room now, or more: their columns are
-            # recounted and nothing is left scrolled sideways, or the
-            # first column stays hidden behind the sidebar.
-            try:
-                self.grid._fit_tiles()
-            except Exception:
-                pass
-            if done:
-                self._panel_moving = False
-            return False
-        GLib.idle_add(place)
-        GLib.timeout_add(120, place)
-        GLib.timeout_add(360, lambda: place(True))
-        # Closing it gives the sidebar back the width the user chose.
-        if not on:
-            GLib.timeout_add(420, lambda: (self.split.set_position(want_sidebar),
-                                           False)[1])
-
-    def toggle_create_panel(self) -> None:
-        self.show_create_panel(not self.create_panel.get_visible())
-
+    def _ensure_create(self):
+        """Create: for now a page that says it is coming soon."""
+        if self.create_page is None:
+            from .coming_soon import ComingSoonPage
+            self.create_page = ComingSoonPage(_("Create"))
+            self.content_stack.add_named(self.create_page, "createhome")
+        return self.create_page
+    
+    def _show_create(self):
+        self._scope = "create"
+        self._album_id = self._smart_id = None
+        self._person_id = self._event_id = None
+        self._ensure_create()
+        self._sync_content_view()
+        self._on_selection_changed(self.grid)
+    
     def open_scope(self, scope: str) -> None:
         """Stand somewhere in the sidebar, from anywhere."""
         for row in self.sidebar_list:
@@ -2342,33 +2277,13 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         self.grid.load(scope)
         self._show("grid")
 
-    def open_creation(self, kind: str, photos) -> None:
-        """Open the workshop on a new creation made of these photos."""
-        from ..video import is_video
-        from .create_panel import as_photo
-        photos = [as_photo(p) for p in photos]
-        photos = [p for p in photos if p["path"] and not is_video(p["path"])]
-        if not photos:
-            self._show_toast(_("Choose some photos first"))
-            return
-        self.creation_view.open(kind, photos)
-        self._show("create")
-
-    def open_saved_creation(self, photo_id: int) -> bool:
-        """Reopen the creation a photo came from. False when it is an
-        ordinary photo, so the viewer opens instead."""
-        from .. import creations as _creations
-        for c in _creations.all_creations(self.catalog):
-            if c.photo_id == photo_id:
-                self.creation_view.open(c.kind, [], creation=c)
-                self._show("create")
-                return True
-        return False
-
-    def _on_creation_saved(self, _view, photo_id):
-        self._refresh()
-        self.create_panel.refresh()
-        return False
+    def _go_to_sidebar_key(self, key: str):
+        """Open what a sidebar row shows, as if it had been clicked."""
+        for child in self.sidebar_list:
+            if getattr(child, "_key", None) == key:
+                self._show("grid")
+                self.sidebar_list.select_row(child)
+                return
 
     def _refresh(self):
         if self._scope == "map":
@@ -2411,11 +2326,6 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
 
     # -- photo flow ------------------------------------------------------
     def _on_photo_activated(self, _grid, item):
-        # In Creations, a picture Piklin made opens as the creation it
-        # is, ready to be changed - the photo behind it is one click
-        # further in, through the viewer, like any other photo.
-        if self._scope == "creations" and self.open_saved_creation(item.id):
-            return
         record = getattr(item, "record", None) or {}
         if record.get("camera") and not Path(item.path).exists():
             # Still on a camera or phone Piklin reaches through the system (a Mac's
@@ -2439,7 +2349,7 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         self._show("grid")
         # back on the photo that was open (arrows may have moved on from the
         # one clicked), not at the top of the list
-        if item is not None and self._scope not in ("map", "folder", "people", "events"):
+        if item is not None and self._scope not in ("map", "folder", "people", "events", "create"):
             self.grid.reveal_photo(item.id)
 
     def _open_fetched(self, item):
@@ -2466,6 +2376,20 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             self._show("video-editor")
             return
         self.editor.open(item.path, item.id)
+        self._show("editor")
+
+    def _edit_together(self, ids) -> None:
+        """Several photos in the editor at once: they lie in a row under the picture and share one edit."""
+        from ..video import is_video
+        rows = []
+        for i in ids:
+            row = self.catalog.photo(i)
+            if row is not None and row["path"] and not is_video(row["path"]):
+                rows.append((row["path"], row["id"]))
+        if len(rows) < 2:
+            self._show_toast(_("Choose two or more photos to edit them together."))
+            return
+        self.editor.open_many(rows)
         self._show("editor")
 
     def _active_editor(self):
@@ -2795,8 +2719,6 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         self._refresh()
 
     def _on_selection_changed(self, _grid):
-        if getattr(self, "create_panel", None) is not None:
-            self.create_panel.refresh()
         n = len(self.grid.selected_ids())
         # Recently Deleted always offers its two actions - on the selection,
         # or on everything when nothing is selected (Recover All / Delete All).
@@ -2967,6 +2889,9 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         if self._scope == "events":
             self.content_stack.set_visible_child_name("events")
             return
+        if self._scope == "create":
+            self.content_stack.set_visible_child_name("createhome")
+            return
         if self._summary_applies():
             self.summary.load(self.settings.get("group_by"), self.grid.filters())
             self.content_stack.set_visible_child_name("summary")
@@ -3116,7 +3041,7 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         if not entry.get_text().strip():
             from .. import smartsearch
             smartsearch.forget_preferences()
-        if entry.get_text().strip() and (self._scope in ("people", "events") or (
+        if entry.get_text().strip() and (self._scope in ("people", "events", "create") or (
                 self._scope == "ids" and (getattr(self, "_person_id", None) is not None
                                           or getattr(self, "_event_id", None) is not None))):
             # a search looks through all photos: from the list of people, or from
@@ -3150,6 +3075,40 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
                        smart_id=self._smart_id)
         self._sync_content_view()
         self._update_search_ui()
+
+    def _build_where(self, button):
+        if button.get_popover() is not None:
+            return
+        from .library_tree import LibraryTree
+        tree = LibraryTree(self.catalog, keep=False, own_search=False)      # what is typed in the search box narrows it
+        tree.set_size_request(340, 460)
+        tree.connect("choose", self._on_where)
+        pop = Gtk.Popover(child=tree)
+        pop.connect("map", lambda *_a: tree.narrow(self.search.get_text()))
+        self.search.connect("search-changed", lambda e: pop.get_mapped() and tree.narrow(e.get_text()))
+        button.set_popover(pop)
+
+    def _on_where(self, _tree, key, kind, ident, name):
+        """A folder or album chosen to search in: it joins what is typed, as a chip
+        like any other, so it can be combined (a person, a year) and taken away."""
+        from .. import smartsearch
+        if kind == "smart":
+            self.where_btn.popdown()
+            self._open_smart(ident)
+            return
+        if kind == "library":
+            self.where_btn.popdown()
+            self.search.set_text("")
+            return
+        word = {"favorites": "favorites"}.get(key)
+        if kind in ("folder", "album"):
+            smartsearch.prefer(name, kind)
+            word = f'"{name}"' if " " in name else name
+        if not word:
+            return
+        text = (self.search.get_text() or "").strip()
+        self.search.set_text((text + " " + word).strip())
+        self.search.set_position(-1)
 
     def _on_filter_toggled(self, _chk):
         if getattr(self, "_filters_syncing", False):
@@ -3360,6 +3319,16 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         # it was attached to instead of at the pointer.
         rect = Gdk.Rectangle()
         rect.x, rect.y, rect.width, rect.height = int(point.x), int(point.y), 1, 1
+        # A menu that does not fit between the pointer and the edge of the window would scroll. It is moved up
+        # until it fits whole instead (as a desktop menu is), and only scrolls where the window is shorter than it.
+        try:
+            height = anchor.get_height()
+            rows = sum(len(items) for items in sections if items)
+            need = rows * 34 + max(0, sum(1 for items in sections if items) - 1) * 12 + 28     # what the menu will want, before it is shown
+            if height and need and rect.y + need > height:
+                rect.y = max(4, height - need)
+        except Exception:
+            pass
         popover.set_pointing_to(rect)
 
         def on_closed(p):
@@ -3429,6 +3398,7 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
                 self.catalog.rename_folder(folder_id, name)
                 self.refresh_sidebar()
                 self._mirror_state()
+                self._reload_cards()
         dialog.connect("response", done)
         dialog.present(self)
 
@@ -3457,8 +3427,36 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
                 self._write_album_sidecar(album_id)
                 self.refresh_sidebar()
                 self._mirror_state()
+                self._reload_cards()
         dialog.connect("response", done)
         dialog.present(self)
+
+    def _on_rename_smart_album(self, smart_id, current_name):
+        dialog = Adw.AlertDialog(heading=_("Rename Smart Album"))
+        entry = Gtk.Entry(text=current_name, activates_default=True)
+        dialog.set_extra_child(entry)
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("rename", _("Rename"))
+        dialog.set_response_appearance("rename", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_close_response("cancel")
+        dialog.set_default_response("rename")
+        GLib.idle_add(lambda: (entry.grab_focus(), entry.select_region(0, -1), False)[2],
+                      priority=GLib.PRIORITY_HIGH)
+
+        def done(d, response):
+            name = entry.get_text().strip()
+            if response == "rename" and name:
+                self.catalog.rename_smart_album(smart_id, name)
+                self.refresh_sidebar()
+                self._mirror_state()
+                self._reload_cards()
+        dialog.connect("response", done)
+        dialog.present(self)
+
+    def _reload_cards(self):
+        """The album and folder cards on screen (inside a folder) show a name that just changed."""
+        if self._scope == "folder":
+            self.folder_view.load(getattr(self, "_folder_id", None))
 
     def _on_delete_folder(self, folder_id, name):
         dialog = Adw.AlertDialog(
@@ -3526,6 +3524,14 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
                     # than keep browsing a scope that no longer exists.
                     self._scope, self._album_id = "library", None
                     self.grid.load("library")
+                elif self._scope == "folder":
+                    shown = getattr(self, "_folder_id", None)
+                    if shown is not None and self.catalog.q1("SELECT 1 FROM folders WHERE id=?", (shown,)) is None:
+                        self._scope, self._album_id = "library", None          # the folder on screen went with it
+                        self.grid.load("library")
+                        self.content_stack.set_visible_child_name("grid")
+                    else:
+                        self.folder_view.load(shown)                           # its card is gone from the folder on screen
         dialog.connect("response", done)
         dialog.present(self)
 
@@ -3556,12 +3562,62 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         dialog.connect("response", done)
         dialog.present(self)
 
+    def _where_chooser(self, initial=None):
+        """"Put it in": the folders a new album or folder can go into, as a list
+        with the way to each ("Family › Trips"), and the top level first. Nothing
+        is asked while there are no folders. Returns the widget (or None) and
+        a function that says which folder was chosen (None: the top level)."""
+        rows = self.catalog.folders()
+        if not rows:
+            return None, lambda: initial
+        by_id = {r["id"]: r for r in rows}
+
+        def path(r):
+            names, seen = [r["name"]], {r["id"]}
+            while r["parent_id"] in by_id and r["parent_id"] not in seen:
+                r = by_id[r["parent_id"]]
+                seen.add(r["id"])
+                names.append(r["name"])
+            return " › ".join(reversed(names))
+        # in the order a person reads them: each folder followed by what is inside it
+        children: dict = {}
+        for r in rows:
+            children.setdefault(r["parent_id"], []).append(r)
+        ordered = []
+
+        def walk(parent, depth=0):
+            for r in children.get(parent, []):
+                ordered.append((r["id"], path(r)))
+                if depth < 12:
+                    walk(r["id"], depth + 1)
+        walk(None)
+        ids = [None] + [i for i, _p in ordered]
+        names = [_("Top level (no folder)")] + [p for _i, p in ordered]
+        drop = Gtk.DropDown.new_from_strings(names)
+        drop.set_selected(ids.index(initial) if initial in ids else 0)
+        label = Gtk.Label(label=_("Put it in"), xalign=0.0)
+        label.add_css_class("pika-dim")
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_top=6)
+        box.append(label)
+        box.append(drop)
+        return box, lambda: ids[drop.get_selected()]
+
+    def _dialog_body(self, entry, where):
+        """The name field, with "Put it in" under it when there is something to choose."""
+        if where is None:
+            return entry
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.append(entry)
+        box.append(where)
+        return box
+
     def _on_new_folder(self, parent_id=None):
         dialog = Adw.AlertDialog(heading=_("New Folder"),
                                  body=_("Give the folder a name."))
         entry = Gtk.Entry(placeholder_text=_("Folder name"),
                           activates_default=True)
-        dialog.set_extra_child(entry)
+        where, chosen_parent = self._where_chooser(parent_id)
+        dialog.set_extra_child(self._dialog_body(entry, where))
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("create", _("Create"))
         dialog.set_response_appearance("create",
@@ -3578,7 +3634,9 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             if response != "create":
                 return
             name = entry.get_text().strip() or _("Untitled Folder")
-            self.catalog.create_folder(name, parent_id=parent_id)
+            where_to = chosen_parent()
+            self._collapsed_folders.discard(where_to)       # open, so the new one is seen where it went
+            self.catalog.create_folder(name, parent_id=where_to)
             self.refresh_sidebar()
             self._mirror_state()
             if self._scope == "folder":
@@ -3711,7 +3769,9 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
     def _on_smart_right_click(self, gesture, _n, x, y, smart_id, name):
         self._show_context_menu(gesture.get_widget(), x, y, [
             [("edit", _("Edit Smart Album…"), None,
-              lambda: self._on_new_smart_album(smart_id=smart_id))],
+              lambda: self._on_new_smart_album(smart_id=smart_id)),
+             ("rename", _("Rename…"), None,
+              lambda: self._on_rename_smart_album(smart_id, name))],
             [("move-to", _("Move To…"), None,
               lambda: self._choose_move_target([("smart", smart_id, name)]))],
             [("delete", _("Delete Smart Album…"), None,
@@ -3749,7 +3809,8 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
                                  body=_("Give the album a name."))
         entry = Gtk.Entry(placeholder_text=_("Album name"),
                           activates_default=True)
-        dialog.set_extra_child(entry)
+        where, chosen_folder = self._where_chooser(folder_id)
+        dialog.set_extra_child(self._dialog_body(entry, where))
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("create", _("Create"))
         dialog.set_response_appearance("create",
@@ -3783,7 +3844,9 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             if response != "create":
                 return
             name = entry.get_text().strip() or _("Untitled Album")
-            aid = self.catalog.create_album(name, folder_id=folder_id)
+            where_to = chosen_folder()
+            self._collapsed_folders.discard(where_to)
+            aid = self.catalog.create_album(name, folder_id=where_to)
             if ids:
                 self.catalog.album_add(aid, ids)
             self._write_album_sidecar(aid)
@@ -3895,6 +3958,8 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
               lambda: self._on_rotate(-1, ids)),
              ("rotate-cw", _("Rotate Right"), "<Primary>r",
               lambda: self._on_rotate(1, ids))],
+            [("edit-together", _("Edit {count} Photos Together…").format(count=n_sel), None,
+              lambda: self._edit_together(ids))] if n_sel > 1 else [],
             [("copy-adjust", _("Copy Adjustments…"), None,
               lambda: self._copy_adjustments(item.path))] if single and getattr(item, "edited", False) else [],
             [("paste-adjust", _("Paste Adjustments") if single
@@ -3966,14 +4031,9 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         def apply(counts):
             if mine != self._recount_gen:
                 return False
-            had_creations = bool(self._counts.get("creations"))
             self._counts = counts
             self._update_footer(counts)
             self._style_trash(counts.get("trash"))
-            # Creations is a row that only exists once there is something
-            # in it, so its arrival needs the sidebar built again.
-            if bool(counts.get("creations")) != had_creations:
-                self.refresh_sidebar()
             return False
         threading.Thread(target=work, daemon=True, name="pika-counts").start()
 
@@ -4004,6 +4064,11 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             opener = {"folder": self._open_folder, "smart": self._open_smart}.get(
                 kind, self._open_album)
             sections.append([("open", _("Open"), None, lambda: opener(item_id))])
+            rename = {"album": self._on_rename_album, "folder": self._on_rename_folder,
+                      "smart": self._on_rename_smart_album}.get(kind)
+            if rename is not None:
+                sections.append([("rename", _("Rename…"), None,
+                                  lambda: rename(item_id, _name))])
         chosen = list(keys)
         albums = [(item_id, name) for kind, item_id, name in keys if kind == "album"]
         if albums and self.map_view is not None:
@@ -4020,7 +4085,11 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
                                                          label))])
         sections.append([("move-to", _("Move To…"), None,
                           lambda: self._choose_move_target(chosen))])
-        if len(albums) == 1 and len(keys) == 1:
+        folders = [(item_id, name) for kind, item_id, name in keys if kind == "folder"]
+        if len(folders) == 1 and len(keys) == 1:
+            sections.append([("delete", _("Delete Folder…"), None,
+                              lambda: self._on_delete_folder(*folders[0]))])
+        elif len(albums) == 1 and len(keys) == 1:
             sections.append([("delete", _("Delete Album…"), None,
                               lambda: self._on_delete_album(*albums[0]))])
         elif albums:
@@ -4060,6 +4129,11 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             return None
         row = self.catalog.q1("SELECT folder_id FROM albums WHERE id=?", (self._album_id,))
         return row["folder_id"] if row is not None else None
+
+    def _album_name(self) -> str:
+        row = self.catalog.q1("SELECT name FROM albums WHERE id=?", (self._album_id,)) if self._album_id is not None else None
+        return row["name"] if row is not None else ""
+
 
     def _make_album_cover(self, item):
         """Show this photo for the album in folders and wherever albums appear."""
@@ -4154,56 +4228,32 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
 
     # -- videos made smaller after they are copied --------------------------
     def _queue_video_shrink(self, paths):
-        """Videos just copied in as they are, to make smaller one at a time
-        in the background. The list is kept with the library, so what is
-        left carries on the next time Piklin opens."""
-        if paths:
-            queue = list(self.settings.get("videos_to_shrink") or [])
-            for p in map(str, paths):
-                if p not in queue:
-                    queue.append(p)
-            self.settings.set("videos_to_shrink", queue)
-        if self.settings.get("videos_to_shrink") and not getattr(self, "_shrinking", False):
-            self._shrinking = True
-            threading.Thread(target=self._shrink_videos, daemon=True).start()
+        """Videos just copied in as they are go to the one queue of videos to
+        make smaller (videowatch.py): one at a time, only while plugged in and
+        with nothing else busy, each checked before it replaces the original.
+        The list is kept with the library, so what is left carries on the next
+        time Piklin opens; a video the catalog does not know yet is asked about
+        again shortly."""
+        waiting = list(self.settings.get("videos_to_shrink") or [])
+        for p in map(str, paths):
+            if p not in waiting:
+                waiting.append(p)
+        if not waiting:
+            return
+        left = self.video_watch.add_paths(waiting) if self.video_watch is not None else waiting
+        self.settings.set("videos_to_shrink", left)
+        tries = getattr(self, "_shrink_tries", 0)
+        if left and tries < 20 and not getattr(self, "_shrink_retry", False):
+            self._shrink_tries = tries + 1
+            self._shrink_retry = True
 
-    def _shrink_videos(self):
-        from .. import system
-        system.lower_thread_priority()          # the encoder's threads inherit it
-        total = len(self.settings.get("videos_to_shrink") or [])
-        done = 0
-        while True:
-            # never while photos are still being copied: that comes first
-            while getattr(self, "_copy_cancel", None) is not None:
-                time.sleep(2)
-            queue = list(self.settings.get("videos_to_shrink") or [])
-            if not queue:
-                break
-            total = max(total, done + len(queue))
-            path = queue[0]
-            row = self.catalog.photo_by_path(path)
-
-            def progress(fraction, d=done, t=total):
-                GLib.idle_add(self._video_shrink_status, d + 1, t, fraction)
-            outcome = "gone"
-            if row is not None:
-                progress(0.0)
-                outcome = devicemod.shrink_video(self.library, self.catalog, row["id"],
-                                                 on_progress=progress)
-            remaining = [p for p in (self.settings.get("videos_to_shrink") or []) if p != path]
-            GLib.idle_add(self.settings.set, "videos_to_shrink", remaining)
-            done += 1
-            if outcome == "smaller":
-                GLib.idle_add(self._video_shrunk, row["id"])
-            time.sleep(0.5)                 # let the setting land before the next round
-        GLib.idle_add(self._video_shrink_done)
-
-    def _video_shrink_status(self, done, total, fraction):
-        self.footer_videos.set_text(
-            _("Making videos smaller — {done} of {total} ({percent}%)").format(
-                done=done, total=total, percent=int(max(0.0, min(1.0, fraction)) * 100)))
-        self.footer_videos.set_visible(True)
-        return False
+            def again():
+                self._shrink_retry = False
+                self._queue_video_shrink([])
+                return False
+            GLib.timeout_add_seconds(30, again)
+        elif not left:
+            self._shrink_tries = 0
 
     def _video_shrunk(self, photo_id):
         """A video now smaller: its tile follows the new file at once."""
@@ -4221,6 +4271,8 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
     def _on_video_space(self, st):
         """Optimize Videos, as it goes: in the footer, and once when it is done."""
         state = st.get("state")
+        if state in ("converted", "finished", "waiting") and self.autobackup._waiting == "videos":
+            self.autobackup.refresh_status()      # the backup's "waiting for the videos" counts them
         if state == "converting":
             self.footer_videos.set_text(
                 _("Optimizing videos — {done} of {total} ({percent}%)").format(
@@ -4232,23 +4284,18 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
                     "power": _("Optimizing videos waits until battery saver is off"),
                     "paused": _("Optimizing videos is paused"),
                     "reading": _("Optimizing videos waits until the backup has been read"),
+                    "busy": _("Optimizing videos waits until the disk is free"),
                     "others": _("Optimizing videos waits for its turn: another computer is doing it")}.get(st.get("why"))
             self.footer_videos.set_text(text or "")
             self.footer_videos.set_visible(bool(text))
         elif state == "converted":
             self._video_shrunk(st["id"])
         elif state == "finished":
+            self._sync_after_local_work()
             self.footer_videos.set_visible(False)
             if st.get("freed"):
                 self.toasts.add_toast(Adw.Toast(title=_("Videos optimized: {size} saved").format(
                     size=_fmt_size(st["freed"])), timeout=8))
-        return False
-
-    def _video_shrink_done(self):
-        self._shrinking = False
-        self.footer_videos.set_visible(False)
-        if self.settings.get("videos_to_shrink"):
-            self._queue_video_shrink([])    # added while the last one ran
         return False
 
     def _repair_video_sizes(self):
@@ -4300,6 +4347,9 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
         GLib.timeout_add_seconds(20, lambda: (self._repair_video_sizes(), False)[1])
         # videos left to make smaller when Piklin was last closed
         GLib.timeout_add_seconds(30, lambda: (self._queue_video_shrink([]), False)[1])
+        # and the duplicates: looked for once soon, then every half hour
+        GLib.timeout_add_seconds(90, lambda: (self._check_duplicates(), False)[1])
+        GLib.timeout_add_seconds(1800, self._check_duplicates)
         # What is on screen comes first and the rest follows in turns, so
         # opening Piklin never has the scan, the counts and the date fixes
         # all asking for the disk and the cores at the same moment.
@@ -4361,6 +4411,49 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             except Exception:
                 pass
         threading.Thread(target=work, daemon=True).start()
+
+    def _check_duplicates(self):
+        """Quietly, now and then: bring the fingerprints of the videos up to
+        date (once), then look at the photos that are new and see which are the
+        same picture. Never while photos are copying, videos are being made
+        smaller or a backup is running; it asks again later."""
+        if getattr(self, "_dupes_running", False) or getattr(self, "_dupe_cancel", None) is not None:
+            return GLib.SOURCE_CONTINUE
+        if (getattr(self, "_copy_cancel", None) is not None or self.autobackup._running
+                or self.video_watch._running):
+            return GLib.SOURCE_CONTINUE
+        self._dupes_running = True
+
+        def work():
+            from .. import dupescan, logs, system
+            system.lower_thread_priority()
+            found = 0
+            try:
+                if not self.settings.get("fingerprints_checked_v1"):
+                    found = dupescan.repair_fingerprints(self.catalog)
+                    GLib.idle_add(self.settings.set, "fingerprints_checked_v1", True)
+                dupescan.scan(self.catalog)
+            except Exception as exc:
+                logs.get("dupes").warning("The duplicate check stopped: %s", exc)
+            system.release_memory()
+
+            def done():
+                self._dupes_running = False
+                if found or self._scope == "duplicates":
+                    self.refresh_sidebar()
+                return False
+            GLib.idle_add(done)
+        threading.Thread(target=work, daemon=True, name="dupes-quiet").start()
+        return GLib.SOURCE_CONTINUE
+
+    def _backup_must_wait(self) -> str:
+        """Why a backup may not start now: photos are being copied in, or
+        videos are being made smaller. "" when it may."""
+        if getattr(self, "_copy_cancel", None) is not None:
+            return "copying"
+        if self.video_watch.working():
+            return "videos"
+        return ""
 
     def _backup_soon(self):
         if getattr(self, "autobackup", None) is not None:
@@ -4477,26 +4570,15 @@ class MainWindow(EventsActions, PeopleActions, SearchActions, DriveActions, Adw.
             return False
         if self.get_visible_dialog() is not None:
             return True                 # after the welcome is answered
-        dialog = Adw.AlertDialog(
-            heading=_("Keep a Copy of Your Photos"),
-            body=_("Piklin can back up your photos and videos to a drive, a NAS "
-                 "or a cloud service. Once one is connected, new photos, "
-                 "videos and edits are copied there automatically.\n\n"
-                 "Nothing leaves your computer unless you choose where."))
-        # Stacked buttons read bottom-up, so "Not Now" is added first to end
-        # up last, under the three choices.
-        dialog.add_response("later", _("Not Now"))
-        dialog.add_response("rclone", _("Cloud Service"))
-        dialog.add_response("webdav", _("NAS or WebDAV Server"))
-        dialog.add_response("local", _("Folder or Drive"))
-        dialog.set_close_response("later")
+        from .backup_offer import BackupOffer
+        dialog = BackupOffer()
 
         def done(_d, response):
             self.settings.set("backup_onboarding_done", True)
             if response in ("local", "webdav", "rclone"):
                 settings = self._open_settings("remotes")
                 settings._on_add_remote(None, response)
-        dialog.connect("response", done)
+        dialog.connect("answer", done)
         dialog.present(self)
         return False
 

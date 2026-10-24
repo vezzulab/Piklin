@@ -30,9 +30,10 @@ case "$ARCH" in
 esac
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
+SRC="${PIKLIN_SRC:-$ROOT}"                  # what is packed: the whole project, or the public edition (tools/public_edition.py)
 TOOLS="$HERE/appimage-cache"
 OWNER="$(id -u):$(id -g)"
-VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$ROOT/piklin/app.py")"
+VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$SRC/piklin/app.py")"
 say() { printf '\033[1;36m==>\033[0m [%s] %s\n' "$ARCH" "$*"; }
 
 ls "$HERE/$MEDIA"/wheels/av-*.whl >/dev/null 2>&1 \
@@ -42,7 +43,10 @@ for f in "appimagetool-$APPARCH.AppImage" "runtime-$APPARCH" excludelist; do
 done
 
 say "Piklin $VERSION in Ubuntu 24.04"
-docker run --rm --platform "linux/$ARCH" -v "$ROOT":/src -w /src \
+MOUNT_SRC=()
+[ "$SRC" != "$ROOT" ] && MOUNT_SRC=(-v "$SRC":/pub:ro -e PIKLIN_SRC=/pub)
+[ -n "${PIKLIN_BUILD_ID:-}" ] && MOUNT_SRC+=(-e PIKLIN_BUILD_ID)
+docker run --rm --platform "linux/$ARCH" -v "$ROOT":/src "${MOUNT_SRC[@]}" -w /src \
     -e ARCH="$ARCH" -e APPARCH="$APPARCH" -e TRIPLE="$TRIPLE" -e VERSION="$VERSION" -e MAINTAINER \
     -e DEBIAN_FRONTEND=noninteractive ubuntu:24.04 bash -euc "
   apt-get update -qq

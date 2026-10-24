@@ -21,6 +21,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
+APPSRC="${PIKLIN_SRC:-$ROOT}"                  # what is packed: the whole project, or the public edition (tools/public_edition.py)
 MAC="$HERE/macos"
 CACHE="$HERE/macos-cache"
 SRC="$CACHE/src"
@@ -29,7 +30,7 @@ MIN_MACOS="${MIN_MACOS:-11.0}"
 SIGN_ID="${SIGN_ID:--}"
 PYVER=3.14
 PYFULL=3.14.6
-VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$ROOT/piklin/app.py")"
+VERSION="$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$APPSRC/piklin/app.py")"
 HOST_PY=/opt/homebrew/opt/python@3.14/bin/python3.14
 APP="$ROOT/dist/Piklin.app"
 C="$APP/Contents"
@@ -223,9 +224,9 @@ done
 
 # ------------------------------------------------------------ Piklin itself
 say "Application"
-cp -R "$ROOT/piklin" "$C/Resources/app/"
-for d in fonts icons models; do cp -R "$ROOT/data/$d" "$C/Resources/app/data/"; done
-BUILD_ID="$(git -C "$ROOT" rev-parse --short=12 HEAD 2>/dev/null || echo local)-$(date -u +%Y%m%d%H%M%S)"
+cp -R "$APPSRC/piklin" "$C/Resources/app/"
+for d in fonts icons models; do cp -R "$APPSRC/data/$d" "$C/Resources/app/data/"; done
+BUILD_ID="${PIKLIN_BUILD_ID:-$(git -C "$APPSRC" rev-parse --short=12 HEAD 2>/dev/null || echo local)}-$(date -u +%Y%m%d%H%M%S)"
 printf '%s\n' "$BUILD_ID" > "$C/Resources/app/piklin/BUILD_ID"
 find "$C/Resources" "$PV/lib" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 # Compiled once here: a signed app cannot write its own bytecode later.
@@ -236,8 +237,8 @@ say "Icon and Info.plist"
 ICONSET="$CACHE/Piklin.iconset"
 rm -rf "$ICONSET" && mkdir -p "$ICONSET"
 for s in 16 32 128 256 512; do
-  cp "$ROOT/data/icons/piklin-$s.png" "$ICONSET/icon_${s}x${s}.png"
-  d=$((s * 2)); [ -f "$ROOT/data/icons/piklin-$d.png" ] && cp "$ROOT/data/icons/piklin-$d.png" "$ICONSET/icon_${s}x${s}@2x.png"
+  cp "$APPSRC/data/icons/piklin-$s.png" "$ICONSET/icon_${s}x${s}.png"
+  d=$((s * 2)); [ -f "$APPSRC/data/icons/piklin-$d.png" ] && cp "$APPSRC/data/icons/piklin-$d.png" "$ICONSET/icon_${s}x${s}@2x.png"
 done
 iconutil -c icns "$ICONSET" -o "$C/Resources/Piklin.icns"
 
@@ -275,7 +276,7 @@ printf 'APPL????' > "$C/PkgInfo"
 say "Third-party licences"
 DOC="$C/Resources/third-party"
 mkdir -p "$DOC"
-cp "$ROOT/NOTICE.md" "$ROOT/LICENSE" "$DOC/"
+cp "$APPSRC/NOTICE.md" "$APPSRC/LICENSE" "$DOC/"
 for a in $ARCHS; do
   for info in "$C/Resources/runtime-$a"/site-packages/*.dist-info; do
     name="$(basename "$info" .dist-info)"
@@ -288,7 +289,7 @@ for a in $ARCHS; do
   cp "$CACHE/$a/ffmpeg-configure.log" "$DOC/ffmpeg/configure-$a.log" 2>/dev/null || true
 done
 # Every typeface Piklin carries brings its licence with it.
-for d in "$ROOT"/data/fonts/*/; do
+for d in "$APPSRC"/data/fonts/*/; do
   cp "$d"*.txt "$DOC/$(basename "$d")-LICENCE.txt" 2>/dev/null || true
 done
 

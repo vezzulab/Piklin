@@ -14,6 +14,7 @@ alone.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -119,10 +120,45 @@ def _expected_av1(profile: Profile, size: int, dur: float, width: int, height: i
     return int(min(size * 0.6, (bps + AUDIO_BPS) * dur / 8))
 
 
+def _candidate(r, root: Path, prof: Profile, av1: bool, elsewhere: set,
+               min_saving: int, min_share: float) -> Candidate | None:
+    """The candidate for one catalog row, or None when it is not worth
+    making smaller (or is not Piklin's to touch)."""
+    try:
+        Path(r["path"]).resolve().relative_to(root)
+    except ValueError:
+        return None                       # outside the library: never touched
+    if str(Path(r["path"]).resolve()) in elsewhere:
+        return None
+    if already_smaller(root, r["path"], int(r["bytes"] or 0)):
+        return None
+    dur = float(r["duration"] or 0)
+    size = int(r["bytes"] or 0)
+    if dur <= 0 or size <= 0:
+        return None
+    current = size * 8 / dur
+    if av1:
+        if current < prof.av1_min_bps:
+            return None
+        target = 0                         # by quality, not by a rate
+        expected = _expected_av1(prof, size, dur, int(r["width"] or 0),
+                                 int(r["height"] or 0), current)
+    else:
+        target = min(cap_for(r["width"], r["height"], prof), int(current * 0.8))
+        expected = int((target + AUDIO_BPS) * dur / 8)
+    saving = size - expected
+    if saving < min_saving or saving < size * min_share:
+        return None
+    return Candidate(r["id"], r["path"], size, dur, int(r["width"] or 0),
+                     int(r["height"] or 0), target, expected, prof.id)
+
+
 def plan(catalog, originals: Path | str, min_saving: int = MIN_SAVING_BYTES,
-         min_share: float = MIN_SAVING_SHARE, profile: str = "balanced") -> list[Candidate]:
+         min_share: float = MIN_SAVING_SHARE, profile: str = "balanced",
+         skip: dict | None = None) -> list[Candidate]:
     """The library's videos worth making smaller, the most space for the
-    least work first."""
+    least work first. ``skip`` is what an earlier try learned (see
+    ``skipped``): those videos are not tried again."""
     root = Path(originals).resolve()
     prof = profile_for(profile)
     av1 = av1_available()
@@ -132,35 +168,149 @@ def plan(catalog, originals: Path | str, min_saving: int = MIN_SAVING_BYTES,
     for r in catalog.q(
             "SELECT id, path, bytes, duration, width, height FROM photos "
             "WHERE duration > 0 AND trashed_at IS NULL AND paired_to IS NULL"):
-        try:
-            Path(r["path"]).resolve().relative_to(root)
-        except ValueError:
-            continue                      # outside the library: never touched
-        if str(Path(r["path"]).resolve()) in elsewhere:
+        if skip and skipped(skip, r["id"], int(r["bytes"] or 0)):
             continue
-        if already_smaller(root, r["path"], int(r["bytes"] or 0)):
-            continue
-        dur = float(r["duration"] or 0)
-        size = int(r["bytes"] or 0)
-        if dur <= 0 or size <= 0:
-            continue
-        current = size * 8 / dur
-        if av1:
-            if current < prof.av1_min_bps:
-                continue
-            target = 0                     # by quality, not by a rate
-            expected = _expected_av1(prof, size, dur, int(r["width"] or 0),
-                                     int(r["height"] or 0), current)
-        else:
-            target = min(cap_for(r["width"], r["height"], prof), int(current * 0.8))
-            expected = int((target + AUDIO_BPS) * dur / 8)
-        saving = size - expected
-        if saving < min_saving or saving < size * min_share:
-            continue
-        out.append(Candidate(r["id"], r["path"], size, dur, int(r["width"] or 0),
-                             int(r["height"] or 0), target, expected, prof.id))
+        cand = _candidate(r, root, prof, av1, elsewhere, min_saving, min_share)
+        if cand is not None:
+            out.append(cand)
     out.sort(key=lambda c: c.saving / c.work, reverse=True)
     return out
+
+
+def plan_paths(catalog, originals: Path | str, paths, profile: str = "balanced",
+               min_saving: int = 5 * 1024 * 1024) -> tuple[list[Candidate], list[str]]:
+    """The candidates among these files (a few videos just copied in), and
+    the paths the catalog does not know yet: they are asked about again."""
+    root = Path(originals).resolve()
+    prof = profile_for(profile)
+    av1 = av1_available()
+    elsewhere = {str((root / rel).resolve()) for rel in incoming(root)}
+    found, unknown = [], []
+    for path in paths:
+        row = catalog.photo_by_path(str(path))
+        if row is None:
+            unknown.append(str(path))
+            continue
+        cand = _candidate(row, root, prof, av1, elsewhere, min_saving, MIN_SAVING_SHARE)
+        if cand is not None:
+            found.append(cand)
+    return found, unknown
+
+
+# -- what an earlier try learned ---------------------------------------------------
+# A video that came out no smaller, or that could not be made smaller, is not
+# tried again on every look through the library: each try is minutes of the
+# computer's work. Remembered by the video and its size, so a changed file is
+# looked at again.
+RETRY_FAILED_DAYS = 7
+
+
+def note_skipped(skip: dict, photo_id: int, size: int, result: str, now: float | None = None) -> dict:
+    import time
+    skip = dict(skip or {})
+    skip[str(photo_id)] = {"size": int(size), "result": result,
+                           "at": time.time() if now is None else now}
+    return skip
+
+
+def skipped(skip: dict, photo_id: int, size: int, now: float | None = None) -> bool:
+    import time
+    e = (skip or {}).get(str(photo_id))
+    if not isinstance(e, dict) or int(e.get("size") or -1) != int(size):
+        return False
+    if e.get("result") == "kept":
+        return True                        # it would not save enough: that stays true
+    now = time.time() if now is None else now
+    return now - float(e.get("at") or 0) < RETRY_FAILED_DAYS * 86400
+
+
+# -- the same, at a backup destination -----------------------------------------------
+LEFTOVER_EVERY = 86400.0           # a destination is looked through this often
+LEFTOVER_AGE = 86400.0             # and only what has lain there this long goes
+_HALF_MADE = re.compile(r"^\.(?P<stem>.+)\.smaller\.mp4\.part$")
+
+
+def stray_parts(index: dict, now: float | None = None, older_than: float = LEFTOVER_AGE) -> list[str]:
+    """The half-made files in a destination's listing (path -> (size, time)):
+    an encode that was cut short (".X.smaller.mp4.part") whose video is beside
+    it, or a file whose upload was cut short ("X.jpg.part") whose finished
+    copy is beside it. Only in Originals, and only those old enough that nobody
+    is writing them."""
+    import time
+    now = time.time() if now is None else now
+    names: dict[str, set] = {}
+    for rel in index:
+        folder, _, name = rel.rpartition("/")
+        names.setdefault(folder, set()).add(name)
+    out = []
+    for rel, (_size, stamp) in index.items():
+        if not rel.startswith("Originals/") or not rel.endswith(".part"):
+            continue
+        if now - float(stamp or 0) < older_than:
+            continue
+        folder, _, name = rel.rpartition("/")
+        beside = names.get(folder, set())
+        m = _HALF_MADE.match(name)
+        if m:
+            stem = m.group("stem")
+            if any(n != name and (n == stem or n.startswith(stem + ".") or n.startswith(stem + "-"))
+                   for n in beside):
+                out.append(rel)
+        elif name[:-len(".part")] in beside:
+            out.append(rel)
+    return sorted(out)
+
+
+def clean_destination(root, backend, now: float | None = None, index: dict | None = None) -> int:
+    """Delete the half-made files found at a backup destination, at most once
+    a day for each. Returns how many went."""
+    import json
+    import time
+    root = Path(root)
+    now = time.time() if now is None else now
+    path = root / ".cache" / "videos" / "leftovers.json"
+    try:
+        done = json.loads(path.read_text())
+    except (OSError, ValueError):
+        done = {}
+    key = backend.remote.id
+    if now - float(done.get(key) or 0) < LEFTOVER_EVERY:
+        return 0
+    gone = 0
+    for rel in stray_parts(backend.listing() if index is None else index, now):
+        try:
+            if backend.delete(rel):
+                gone += 1
+        except Exception:
+            continue
+    done[key] = now
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(done))
+    except OSError:
+        pass
+    return gone
+
+
+def clear_leftovers(originals: Path | str, older_than: float = 86400.0,
+                    now: float | None = None) -> int:
+    """Remove the half-made files an encode or a copy leaves when Piklin is
+    closed in the middle of it. Only those older than ``older_than`` seconds:
+    one being written now is younger. Returns how many went."""
+    import time
+    now = time.time() if now is None else now
+    gone = 0
+    for p in Path(originals).rglob(".*"):
+        if not p.is_file() or not (p.name.endswith((".smaller.mp4.part", ".incoming"))
+                                   or p.name.endswith(".smaller.mp4")):
+            continue                        # only hidden ones: rglob(".*") finds nothing else
+        try:
+            if now - p.stat().st_mtime >= older_than:
+                p.unlink()
+                gone += 1
+        except OSError:
+            continue
+    return gone
 
 
 def _has_audio(path) -> bool:
@@ -253,9 +403,11 @@ def _frames(path, times, side=320, around=0):
     return shots
 
 
-def verify(src, out, min_similarity: float = 0.80) -> bool:
-    """Whether ``out`` is the same video as ``src``: as long, with sound when
-    it had sound, and looking the same at its start, middle and end."""
+def frame_scores(src, out, same_sound: bool = False) -> list[float] | None:
+    """How alike two videos look at their start, middle and end: the best match of
+    each of five moments (0..1), or None when they cannot be the same video - not as
+    long, or ``out`` has no sound where ``src`` had (with ``same_sound``, any
+    difference in having sound)."""
     from .video import stream_info
     from .quality import ssim
     # How long each is, as the file says. Frames divided by the frame rate is
@@ -266,14 +418,16 @@ def verify(src, out, min_similarity: float = 0.80) -> bool:
         a, b = stream_info(src) or {}, stream_info(out) or {}
         da, db = float(a.get("duration") or 0), float(b.get("duration") or 0)
     if da <= 0 or db <= 0 or abs(da - db) > max(0.5, da * 0.01):
-        return False
-    if _has_audio(src) and not _has_audio(out):
-        return False
+        return None
+    sound_a, sound_b = _has_audio(src), _has_audio(out)
+    if (sound_a and not sound_b) or (same_sound and sound_a != sound_b):
+        return None
     times = [da * 0.1, da * 0.3, da * 0.5, da * 0.7, max(0.0, da * 0.9 - 0.1)]
     fa, fb = _frames(src, times, around=2), _frames(out, times)
     if not fa or not fb or len(fa) != len(fb):
-        return False
+        return None
     import numpy as np
+    scores = []
     for xs, y in zip(fa, fb):
         # A phone's upright video is stored sideways with a rotation flag;
         # its frames decode sideways while the smaller copy is written
@@ -293,9 +447,15 @@ def verify(src, out, min_similarity: float = 0.80) -> bool:
                         :, np.linspace(0, z.shape[1] - 1, x.shape[1]).astype(int)]
                 h, w = min(x.shape[0], z.shape[0]), min(x.shape[1], z.shape[1])
                 best = max(best, ssim(np.stack([x[:h, :w]] * 3, -1), np.stack([z[:h, :w]] * 3, -1)))
-        if best < min_similarity:
-            return False
-    return True
+        scores.append(float(best))
+    return scores
+
+
+def verify(src, out, min_similarity: float = 0.80) -> bool:
+    """Whether ``out`` is the same video as ``src``: as long, with sound when
+    it had sound, and looking the same at its start, middle and end."""
+    scores = frame_scores(src, out)
+    return scores is not None and min(scores) >= min_similarity
 
 
 # -- the backup: the large original set apart, then let go ---------------------
@@ -952,7 +1112,7 @@ def apply_incoming(library, catalog, backend, index: dict, now: float | None = N
 
 # -- doing it --------------------------------------------------------------------
 def convert_one(library, catalog, candidate: Candidate, remotes, now: float | None = None,
-                on_progress=None, cancel=None) -> str:
+                on_progress=None, cancel=None, pause=None) -> str:
     """Make one planned video smaller, with everything that goes with it:
     the check that the smaller copy is the same video, the original kept in
     the library when no backup keeps it, and the record other backups and
@@ -978,7 +1138,7 @@ def convert_one(library, catalog, candidate: Candidate, remotes, now: float | No
         cancel=cancel, bit_rate=candidate.bit_rate,
         verify=((lambda a, b: verify(a, b, prof.av1_min_similarity)) if av1 else verify),
         set_apart=hold, fmt="av1" if av1 else "mp4", crfs=prof.av1_crfs if av1 else (),
-        max_side=prof.max_side, preset=prof.preset)
+        max_side=prof.max_side, preset=prof.preset, pause=pause)
     if result == "smaller":
         row = catalog.photo(candidate.photo_id)
         new = Path(row["path"]) if row is not None else old
@@ -1009,7 +1169,7 @@ def open_turn(library, remotes, turns: list) -> str:
     return "ok"
 
 
-def make_smaller(library, catalog, remotes, item: dict, cancel=None, on_progress=None):
+def make_smaller(library, catalog, remotes, item: dict, cancel=None, on_progress=None, pause=None):
     """One waiting video, from start to finish, however many computers share
     the destination: it takes the turn (one computer at a time does this),
     reads what the others have done there, decides from that, makes the video
@@ -1032,7 +1192,7 @@ def make_smaller(library, catalog, remotes, item: dict, cancel=None, on_progress
                          int(row["height"] or 0), int(item["bit_rate"]), 0,
                          item.get("profile") or "balanced")
         result = convert_one(library, catalog, cand, remotes,
-                             on_progress=on_progress, cancel=cancel)
+                             on_progress=on_progress, cancel=cancel, pause=pause)
         if result == "smaller":
             after = catalog.photo(item["id"])
             freed = cand.bytes - int(after["bytes"] or 0) if after is not None else 0

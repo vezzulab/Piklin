@@ -376,6 +376,7 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
             format=_(spec["label"])))
     total = edit.output_duration() or 1.0
     inp = av.open(str(path))
+    out = None
     try:
         vin = inp.streams.video[0]
         vin.thread_type = "AUTO"
@@ -397,8 +398,10 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
             # Asked for by quality, not by bits per second: the encoder spends
             # what each scene needs, which is how it gets smaller than a cap.
             # tune=0 favours what the eye sees over a number.
+            # lp: how many cores it may take (left to itself it takes all of them)
+            from . import system
             vout.options = {"crf": str(int(crf or 32)), "preset": str(int(preset or 6)),
-                            "svtav1-params": "tune=0"}
+                            "svtav1-params": f"tune=0:lp={system.encoder_threads()}"}
         else:
             # about 0.12 bit per pixel per frame: 1080p30 near 7.5 Mbit/s
             vout.bit_rate = int(ow * oh * fps * 0.12)
@@ -555,6 +558,15 @@ def _export_movie(av, path, tmp, edit, segs, fmt, max_side, keep_location,
             on_progress(1.0)
     finally:
         inp.close()
+        if out is not None:
+            # A cancelled or failed encode closes here, while its file is still
+            # there: left to the garbage collector it kept the encoder (about a
+            # gigabyte for AV1) until some later time, and then failed to
+            # finish a file that was already deleted.
+            try:
+                out.close()
+            except Exception:
+                pass
 
 
 def _export_gif(av, path, tmp, edit, segs, max_side, on_progress, cancel):

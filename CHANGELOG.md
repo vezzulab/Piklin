@@ -1,12 +1,74 @@
 # Changelog
 
-## Next
+## 2.0.7
+
+### Videos
+- **Making videos smaller no longer slows the window.** The work is done by a helper process of its own instead of inside Piklin: scrolling, opening photos and typing stay smooth while a long video is being made smaller (measured: the longest stall of the window went from about a tenth of a second to about 16 thousandths), and when it ends or is cancelled its memory goes with it. Before, each video that was cancelled or failed kept about a gigabyte of memory until Piklin was closed
+- **Photos you copy in come first.** While photos are being copied in, the video being made smaller stops where it is and goes on afterwards, and it uses the disk gently so a copy does not crawl. It also leaves two of the computer's cores free
+- **It starts at once and goes one video at a time.** After opening Piklin the videos begin within seconds: they no longer wait for the whole backup to be read first. Before each one Piklin still reads what the other computers have done, so a video is never made smaller twice
+- **The videos made smaller and the videos copied in on import are one queue.** The two lines of work that could get in each other's way (and the one that did not check its result) are now a single one: only while the computer is plugged in, checked before an original is replaced
+- **A video that comes out no smaller, or that fails, is not tried again** every few hours; it is looked at again only if the file changes (a failure, after a week)
+- **The half-made file is hidden while the video is made.** The scan of the library had listed it as another video, a copy of the one being replaced
+- **Videos made smaller no longer show as duplicates of other files.** 981 videos kept the fingerprint of the large video they replaced (880 of them videos Piklin itself had made smaller) and 172 showed in Duplicates because of it. The fingerprints are put right once, and a video that is replaced takes the fingerprint of the new file
+- On a Mac, the helper no longer shows as a second Piklin in the Dock
+
+### Backup and sync
+- **The backup does not run while photos are being copied in or videos are being made smaller**, and it says why, with the numbers: "Backup waits until the videos are made smaller — 70 videos left, about 4 h 40 min", updated after each video. When photos finish copying, or the videos are done, the backup goes at once
+- **The work on this computer comes first, then the sync, and both matter.** After 20 minutes of waiting, the video being made finishes, no other starts, and the sync and the backup go; then the videos go on. Another computer sees what this one did in minutes, not at the end of a queue that may take hours
+- **A waiting that is only a mark is never for good.** If something stays marked as busy, the videos go on after ten minutes (never while a backup is really sending), and the log says what it was
+- **Half-made files are not sent to the backup**, and the ones that were already there are cleared: once a day, each file left by an encode or an upload that was cut short (more than a day old, and only when its finished file is beside it) is removed from the destination
+- A video replaced while it was being sent no longer stops the backup for a file: what the backup cannot send waits for the next one
+- While the videos are waiting for their turn, the footer says so in words ("waits until the disk is free") instead of showing nothing
+- **The log says what the videos are doing:** why they wait, when one starts, when it ends. An error in the timer of the videos is written down and it goes on, instead of stopping them without a word
+
+### Duplicates
+- **Duplicates are found by what the picture is, not only by the file.** Piklin now looks at every photo and compares it with the others: the same photo saved again, made smaller, sent through a chat or kept as a preview is a duplicate even though the files differ. The comparison is strict (a shot a moment later, a frame of a burst, an edited version, a screenshot and a RAW file next to its JPEG are never taken for the same picture) and it was measured on a library of 21,000 photos
+- **The same video kept twice is found too:** the camera's original and the smaller copy, or a video imported again with another name. Two videos are the same when they are as long, have the same shape, were not made at different moments and look alike at five moments of their length. A video Piklin saved as "<name>_edited" is a file you made on purpose and is never taken for a copy. Merging keeps the one with the larger picture, and then the larger file
+- Exact copies of videos and photos are still read from the first byte to the last
+- **It looks by itself.** A few minutes after opening, and then every half hour, quietly and only when the computer is not copying photos, making videos smaller or backing up. A photo already looked at is not looked at again (a second pass takes a tenth of a second); one that changes is
+- The Duplicates page and Preferences say what they do now: "the same picture, whatever the file", and the count of photos looked at
+- Merging keeps the copy you have invested in (favourite, edited, in albums, the largest file) and the others go to Recently Deleted: nothing is erased
+
+### Sidebar and windows
+- **The Piklin mark is at the very top of the sidebar**, in the bar beside the window buttons, and the row it took is for the menus
+- **New Album and New Folder ask where it goes:** "Put it in" lists the folders with their way ("Family › Trips"), the top level first, and chooses the folder you were in; the folder it goes into opens so you see it
+- The Support button has its heart
+- Create shows "Coming Soon" in the sidebar and on its page: it is being made better and cannot be used yet
 
 ### Events
 - **Events:** a new section in the sidebar. Piklin finds the days and trips in your photos by itself, from when and where they were taken (a pause of six hours, or a change of city, starts a new one), names them ("Miami · 22 March 2025", "Christmas 2024"), picks a cover photo and shows them as cards by year. Click one to open its photos; right-click to rename it, join it to the earlier or later event, or make an album of it; inside one, right-click a photo and choose "Start a New Event Here" to split it. What you rename, join or split is kept when events are found again. The search box finds events by name.
 
 ### Metadata
 - The viewer's Info panel is open by default and shows **all** the metadata of a photo or video, always under the basics: every EXIF tag with its name and its meaning in words (flash, metering, white balance...), the full GPS block, IPTC and XMP written by other programs (titles, keywords, ratings, copyright), the text inside a PNG, the colour profile, the RAW sensor data, and for a video its container, every stream (codec, profile, size, frame rate, colour range, bit rate, audio) and its tags. It can be searched and copied. Closing the panel is remembered.
+
+### Search
+- A folder or an album asked for in other words is found: any order of the words, the beginning of a word, a letter more or less ("navidad 2018 aniela" is the folder and the person, each once)
+- A place chooser shows the library's tree (All Photos, Favourites, the folders with their albums) wherever you have to say where from
+- The photo picker browses folders and albums, keeps what you marked while you move between them, and shows a visible mark; "Mark every photo of what is open" takes a whole album or folder, and it says how many are marked
+
+### Alerts and dialogs
+- **Every alert follows one formula:** one answer does the thing and is the black pill (Delete is the red one), the others are soft grey pills with air between them, a short heading and one or two plain sentences. A single way of building them, and a test that fails if one does not follow it
+- **Keep a copy of your photos** (the offer the first time) is built as cards, like the first steps, with the same words and the same look, and a quiet way out
+
+### Photo editor
+- **Edit several photos together:** they sit in a row under the picture, all take the edit of the first one, and what you change is changed for all; the panel says how many share it and clears only their adjustments, never the photos
+- The tools are in rows that are always whole (six in two rows of three, four in two of two)
+
+### Windows
+- The Windows installer of this version follows separately; what changed for Windows is here.
+- **Phones and cameras on Windows:** a phone or a camera plugged in is read through Windows' own portable devices, listed and copied from like a card. Photos are never removed from a phone Windows reaches this way, whatever is asked
+- **Piklin updates itself on Windows:** the open Piklin downloads the installer and checks that it is signed by Vezzu Studio, asks permission in the window you clicked in, and installs it once Piklin has closed; then it opens again
+- Drives other than the one Windows is on are recognised (a card, a stick, a network share) and named as Explorer names them; the paths of a library that came from another system are read whatever the slash
+- Windows' clock ticks every millisecond while Piklin runs: a 60 frames per second video no longer arrives late on one frame of seven
+
+### Problems
+- **A crash is told at the next start.** A marker exists only while Piklin runs; if it is found at the start, the last run did not close properly (a crash, a force quit, a power cut) and the log says so, with the stack of the crash when a library of the toolkit or a video codec killed it
+- A freeze of the window is noted with where it was stuck
+- A photo export says its result where it cannot be missed, and keeps the dialog open only when something failed
+- A video whose length is not yet known shows none instead of a wrong 0:00
+
+### Create
+- Create is coming soon. It shows in the sidebar with the label "Coming Soon" and nothing in it opens yet
 
 ## 2.0.6
 

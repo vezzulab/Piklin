@@ -60,3 +60,4 @@ Piklin runs on the GTK 4, libadwaita, GLib and Python provided by your distribut
 ## Screenshots
 
 The pictures and the video in the screenshots were created by Vezzu Studio for this purpose. They contain no third-party content.
+
